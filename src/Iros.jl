@@ -16,7 +16,6 @@ module Iros
 
 using Reexport
 
-using IrosDefaults
 @reexport using IrosBase
 @reexport using IrosSpectral
 # @reexport using IrisFloquet
