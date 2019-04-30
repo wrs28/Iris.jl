@@ -1,0 +1,9 @@
+name = "Iros"
+uuid = "573aa7f4-91c9-40a8-9c96-241bf90c799c"
+repo = "https://github.com/wrs28/Iros.jl.git"
+
+[deps]
+IrosBase = "dc165baa-4ec7-4ba6-9649-6ad7c8c72a04"
+IrosSpectral = "b2ce5262-62bd-11e9-037d-a93ccda198f7"
+Pardiso = "46dd5b70-b6fb-5a00-ae2d-e8fea33afaf2"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
