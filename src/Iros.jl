@@ -18,9 +18,9 @@ using Reexport
 
 @reexport using IrosBase
 @reexport using IrosSpectral
-@reexport using IrisFloquet
-@reexport using IrisScattering
-@reexport using IrisSALT
-@reexport using IrisSCPA
+@reexport using IrosFloquet
+@reexport using IrosScattering
+@reexport using IrosSALT
+@reexport using IrosSCPA
 
 end # module
