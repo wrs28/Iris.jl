@@ -17,21 +17,21 @@ module Iros
 using Reexport
 
 include("Base/IrosBase.jl")
-@reexport using IrosBase
+@reexport using .IrosBase
 
 include("Spectral/IrosSpectral.jl")
-@reexport using IrosSpectral
+@reexport using .IrosSpectral
 
 include("Floquet/IrosFloquet.jl")
-@reexport using IrosFloquet
+@reexport using .IrosFloquet
 
 include("Scattering/IrosScattering.jl")
-@reexport using IrosScattering
+@reexport using .IrosScattering
 
 include("SALT/IrosSALT.jl")
-@reexport using IrosSALT
+@reexport using .IrosSALT
 
 include("SCPA/IrosSCPA.jl")
-@reexport using IrosSCPA
+@reexport using .IrosSCPA
 
 end # module

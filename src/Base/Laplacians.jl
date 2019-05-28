@@ -5,9 +5,11 @@ module Laplacians
 
 export Laplacian
 
+include("../Defaults/IrosDefaults.jl")
+
 import ..Shapes
 using ..Simulations
-using IrosDefaults
+using .IrosDefaults
 using SparseArrays
 
 

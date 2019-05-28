@@ -16,13 +16,15 @@ update_dielectric!,
 update_pump!,
 update_sim!
 
+include("../Defaults/IrosDefaults.jl")
+
 using ..Boundaries
 using ..Domains
 using ..Lattices
 using ..Shapes
 using ..Tessellations
+using .IrosDefaults
 using Combinatorics
-using IrosDefaults
 using LinearAlgebra
 using ProgressMeter
 using RecipesBase

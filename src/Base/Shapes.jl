@@ -5,10 +5,11 @@ Definitions of various shapes.
 """
 module Shapes
 
-include("../Defaults/IrisDefaults.jl")
+include("../Defaults/IrosDefaults.jl")
 
 using Formatting
 using LinearAlgebra
+using .IrosDefaults
 using NLopt
 using RecipesBase
 using StaticArrays

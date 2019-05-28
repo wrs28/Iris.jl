@@ -20,8 +20,10 @@ AbstractBL,
 AbstractRealBL,
 AbstractRealBC
 
+include("../Defaults/IrosDefaults.jl")
+
 using ..Shapes
-using IrosDefaults
+using .IrosDefaults
 using RecipesBase
 
 abstract type AbstractBC end

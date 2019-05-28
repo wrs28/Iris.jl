@@ -3,9 +3,12 @@ module IrosScattering
 export solve_scatter,
 green_fn
 
-using ArnoldiMethodWrapper
-using IrosBase
-using IrosSpectral
+include("../Base/IrosBase.jl")
+include("../Spectral/IrosSpectral.jl")
+
+using .IrosBase
+using .IrosSpectral
+using ArnoldiMethodTransformations
 using LinearAlgebra
 using SparseArrays
 

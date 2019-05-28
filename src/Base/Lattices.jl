@@ -5,8 +5,10 @@ for defining discrete Cartesian and Polar lattice grids used in Iris.
 """
 module Lattices
 
+include("../Defaults/IrosDefaults.jl")
+
 using Formatting
-using IrosDefaults
+using .IrosDefaults
 using RecipesBase
 using StaticArrays
 

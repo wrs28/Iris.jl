@@ -17,11 +17,13 @@ Dielectric,
 Waveguide,
 Lead
 
+include("../Defaults/IrosDefaults.jl")
+
 using ..Boundaries
 using ..DielectricFunctions
 using ..Lattices
 using ..Shapes
-using IrosDefaults
+using .IrosDefaults
 using LinearAlgebra
 using RecipesBase
 

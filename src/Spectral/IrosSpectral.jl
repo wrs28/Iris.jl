@@ -10,11 +10,14 @@ eig_kl,
 eig_cf,
 eig_knl
 
+include("../Base/IrosBase.jl")
+include("../Defaults/IrosDefaults.jl")
+
+using .IrosBase
+using .IrosDefaults
 using ArnoldiMethod
-using ArnoldiMethodWrapper
+using ArnoldiMethodTransformations
 using Distributed
-using IrosBase
-using IrosDefaults
 using LinearAlgebra
 using NonlinearEigenproblems
 using ProgressMeter
