@@ -1,0 +1,3 @@
+module IrosSALT
+
+end # module
