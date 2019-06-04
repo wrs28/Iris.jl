@@ -5,17 +5,17 @@ for defining discrete Cartesian and Polar lattice grids used in Iris.
 """
 module Lattices
 
-include("../Defaults/IrosDefaults.jl")
-
+include("../Defaults.jl")
+using .Defaults
 using Formatting
-using .IrosDefaults
 using RecipesBase
 using StaticArrays
 
 export Lattice,
 Cartesian,
 Polar,
-get_lattice_index
+get_lattice_index,
+LatticeError
 
 
 struct Lattice
@@ -54,7 +54,7 @@ struct Lattice
         return new(:Cartesian,dx, dy, θ, x0, y0, NaN, NaN, NaN, sinθ, cosθ, v1, v2, origin)
     end
 
-    function PolarLat(dr::Number,dθ::Number,θ::Number=0,r0::Number=dr/2,x0::Number=0,y0::Number=0)
+    function PolarLat(dr::Number,dθ::Number,θ::Number=0,x0::Number=0,y0::Number=0,r0::Number=dr/2)
         return new(:Polar,NaN,NaN,θ,x0,y0,dr,dθ,r0)
     end
 
@@ -77,15 +77,15 @@ struct Lattice
         elseif lat.type==:Polar
             if !get(io, :sub, false)
                 print(io, "Polar Lattice", ": \n",
-                "\tdr=", fmt("3.2f",lat.dr), ", dθ=", fmt("3.2f",lat.dθ), ", ∠", fmt("3.2f",(mod2pi(lat.θ))*180/π), "°\n",
+                "\tdr=", fmt("3.2f",lat.dr), ", dθ=", fmt("3.2f",lat.dθ), "=π/", fmt("3.1f",π/lat.dθ),", ∠", fmt("3.2f",(mod2pi(lat.θ))*180/π), "°\n",
                 "\torigin: (", fmt("3.2f",lat.x0), ", ", fmt("3.2f",lat.y0), ")")
             elseif !get(io, :sub1, false)
                 print(io,
-                "\n\tdr=", fmt("3.2f",lat.dr), ", dθ=", fmt("3.2f",lat.dθ), ", ∠", fmt("3.2f",(mod2pi(lat.θ))*180/π), "°\n",
+                "\n\tdr=", fmt("3.2f",lat.dr), ", dθ=", fmt("3.2f",lat.dθ), "=π/", fmt("3.1f",π/lat.dθ),", ∠", fmt("3.2f",(mod2pi(lat.θ))*180/π), "°\n",
                 "\torigin: (", fmt("3.2f",lat.x0), ", ", fmt("3.2f",lat.y0), ")")
             else
                 print(io,
-                "\n\t\tdr=", fmt("3.2f",lat.dr), ", dθ=", fmt("3.2f",lat.dθ), ", ∠", fmt("3.2f",(mod2pi(lat.θ))*180/π), "°\n",
+                "\n\t\tdr=", fmt("3.2f",lat.dr), ", dθ=", fmt("3.2f",lat.dθ), "=π/", fmt("3.1f",π/lat.dθ),", ∠", fmt("3.2f",(mod2pi(lat.θ))*180/π), "°\n",
                 "\t\torigin: (", fmt("3.2f",lat.x0), ", ", fmt("3.2f",lat.y0), ")")
             end
         else
@@ -155,14 +155,23 @@ function (lat::Lattice)(x::AbstractArray,y::AbstractArray)
     return X,Y
 end
 
-function (lat::Lattice)(;dx=lat.dx, dy=lat.dy, θ=lat.θ, x0=lat.x0, y0=lat.y0, dr=lat.dr, dθ=lat.dθ, r0=lat.r0)
+function (lat::Lattice)(;dx=lat.dx, dy=lat.dy, θ=lat.θ, x0=lat.x0, y0=lat.y0, dr=lat.dr, dθ=lat.dθ, r0=dr/2)
     if lat.type==:Cartesian
         return Cartesian(dx,dy,θ,x0,y0)
     else
-        return Polar(dr,dθ,θ,r0,x0,y0)
+        return Polar(dr,dθ,θ,x0,y0,r0)
     end
 end
 
+
+struct LatticeError <: Exception
+    lat::Lattice
+end
+function Base.showerror(io::IO,err::LatticeError)
+    print(io,"LatticeError: unrecognized lattice type ")
+    print(io, err.lat.type)
+    print(io, ", must be one of :Cartesian or :Polar")
+end
 
 """
     get_lattice_index(lattice,x,y) -> nx,ny

@@ -5,7 +5,7 @@ Contains the default parameters for constructing and plotting a simulation.
 
 This gathers the important constants in one spot for easy modification by the user.
 """
-module IrosDefaults
+module Defaults
 
 # shape defaults
 const NL_NORMAL_ALGORITHM = :LD_MMA # NLopt algorithm used to find the normal, tangent, and distance to shape perimeter

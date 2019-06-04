@@ -1,5 +1,3 @@
-# TODO: nearest neighbor for polar
-
 """
     module Domains
 
@@ -7,7 +5,7 @@ for constructing domains to be fed to Simulation
 """
 module Domains
 
-const SURFACE_BUFFER_FACTOR = 0/4 # abandoned for now
+# const SURFACE_BUFFER_FACTOR = 0/4 # abandoned for now
 
 export Domain,
 Cavity,
@@ -17,13 +15,12 @@ Dielectric,
 Waveguide,
 Lead
 
-include("../Defaults/IrosDefaults.jl")
-
+include("../Defaults.jl")
+using .Defaults
 using ..Boundaries
 using ..DielectricFunctions
 using ..Lattices
 using ..Shapes
-using .IrosDefaults
 using LinearAlgebra
 using RecipesBase
 
@@ -93,6 +90,8 @@ struct Domain
 
     x::Array{Float64,1}
     y::Array{Float64,1}
+    r::Array{Float64,1}
+    θ::Array{Float64,1}
     ij::Array{CartesianIndex{2},1}
     ε::Array{ComplexF64,1}
     F::Array{Float64,1}
@@ -117,19 +116,45 @@ struct Domain
         dielectric::TDF=DielectricFunction(),
         pump::TPF=PumpFunction();
         name::Symbol=:anonymous,
-        align::Bool=false) where
+        fit::Bool=false,
+        align::Bool=fit
+        ) where
         {TDF<:DielectricFunction,
         TPF<:PumpFunction}
 
         bnd = boundary
         lat = align ? lattice(θ=boundary.shape.θ,x0=boundary.shape.x0,y0=boundary.shape.y0) : lattice
+        if fit
+            if lat.type==:Cartesian
+                if !(typeof(bnd.shape)<:AbstractQuadrilateral)
+                    @warn "`fit` with Cartesian lattice only applies to Squares or Rectangles. ignoring."
+                else
+                    r = Rectangle(bnd.shape)
+                    nx = ceil(Int,r.a/lat.dx)
+                    ny = ceil(Int,r.b/lat.dy)
+                    isodd(nx) ? nothing : nx += 1
+                    isodd(ny) ? nothing : ny += 1
+                    lat=lat(dx=r.a/nx,dy=r.b/ny)
+                end
+            elseif lat.type==:Polar
+                if !(typeof(bnd.shape)<:Union{Circle,Annulus})
+                    @warn "`fit` with Polar lattice only applies to Circle or Annulus. ignoring. "
+                else
+                    nr = ceil(Int,bnd.shape.R/lat.dr)
+                    nθ = ceil(Int,2π/lat.dθ)
+                    lat=lat(dr=bnd.shape.R/nr,dθ=2π/nθ)
+                end
+            else
+                throw(LatticeError(lat))
+            end
+        end
 
         ijminmax = generate_spanning_indices(bnd,lat)
         x,y = generate_xy(bnd,lat,ijminmax...)
         interior = generate_interior(bnd,lat,x,y)
         t1,t2,t3,t4 = generate_translations(lat,ijminmax...)
         surface = generate_surface!(interior,lat,bnd,t1,t2,t3,t4,x,y)
-        nnxm,nnxp,nnym,nnyp = generate_neighbor_indices(interior)
+        nnxm,nnxp,nnym,nnyp = generate_neighbor_indices(interior,lat)
         corner = generate_corner(x,y,bnd,lat,surface,interior)
 
         inds_keep = findall(interior)
@@ -144,11 +169,13 @@ struct Domain
         nnym = nnym[inds_keep]
         nnyp = nnyp[inds_keep]
         inds_keep = map(z->z+CartesianIndex(ijminmax[1]-1,ijminmax[3]-1),inds_keep)
+        r = map(z->lat.r0 + z[1]*lat.dr, inds_keep)
+        θ = map(z->lat.θ  + z[2]*lat.dθ, inds_keep)
 
         return new(
             type,name,bnd,lat,
             dielectric,pump,
-            x,y,inds_keep,dielectric.(x,y),pump.(x,y),
+            x,y,r,θ,inds_keep,dielectric.(x,y),pump.(x,y),
             interior,bulk,surface,corner,
             nnxm,nnxp,nnym,nnyp
             )
@@ -265,11 +292,17 @@ end
 
 # polar spanning indices
 function generate_spanning_indices_polar(bnd::Boundary, lat::Lattice)
-    i,j = get_lattice_index(lat,bnd.shape.x0,bnd.shape.y0)
-    imin, imax = floor(Int,i), ceil(Int,i)
-    jmin, jmax = floor(Int,j), ceil(Int,j)
-    imin ≤ 0 ? imin = 0 : nothing
-    jmin ≤ 0 ? jmin = 0 : nothing
+    @assert typeof(bnd.shape)<:Union{Circle,Annulus} "polar coordinates only for circular outermost region"
+    @assert lat.x0==bnd.shape.x0 && lat.y0==bnd.shape.y0 "polar lattice origin $((lat.x0,lat.y0)) must be same as circle origin $((bnd.shape.x0,bnd.shape.y0))"
+    # i,j = get_lattice_index(lat,bnd.shape.x0,bnd.shape.y0)
+    # imin, imax = floor(Int,i), ceil(Int,i)
+    # jmin, jmax = floor(Int,j), ceil(Int,j)
+    # imin ≤ 0 ? imin = 0 : nothing
+    # jmin ≤ 0 ? jmin = 0 : nothing
+    imin = 0
+    imax = 1
+    jmin = 0
+    jmax = floor(Int,2π/lat.dθ)
 
     flag_rmin = flag_rmax = flag_θmin = flag_θmax = true
     init_flag = false
@@ -369,7 +402,7 @@ function generate_surface!(interior::BitArray,lat::Lattice,bnd::Boundary,t1,t2,t
              !bnd.shape(t4[1][k],t4[2][k])
             )
         if surface_temp[k]
-            n,t,d = normal_distance(bnd.shape,x[k],y[k])
+            # n,t,d = normal_distance(bnd.shape,x[k],y[k])
             # if d[1]<min(lat.dx*SURFACE_BUFFER_FACTOR,lat.dy*SURFACE_BUFFER_FACTOR)
                 # interior[k] = false
                 # surface[k] = false
@@ -386,7 +419,17 @@ function generate_surface!(interior::BitArray,lat::Lattice,bnd::Boundary,t1,t2,t
 end
 
 
-function generate_neighbor_indices(interior)
+function generate_neighbor_indices(interior,lat::Lattice)
+    if lat.type==:Cartesian
+        return generate_neighbor_indices_cartesian(interior)
+    elseif lat.type==:Polar
+        return generate_neighbor_indices_polar(interior)
+    else
+        throw(LatticeError(lat))
+    end
+end
+
+function generate_neighbor_indices_cartesian(interior)
     NN = LinearIndices(interior) - reshape(cumsum(.!interior[:]),size(interior)...)
     nnxm = vcat(zeros(Int,1,size(interior,2)),NN[1:end-1,:])
     nnxp = vcat(NN[2:end,:],zeros(Int,1,size(interior,2)))
@@ -395,11 +438,31 @@ function generate_neighbor_indices(interior)
     return nnxm,nnxp,nnym,nnyp
 end
 
+function generate_neighbor_indices_polar(interior)
+    NN = LinearIndices(interior) - reshape(cumsum(.!interior[:]),size(interior)...)
+    nnrm = vcat(zeros(Int,1,size(interior,2)),NN[1:end-1,:])
+    nnrp = vcat(NN[2:end,:],zeros(Int,1,size(interior,2)))
+    nnθm = hcat(NN[:,end],NN[:,1:end-1])
+    nnθp = hcat(NN[:,2:end],NN[:,1])
+    return nnrm,nnrp,nnθm,nnθp
+end
+
 
 function generate_corner(x,y,bnd::Boundary,lat::Lattice,surface,interior)
+    if lat.type==:Cartesian
+        return generate_corner_cartesian(x,y,bnd,lat,surface,interior)
+    elseif lat.type==:Polar
+        return generate_corner_polar(x,y,bnd,lat,surface,interior)
+    else
+        throw(LatticeError(lat))
+    end
+end
+
+
+function generate_corner_cartesian(x,y,bnd::Boundary,lat::Lattice,surface,interior)
     corner = falses(size(surface)...)
     c = bnd.shape.corners
-    dx = lat.type==:Cartesian ? hypot(lat.dx,lat.dy)*(1+SURFACE_BUFFER_FACTOR) : lat.dr
+    dx = hypot(lat.dx,lat.dy)#*(1+SURFACE_BUFFER_FACTOR)
     if length(c)>0
         for k ∈ CartesianIndices(surface)
             if surface[k]
@@ -422,6 +485,9 @@ function generate_corner(x,y,bnd::Boundary,lat::Lattice,surface,interior)
     return corner
 end
 
+function generate_corner_polar(x,y,bnd,lat,surface,interior)
+    return falses(size(surface)...)
+end
 
 @recipe function f(d::Domain)
     aspect_ratio --> 1

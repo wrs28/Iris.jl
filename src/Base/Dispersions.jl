@@ -16,7 +16,7 @@ struct TwoLevelSystem <: AbstractDispersion
     γp::Float64
     ω₀::Float64
 
-    TwoLevelSystem(D₀=0., k₀=Inf, γp=1e8, ω₀=k₀) = new(float(D₀), float(k₀), float(γp), float(ω₀))
+    TwoLevelSystem(D₀=0, k₀=Inf, γp=1e8, ω₀=k₀) = new(D₀, k₀, γp, ω₀)
     TwoLevelSystem(tls::TwoLevelSystem; D₀=tls.D₀, k₀=tls.k₀, γp=tls.γp, ω₀=tls.ω₀) = TwoLevelSystem(tls.D₀, tls.k₀, tls.γp, tls.ω₀)
 
     function Base.show(io::IO, tls::TwoLevelSystem)
@@ -29,14 +29,14 @@ struct TwoLevelSystem <: AbstractDispersion
     end
 end
 
-(tls::TwoLevelSystem)(k::Number) = tls.γp/(k-tls.k₀+1im*tls.γp)
-function (tls::TwoLevelSystem)(k::Number,ks::Array,ψ::Array)
-    γk = tls(k)
+(tls::TwoLevelSystem)(ω::Number) = tls.γp/(ω-tls.ω₀+1im*tls.γp)
+function (tls::TwoLevelSystem)(ω::Number,ωs::Array,ψ::Array)
+    γω = tls(ω)
     h = zeros(Float64,size(ψ,1))
-    for i ∈ eachindex(ks)
-        h += abs2(ks[i])*abs2.(ψ[:,i])
+    for i ∈ eachindex(ωs)
+        h += abs2(ωs[i])*abs2.(ψ[:,i])
     end
-    return γk./(1 .+ h)
+    return γω./(1 .+ h)
 end
 
 end # module

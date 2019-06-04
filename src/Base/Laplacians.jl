@@ -5,11 +5,10 @@ module Laplacians
 
 export Laplacian
 
-include("../Defaults/IrosDefaults.jl")
-
+include("../Defaults.jl")
+using .Defaults
 import ..Shapes
 using ..Simulations
-using .IrosDefaults
 using SparseArrays
 
 
@@ -66,7 +65,9 @@ struct Laplacian{TK,TKX,TKY}
 		println(io,"\tM, Mf (mass): $(nnz(lap.M)) nonzeros")
 	end
 end
-
+# r = lds.r0 + ij[i][1]*lds.dr
+# r_half₋ = lds.r0 + (ij[i][1]-1/2)*lds.dr
+# r_half₊ = lds.r0 + (ij[i][1]+1/2)*lds.dr
 
 function laplacian_x(sim::Simulation,k::Real)
 	N = sum(sim.interior)

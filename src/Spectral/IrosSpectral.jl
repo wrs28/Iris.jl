@@ -11,10 +11,10 @@ eig_cf,
 eig_knl
 
 include("../Base/IrosBase.jl")
-include("../Defaults/IrosDefaults.jl")
+include("../Defaults.jl")
 
+using .Defaults
 using .IrosBase
-using .IrosDefaults
 using ArnoldiMethod
 using ArnoldiMethodTransformations
 using Distributed

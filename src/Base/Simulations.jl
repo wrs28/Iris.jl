@@ -8,7 +8,7 @@ Exports are `Simulation`, `smooth!`, `update_dielectric!`, `update_pump`
 """
 module Simulations
 
-const N_NEAREST_SITES_FOR_TESSELLATION = 30
+const N_NEAREST_SITES_FOR_TESSELLATION = 11
 
 export Simulation,
 smooth!,
@@ -16,14 +16,13 @@ update_dielectric!,
 update_pump!,
 update_sim!
 
-include("../Defaults/IrosDefaults.jl")
-
+include("../Defaults.jl")
+using .Defaults
 using ..Boundaries
 using ..Domains
 using ..Lattices
 using ..Shapes
 using ..Tessellations
-using .IrosDefaults
 using Combinatorics
 using LinearAlgebra
 using ProgressMeter
@@ -86,7 +85,8 @@ struct Simulation
 	# site properties, other
 	x::Array{Float64,1}
 	y::Array{Float64,1}
-    ε::Array{ComplexF64,1}
+	r::Array{Float64,1}
+	ε::Array{ComplexF64,1}
     F::Array{Float64,1}
 	name::Array{Symbol,1}
 	distance::Array{Array{Float64,1},1}
@@ -103,16 +103,20 @@ struct Simulation
 	link_weight::Array{Float64,1}
 	link_half_x::Array{Float64,1}
 	link_half_y::Array{Float64,1}
+	link_half_r::Array{Float64,1}
 	link_x_bool::BitArray{1}
 	link_y_bool::BitArray{1}
+	link_r_bool::BitArray{1}
 
 	# self-energy terms
 	self_index::Array{Int,1}
 	self_weight::Array{Float64,1}
 	self_half_x::Array{Float64,1}
 	self_half_y::Array{Float64,1}
+	self_half_r::Array{Float64,1}
 	self_x_bool::BitArray{1}
 	self_y_bool::BitArray{1}
+	self_r_bool::BitArray{1}
 
 	Simulation(sim::Simulation) = Simulation(sim.domains;kwargs...)
     Simulation(domains...; kwargs...) = Simulation(domains; kwargs...)
@@ -121,7 +125,7 @@ struct Simulation
 		domain_index = Int[]
 		nnxm, nnxp, nnym, nnyp = Int[], Int[], Int[], Int[]
 		name = Symbol[]
-		x, y = Float64[], Float64[]
+		x, y, r, θ = Float64[], Float64[], Float64[], Float64[]
 		ij = CartesianIndex{2}[]
 		ε, F = ComplexF64[], Float64[]
 		interior, surface, bulk = BitArray([]), BitArray([]), BitArray([])
@@ -129,13 +133,13 @@ struct Simulation
 
 		verbose ? println("\nBuilding Simulation...") : nothing
 		verbose ? println("\tCombining $(length(domains)) domains") : nothing
-			append_domains!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,ij,ε,F,interior,bulk,surface,corner,domains)
+			append_domains!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,r,θ,ij,ε,F,interior,bulk,surface,corner,domains)
 
 			removed = get_sites_to_remove(domains,domain_index,x,y)
 
 			trim_nn!(nnxm,nnxp,nnym,nnyp,removed,bulk)
 
-			remove_sites!((domain_index,name,x,y,ij,ε,F,interior,bulk,surface,corner,nnxm,nnxp,nnym,nnyp),removed)
+			remove_sites!((domain_index,name,x,y,r,θ,ij,ε,F,interior,bulk,surface,corner,nnxm,nnxp,nnym,nnyp),removed)
 
 		verbose ? println("\tComputing $(sum(surface)) normals and extending domain") : nothing
 			lattice_wall, domain_wall = generate_lattice_and_domain_wall!(interior,bulk,surface,corner,domains,domain_index,x,y,ij)
@@ -144,7 +148,7 @@ struct Simulation
 
 			exterior = falses(length(x))
 
-			append_exterior!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,ij,ε,F,interior,bulk,surface,corner,
+			append_exterior!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,r,θ,ij,ε,F,interior,bulk,surface,corner,
 				exterior,domain_wall,lattice_wall,normal,tangent,distance,side,exterior_from,exterior_side,exterior_x,exterior_y)
 
 			not_this_domains_exterior = Array{Array{Int,1}}(undef,length(domains))#falses(length(x),length(domains))
@@ -168,15 +172,19 @@ struct Simulation
 		link_weight = Array{Float64}(undef,length(link_start))
 		link_half_x = Array{Float64}(undef,length(link_start))
 		link_half_y = Array{Float64}(undef,length(link_start))
+		link_half_r = Array{Float64}(undef,length(link_start))
 		link_x_bool = falses(length(link_start))
 		link_y_bool = falses(length(link_start))
+		link_r_bool = falses(length(link_start))
 
 		self_index = Array{Int}(undef,surface_self_size+corner_self_size)
 		self_weight = Array{Float64}(undef,length(self_index))
 		self_half_x = Array{Float64}(undef,length(self_index))
 		self_half_y = Array{Float64}(undef,length(self_index))
+		self_half_r = Array{Float64}(undef,length(self_index))
 		self_x_bool = falses(length(self_index))
 		self_y_bool = falses(length(self_index))
+		self_r_bool = falses(length(self_index))
 
 		link_fiduciary = falses(length(link_start))
 		self_fiduciary = falses(length(self_index))
@@ -185,13 +193,13 @@ struct Simulation
 			surface,lattice_wall,domain_wall,
 			domain_index,nnxm,nnxp,nnym,nnyp,ij,
 			exterior_from,exterior_side,not_this_domains_exterior,exterior_inds,
-			x,y,ε,F,name,distance,normal,tangent,side,
+			x,y,r,ε,F,name,distance,normal,tangent,side,
 			# tessellation,
 			Ref(false),
 			link_start,link_stop,link_weight,
-			link_half_x,link_half_y,link_x_bool,link_y_bool,
+			link_half_x,link_half_y,link_half_r,link_x_bool,link_y_bool,link_r_bool,
 			self_index,self_weight,
-			self_half_x,self_half_y,self_x_bool,self_y_bool)
+			self_half_x,self_half_y,self_half_r,self_x_bool,self_y_bool,self_r_bool)
 
 		verbose ? println("\tLinking $(sum(sim.bulk)) bulk points") : nothing
 			link_bulk!(link_fiduciary,sim,verbose)
@@ -278,7 +286,7 @@ end
 
 
 # take individually defined domains and concatenate all relevant data
-function append_domains!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,ij,ε,F,interior,bulk,surface,corner,domains)
+function append_domains!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,r,θ,ij,ε,F,interior,bulk,surface,corner,domains)
 	count = 1
 	for d ∈ domains
 		append!(domain_index,fill(count,length(d.x)))
@@ -289,6 +297,8 @@ function append_domains!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,ij,ε,F,inter
 		append!(name,fill(d.name,length(d.x)))
 		append!(x,d.x)
 		append!(y,d.y)
+		append!(r,d.r)
+		append!(θ,d.θ)
 		append!(ij,d.ij)
 		append!(ε,d.ε)
 		append!(F,d.F)
@@ -298,7 +308,7 @@ function append_domains!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,ij,ε,F,inter
 		append!(corner,d.corner)
 		count += 1
 	end
-	return domain_index, nnxm, nnxp, nnym, nnyp, name, x, y, ij, ε, F, interior, bulk, surface, corner
+	return nothing
 end
 
 
@@ -470,7 +480,7 @@ end
 
 
 # add the exterior points to the data previously concatenated from the given domains
-function append_exterior!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,ij,ε,F,interior,bulk,surface,corner,
+function append_exterior!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,r,θ,ij,ε,F,interior,bulk,surface,corner,
 		exterior,domain_wall,lattice_wall,normal,tangent,distance,side,exterior_from,
 		exterior_side,exterior_x,exterior_y)
 
@@ -501,6 +511,7 @@ function append_exterior!(domain_index,nnxm,nnxp,nnym,nnyp,name,x,y,ij,ε,F,inte
 	prepend!(exterior_side,zeros(Int,length(x)))
 	append!(x,exterior_x)
 	append!(y,exterior_y)
+	append!(r,NaN*ones(Float64,length(exterior_x)))
 	return nothing
 end
 
@@ -509,10 +520,12 @@ end
 function link_bulk!(link_fiduciary::BitArray,sim::Simulation,verbose::Bool)
 
 	domains,x,y,ij = sim.domains, sim.x, sim.y, sim.ij
-
-	DX, DY = map(z->z.lattice.dx,domains), map(z->z.lattice.dy,domains)
-	V1, V2 = map(z->z.lattice.v1,domains), map(z->z.lattice.v2,domains)
 	lattices = map(z->z.lattice,domains)
+
+	DX, DY = map(z->z.dx,lattices), map(z->z.dy,lattices)
+	V1, V2 = map(z->z.v1,lattices), map(z->z.v2,lattices)
+	DR, DΘ = map(z->z.dr,lattices), map(z->z.dθ,lattices)
+
 	ijlat = map((x,y)->(x,lattices[y]),ij[sim.interior],sim.domain_index[sim.interior])
 
 	pg = Progress(sum(sim.bulk),.1,"\t\t")
@@ -527,6 +540,7 @@ function link_bulk!(link_fiduciary::BitArray,sim::Simulation,verbose::Bool)
 			ds = sim.domain_index[i]
 			lds = lattices[ds]
 			dx, dy = DX[ds], DY[ds]
+			dr, dθ = DR[ds], DΘ[ds]
 
 			sim.link_start[c] = i
 			sim.link_start[c+1] = i
@@ -544,15 +558,30 @@ function link_bulk!(link_fiduciary::BitArray,sim::Simulation,verbose::Bool)
 				sim.link_stop[c+2] = findfirst(isequal((ij[i]+CartesianIndex( 0,-1),lds)),ijlat)
 				sim.link_stop[c+3] = findfirst(isequal((ij[i]+CartesianIndex( 0, 1),lds)),ijlat)
 			end
-            sim.link_weight[c    ] = 1/dx^2
-			sim.link_weight[c + 1] = 1/dx^2
-			sim.link_weight[c + 2] = 1/dy^2
-			sim.link_weight[c + 3] = 1/dy^2
+
+			if lds.type==:Cartesian
+				sim.link_weight[c  ] = 1/dx^2
+				sim.link_weight[c+1] = 1/dx^2
+				sim.link_weight[c+2] = 1/dy^2
+				sim.link_weight[c+3] = 1/dy^2
+			elseif lds.type==:Polar
+				sim.link_weight[c  ] = 1/dr^2
+				sim.link_weight[c+1] = 1/dr^2
+				sim.link_weight[c+2] = 1/dθ^2
+				sim.link_weight[c+3] = 1/dθ^2
+
+				sim.link_half_r[c] = lds.r0 + (sim.ij[i][1]-1/2)*lds.dr
+				sim.link_half_r[c+1] = lds.r0 + (sim.ij[i][1]+1/2)*lds.dr
+				sim.link_r_bool[c] = true
+			else
+				throw(LatticeError(lds.type))
+			end
 
 			sim.link_half_x[c],sim.link_half_y[c] = lds(Tuple(sim.ij[i]).-(1/2,0))
 			sim.link_x_bool[c] = true
 
 			sim.link_half_x[c+1],sim.link_half_y[c+1] = lds(Tuple(sim.ij[i]).+(1/2,0))
+
 			sim.link_x_bool[c+1] = true
 
 			sim.link_half_x[c+2],sim.link_half_y[c+2] = lds(Tuple(sim.ij[i]).-(0,1/2))
@@ -565,6 +594,7 @@ function link_bulk!(link_fiduciary::BitArray,sim::Simulation,verbose::Bool)
 			link_fiduciary[c+1] = true
 			link_fiduciary[c+2] = true
 			link_fiduciary[c+3] = true
+
 		end
 		verbose ? Threads.atomic_add!(pg_ref,1) : nothing
 		if verbose && Threads.threadid()==Threads.nthreads()
@@ -585,6 +615,7 @@ function link_lattice_wall!(link_fiduciary::BitArray,sim::Simulation,verbose::Bo
 
 	lattices = map(z->z.lattice,domains)
 	DX, DY = map(z->z.dx,lattices), map(z->z.dy,lattices)
+	DR, DΘ = map(z->z.dr,lattices), map(z->z.dθ,lattices)
 
 	pg = Progress(sum(sim.lattice_wall),.1,"\t\t")
 	pg_ref = Threads.Atomic{Int}(0)
@@ -599,7 +630,16 @@ function link_lattice_wall!(link_fiduciary::BitArray,sim::Simulation,verbose::Bo
 		begin
 			ds = sim.domain_index[i]
 			lds = lattices[ds]
-			dx, dy = DX[ds], DY[ds]
+
+			if lds.type==:Cartesian
+				dx, dy = DX[ds], DY[ds]
+			elseif lds.type==:Polar
+				dr, dθ = DR[ds], DΘ[ds]
+				dx = dr
+				dy = sim.r[i]*dθ
+			else
+				throw(LatticeError(lds.type))
+			end
 
 			x1, y1 = lds(Tuple(sim.ij[i]).-(1,0))
 			x2, y2 = lds(Tuple(sim.ij[i]).+(1,0))
@@ -678,6 +718,7 @@ function link_surface!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Si
 	domains,x,y = sim.domains,sim.x,sim.y
 	lattices = map(z->z.lattice,domains)
 	DX, DY = map(z->z.dx,lattices), map(z->z.dy,lattices)
+	DR, DΘ = map(z->z.dr,lattices), map(z->z.dθ,lattices)
 
 	surface_inds = findall(sim.surface .& .!sim.corner)
 	pg = Progress(length(surface_inds),.1,"\t\t")
@@ -695,6 +736,7 @@ function link_surface!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Si
 		begin
 			ds = sim.domain_index[i]
 			n,t,d,sides = sim.normal[i],sim.tangent[i],sim.distance[i],sim.side[i]
+			lds = lattices[ds]
 
 			dxn = 2d[1]
 			NNN = NNN_BULK
@@ -711,8 +753,14 @@ function link_surface!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Si
 			end
 			self_fiduciary[cs] = true
 
+			if lds.type==:Cartesian
+				dxn = max(dxn,min(DX[ds],DY[ds]))
+			elseif lds.type==:Polar
+				dxn = max(dxn,min(DR[ds],sim.r[i]*DΘ[ds]))
+			else
+				throw(LatticeError(lds.type))
+			end
 
-			dxn = max(dxn,min(DX[ds],DY[ds]))
 			xn2, yn2   = x[i] + n[1][1]*dxn  , y[i] + n[1][2]*dxn
 			hxn2, hyn2 = x[i] + n[1][1]*dxn/2, y[i] + n[1][2]*dxn/2
 			it,wt = generate_inds_weights(xn2,yn2,sim,NNN,i,ds)
@@ -732,7 +780,14 @@ function link_surface!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Si
 			end
 			cl += NNN
 
-			dxt = min(DX[ds],DY[ds])
+			if lds.type==:Cartesian
+				dxt = min(DX[ds],DY[ds])
+			elseif lds.type==:Polar
+				dxt = min(DR[ds],sim.r[i]*DΘ[ds])
+			else
+				throw(LatticeError(lds.type))
+			end
+
 			NNN =  NNN_SURFACE
 
 			xt1, yt1   = x[i] - t[1][1]*dxt  , y[i] - t[1][2]*dxt
@@ -792,7 +847,9 @@ function link_corner!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Sim
 	cl0 = findlast(link_fiduciary)
 	cs0 = findlast(self_fiduciary)
 
-	DX, DY = map(z->z.lattice.dx,domains), map(z->z.lattice.dy,domains)
+	lattices = map(z->z.lattice,domains)
+	DX, DY = map(z->z.dx,lattices), map(z->z.dy,lattices)
+	DR, DΘ = map(z->z.dr,lattices), map(z->z.dθ,lattices)
 
 	corner_inds = findall(sim.corner)
 	for ci ∈ eachindex(corner_inds)
@@ -802,6 +859,7 @@ function link_corner!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Sim
 		begin
 			ds = sim.domain_index[i]
 			n,t,d,sides = sim.normal[i],sim.tangent[i],sim.distance[i],sim.side[i]
+			lds = lattices[ds]
 
 			dxn = 2d[1]
 
@@ -818,7 +876,15 @@ function link_corner!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Sim
 			end
 			cs += 1
 
-			dxn = max(dxn,min(DX[ds],DY[ds]))
+
+			if lds.type==:Cartesian
+				dxn = max(dxn,min(DX[ds],DY[ds]))
+			elseif lds.type==:Polar
+				dxn = max(dxn,min(DR[ds],DΘ[ds]))
+			else
+				throw(LatticeError(lds.type))
+			end
+
 			xn2, yn2   = x[i] + n[1][1]*dxn  , y[i] + n[1][2]*dxn
 			hxn2, hyn2 = x[i] + n[1][1]*dxn/2, y[i] + n[1][2]*dxn/2
 			it,wt = generate_inds_weights(xn2,yn2,sim,NNN,i,ds)
@@ -852,7 +918,14 @@ function link_corner!(link_fiduciary::BitArray,self_fiduciary::BitArray,sim::Sim
 				sim.self_x_bool[cs] = true
 			end
 
-			dxn = max(dxn,min(DX[ds],DY[ds]))
+			if lds.type==:Cartesian
+				dxn = max(dxn,min(DX[ds],DY[ds]))
+			elseif lds.type==:Polar
+				dxn = max(dxn,min(DR[ds],DΘ[ds]))
+			else
+				throw(LatticeError(lds.type))
+			end
+
 			xn2, yn2   = x[i] + n[2][1]*dxn  , y[i] + n[2][2]*dxn
 			hxn2, hyn2 = x[i] + n[2][1]*dxn/2, y[i] + n[2][2]*dxn/2
 			it,wt = generate_inds_weights(xn2,yn2,sim,NNN,i,ds)
@@ -883,6 +956,7 @@ function trim_link!(sim::Simulation,link_fiduciary::BitArray)
 	deleteat!(sim.link_weight,.!link_fiduciary)
 	deleteat!(sim.link_half_x,.!link_fiduciary)
 	deleteat!(sim.link_half_y,.!link_fiduciary)
+	deleteat!(sim.link_half_r,.!link_fiduciary)
 
 	link_x_bool = Array(sim.link_x_bool)
 	deleteat!(link_x_bool,.!link_fiduciary)
@@ -891,8 +965,14 @@ function trim_link!(sim::Simulation,link_fiduciary::BitArray)
 
 	link_y_bool = Array(sim.link_y_bool)
 	deleteat!(link_y_bool,.!link_fiduciary)
-	sim.link_y_bool[1:length(link_x_bool)] = link_y_bool
+	sim.link_y_bool[1:length(link_y_bool)] = link_y_bool
 	resize!(sim.link_y_bool,length(link_y_bool))
+
+	link_r_bool = Array(sim.link_r_bool)
+	deleteat!(link_r_bool,.!link_fiduciary)
+	sim.link_r_bool[1:length(link_r_bool)] = link_r_bool
+	resize!(sim.link_r_bool,length(link_r_bool))
+
 	return nothing
 end
 
@@ -903,6 +983,7 @@ function trim_self!(sim::Simulation,self_fiduciary::BitArray)
 	deleteat!(sim.self_weight,.!self_fiduciary)
 	deleteat!(sim.self_half_x,.!self_fiduciary)
 	deleteat!(sim.self_half_y,.!self_fiduciary)
+	deleteat!(sim.self_half_r,.!self_fiduciary)
 
 	self_x_bool = Array(sim.self_x_bool)
 	deleteat!(self_x_bool,.!self_fiduciary)
@@ -911,8 +992,14 @@ function trim_self!(sim::Simulation,self_fiduciary::BitArray)
 
 	self_y_bool = Array(sim.self_y_bool)
 	deleteat!(self_y_bool,.!self_fiduciary)
-	sim.self_y_bool[1:length(self_x_bool)] = self_y_bool
+	sim.self_y_bool[1:length(self_y_bool)] = self_y_bool
 	resize!(sim.self_y_bool,length(self_y_bool))
+
+	self_r_bool = Array(sim.self_r_bool)
+	deleteat!(self_r_bool,.!self_fiduciary)
+	sim.self_r_bool[1:length(self_r_bool)] = self_r_bool
+	resize!(sim.self_r_bool,length(self_r_bool))
+
 	return nothing
 end
 
@@ -1018,14 +1105,15 @@ end
 # of N points which give the best-conditioned matrix and computing the weights for those points.
 @inline function generate_inds_weights(X::Real,Y::Real,sim::Simulation,NNN::Int,site_index::Int,domain_index::Int)
 	# t = sim.tessellation
-	NNT = N_NEAREST_SITES_FOR_TESSELLATION
-	perm = sortperm(hypot.(sim.x.-X,sim.y.-Y))
-	x = sim.x[perm[1:NNT]]; y=sim.y[perm[1:NNT]]
-	t = Tessellation(x,y)
+	NNT = ceil(Int,sqrt(N_NEAREST_SITES_FOR_TESSELLATION/π))
+	dx = sim.domains[domain_index].lattice.dx
+	dy = sim.domains[domain_index].lattice.dy
+	inds = hypot.(sim.x.-X,sim.y.-Y) .< max(dx,dy)*NNT
+	x = sim.x[inds]; y=sim.y[inds]
 	deep = false
-	inds = get_surrounding_sites(t,X,Y,deep)
+	inds = get_surrounding_sites(Tessellation(x,y),X,Y,deep)
 
-	inds = inds[hypot.(X.-x[inds],Y.-y[inds]).≤2NNN*max(sim.domains[domain_index].lattice.dx,sim.domains[domain_index].lattice.dy)]
+	inds = inds[hypot.(X.-x[inds],Y.-y[inds]).≤2NNN*max(dx,dy)]
 	# inds = inds[sim.interior[inds]]
 	# surface && (sum(map(z->z.boundary.shape(x[site_index],y[site_index]),sim.domains)) ≤ 1) ? setdiff!(inds,sim.not_this_domains_exterior[domain_index]) : nothing
 	# surface=true

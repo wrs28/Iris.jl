@@ -20,9 +20,10 @@ piecewise_constant_F
     DielectricFunction(n1=1,n2=0) -> dielectric
     DielectricFunction(n::Complex) -> dielectric
 
-piecewise constant dielectric function with index given by `n1+in2`
+piecewise constant dielectric function with index given by `n1+1im*n2`
 
 ---
+
     DielectricFunction(ε::Function, parameters::Dict) -> dielectric
 
 ε is any function with the signature ε(x,y,parameters::Dict{Symbol,Float64})
@@ -30,6 +31,7 @@ which evaluates to the dielectric at position `x,y`. For example:
     ε(x,y,params) = 2+sin(2πx/params[:period])
 
 ---
+
     (::DielectricFunction)(x,y) -> ε
 """
 struct DielectricFunction
@@ -65,19 +67,20 @@ end
 
 ---
 
-    PumpFunction(n1=1,n2=0) -> pump
-    PumpFunction(n::Complex) -> pump
+    PumpFunction(F=0) -> pump
 
-piecewise constant pump function with index given by `n1+in2`
+piecewise constant pump function with pump parameter given by `F`
 
 ---
+
     PumpFunction(F::Function, parameters::Dict) -> pump
 
-F is any function with the signature F(x,y,parameters::Dict{Symbol,Float64})
-which evaluates to the dielectric at position `x,y`. For example:
+F is any real function with the signature F(x,y,parameters::Dict{Symbol,Float64})
+which evaluates to the pump profile at position `x,y`. For example:
     F(x,y,params) = sin(2πx/params[:period])
 
 ---
+
     (::PumpFunction)(x,y) -> F
 """
 struct PumpFunction

@@ -20,10 +20,10 @@ AbstractBL,
 AbstractRealBL,
 AbstractRealBC
 
-include("../Defaults/IrosDefaults.jl")
+include("../Defaults.jl")
 
+using .Defaults
 using ..Shapes
-using .IrosDefaults
 using RecipesBase
 
 abstract type AbstractBC end
@@ -166,10 +166,10 @@ Base.conj(nbl::noBL) = noBL()
 
 # used inside PML. This is the place to modify the PML profile
 function conductivity_profile(z::Real,start::Real,stop::Real)
-	depth = abs(stop-start)
-    β = 2*sqrt(depth)
-    α = -(1/4)*exp(complex(0,SCALING_ANGLE))*log(EXTINCTION)/depth/((2exp(β)-β)/(2β*expm1(β))-1/β^2)
-    if (start≤stop && start≤z) || (start≥stop && start≥z)
+	if (start≤stop && start≤z) || (start≥stop && start≥z)
+		depth = abs(stop-start)
+	    β = 2*sqrt(depth)
+	    α = -(1/4)*exp(complex(0,SCALING_ANGLE))*log(EXTINCTION)/depth/((2exp(β)-β)/(2β*expm1(β))-1/β^2)
         u = abs(z-start)/depth
         σ = α*u*expm1(β*u)/expm1(β)
     else
@@ -180,6 +180,21 @@ end
 
 # used inside cPML
 conj_conductivity_profile(x::Real,start::Real,stop::Real) = -conj(conductivity_profile(x,start,stop))
+
+function integrated_conductivity_profile(z::Real,start::Real,stop::Real)
+	if (start≤stop && start≤z) || (start≥stop && start≥z)
+		depth = abs(stop-start)
+		β = 2*sqrt(depth)
+		α = -(1/4)*exp(complex(0,SCALING_ANGLE))*log(EXTINCTION)/depth/((2exp(β)-β)/(2β*expm1(β))-1/β^2)
+		u = abs(z-start)/depth
+		Σ = (α*depth/expm1(β))*(u*exp(β*u)-(1+1/β)*expm1(β*u)/β)
+	else
+		Σ = complex(0.0)
+	end
+	return Σ
+end
+
+conj_integrated_conductivity_profile(x::Real,start::Real,stop::Real) = -conj(integrated_conductivity_profile(x,start,stop))
 
 
 """

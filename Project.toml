@@ -4,6 +4,7 @@ repo = "https://github.com/wrs28/Iros.jl.git"
 version = "0.0.1"
 
 [deps]
+ArnoldiMethod = "ec485272-7323-5ecc-a04f-4719b315124d"
 ArnoldiMethodTransformations = "fede57cc-428a-11e9-3e5c-c149a0a4072d"
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"

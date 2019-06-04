@@ -2,17 +2,14 @@
     module Shapes
 
 Definitions of various shapes.
+
+All shapes have the signature: `shape(parameters::Tuple, x0, y0, θ=0)`, and some
+have keyword argument `reference` which determines which point `(x0,y0)` is referring to.
+
+The length of `parameters` depends on the shape. For example, `Circle` has just one
+parameter, the radius, while `Ellipse` has two, the semi-major and semi-minor axes.
 """
 module Shapes
-
-include("../Defaults/IrosDefaults.jl")
-
-using Formatting
-using LinearAlgebra
-using .IrosDefaults
-using NLopt
-using RecipesBase
-using StaticArrays
 
 export Circle,
 Ellipse,
@@ -30,6 +27,15 @@ export AbstractShape,
 AbstractDisk,
 AbstractQuadrilateral
 
+include("../Defaults.jl")
+
+using .Defaults
+using Formatting
+using LinearAlgebra
+using NLopt
+using RecipesBase
+using StaticArrays
+
 abstract type AbstractShape{N} end # N is the number of sides
 abstract type AbstractDisk <: AbstractShape{1} end
 abstract type AbstractQuadrilateral <: AbstractShape{4} end
@@ -37,10 +43,13 @@ abstract type AbstractQuadrilateral <: AbstractShape{4} end
 get_number_of_sides(s::AbstractShape{N}) where N = N
 
 """
-    struct Circle(R, x0, y0, θ=0) -> circle
+    struct Circle <: AbstractDisk <: AbstractShape{1}
+
+    Circle((R,), x0, y0, θ=0; reference=:center) -> circle
+    Circle(R, x0, y0, θ=0; reference=:center) -> circle
 
 `R` radius
-`x0, y0` origin
+`x0, y0` is location of `reference`
 
 -------------------
 
@@ -56,6 +65,7 @@ struct Circle <: AbstractDisk
     corners::Tuple{}
     models::Array{Opt,1}
 
+    Circle((R,), args...; kwargs...) = Circle(R[1], args...; kwargs...)
     function Circle(R::Real,x0::Real,y0::Real,θ::Real=0; reference::Symbol=:center)
         if reference ∈ [:bottom, :Bottom, :b, :B]
             x0,y0 = (x0,y0) .+ rotate( 0, R,cos(θ),sin(θ))
@@ -91,10 +101,14 @@ end
 
 
 """
-    struct Ellipse(a, b, x0, y0, θ=0) -> ellipse
+    struct Ellipse <: AbstractDisk <: AbstractShape{1}
+
+    Ellipse((a,b), x0, y0, θ=0; reference=:center) -> ellipse
+    Ellipse(a, b, x0, y0, θ=0; reference=:center) -> ellipse
+
 
 `a, b` axis lengths
-`x0, y0` origin
+`x0, y0` is location of `reference`
 `θ` angle of `a` axis
 
 ----------------
@@ -112,6 +126,7 @@ struct Ellipse <: AbstractDisk
     corners::Tuple{}
     models::Array{Opt,1}
 
+    Ellipse((a,b),args...;kwargs...) = Ellipse(a,b,args...;kwargs...)
     function Ellipse(a::Number,b::Number,x0::Number,y0::Number,θ::Number=0; reference::Symbol=:center)
         if reference ∈ [:bottom, :Bottom, :b, :B]
             x0,y0 = (x0,y0) .+ rotate( 0, b,cos(θ),sin(θ))
@@ -149,16 +164,20 @@ end
 
 
 """
-    struct DeformedDisk{n}(R, x0, y0, M, a, φ, θ=0)
+    struct DeformedDisk{N} <: AbstractDisk <: AbstractShape{1}
+
+    DeformedDisk{N}(R, x0, y0, M, a, φ, θ=0) -> deformeddisk
+    DeformedDisk{N}((R,M,a,φ), x0, y0, θ=0) -> deformeddisk
 
 `R` is radius,
-`x0` and `y0` are origin,
-`M` is array of length `n` of multipole integers,
-`a` is array of length `n` amplitudes,
-`φ` is array of length `n` of angles
+`x0` and `y0` is center of circle of radius `R`,
+`M` is array of length `N` of multipole integers,
+`a` is array of length `N` amplitudes,
+`φ` is array of length `N` of angles
 `θ` is overall rotation angle
 
 -----------------
+
     (::DeformedDisk)(x,y) -> is_in_disk::Bool
 """
 struct DeformedDisk{N} <: AbstractDisk
@@ -174,6 +193,7 @@ struct DeformedDisk{N} <: AbstractDisk
     corners::Tuple{}
     models::Array{Opt,1}
 
+    DeformedDisk{n}((R,M,a,φ),x0,y0,args...;kwargs...) where n= DeformedDisk{n}(R,x0,y0,M,a,φ,args...;kwargs...)
     function DeformedDisk{n}(R::Number,x0::Number,y0::Number,M,a,φ,θ=0) where n
         @assert n==length(M)==length(a)==length(φ) "parameter N in DeformedDisk{N}(...) must be equal to length(M)"
         d = new{n}(R,x0,y0,θ,SVector{n}(M),SVector{n}(a),SVector{n}(φ.+θ),sin(θ),cos(θ))
@@ -223,10 +243,13 @@ end
 
 
 """
-    struct Annulus(R1, R2, x0, y0, θ=0) -> annulus
+    struct Annulus <: AbstractShape{2}
+
+    Annulus((R1,R2),x0,y0,θ=0) -> annulus
+    Annulus(R1, R2, x0, y0, θ=0) -> annulus
 
 `R1` is inner radius, `R2` outer
-`x0, y0` origin
+`x0, y0` is center
 
 -------------
     (::Annulus)(x,y) -> is_in_annulus::Bool
@@ -242,7 +265,8 @@ struct Annulus <: AbstractShape{2}
     corners::Tuple{}
     models::Array{Opt,1}
 
-    function Annulus(R1::Number,R2::Number,x0::Number,y0::Number,θ::Number=0; reference::Symbol=:center)
+    Annulus((R1,R2),args...;kwargs...) = Annulus(R1,R2,args...;kwargs...)
+    function Annulus(R1::Number,R2::Number,x0::Number,y0::Number,θ::Number=0)
         @assert R1≤R2 "R1=$R1, R2=$R2 must satisfy R1≤R2"
         a = new(R1,R2,x0,y0,0,0,1)
         models = build_models(a)
@@ -271,13 +295,17 @@ end
 
 
 """
-    struct Square(a,x0,y0,θ=0) -> square
+    struct Square <: AbstractQuadrilateral <: AbstractShape{4}
+
+    Square((a,),x0,y0,θ=0; reference=:center) -> square
+    Square(a,x0,y0,θ=0); reference=:center -> square
 
 `a` length of sides
-`x0, y0` origin
+`x0, y0` is location of `reference`
 `θ` angle of `a` side
 
 ------------
+
     (::Square)(x,y) -> is_in_square::Bool
 """
 struct Square <: AbstractQuadrilateral
@@ -290,6 +318,7 @@ struct Square <: AbstractQuadrilateral
     corners::NTuple{4,NTuple{2,Float64}}
     models::Array{Opt,1}
 
+    Square((a,),args...;kwargs...) = Square(a,args...;kwargs...)
     function Square(a::Number,x0::Number,y0::Number,θ::Number=0; reference::Symbol=:center)
         if reference ∈ [:bottom, :Bottom, :b, :B]
             x0,y0 = (x0,y0) .+ rotate( 0, a/2,cos(θ),sin(θ))
@@ -357,13 +386,17 @@ end
 
 
 """
-    struct Rectangle(a, b, x0, y0, θ=0) -> rectangle
+    struct Rectangle <: AbstractQuadrilateral <: AbstractShape{4}
+
+    Rectangle((a,b), x0, y0, θ=0; reference=:center) -> rectangle
+    Rectangle(a, b, x0, y0, θ=0; reference=:center) -> rectangle
 
 `a, b` length of sides
-`x0, y0` origin
+`x0, y0` is location of `reference`
 `θ` angle of `a` side
 
 -----------------------
+
     (::Rectangle)(x,y) -> is_in_rectangle::Bool
 """
 struct Rectangle <: AbstractQuadrilateral
@@ -377,6 +410,7 @@ struct Rectangle <: AbstractQuadrilateral
     corners::NTuple{4,NTuple{2,Float64}}
     models::Array{Opt,1}
 
+    Rectangle((a,b),args...;kwargs...) = Rectangle(a,b,args...;kwargs...)
     function Rectangle(a::Number,b::Number,x0::Number,y0::Number,θ::Number=0; reference::Symbol=:center)
         if reference ∈ [:bottom, :Bottom, :b, :B]
             x0,y0 = (x0,y0) .+ rotate( 0, b/2,cos(θ),sin(θ))
