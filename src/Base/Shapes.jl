@@ -27,9 +27,7 @@ export AbstractShape,
 AbstractDisk,
 AbstractQuadrilateral
 
-include("../Defaults.jl")
-
-using .Defaults
+using ...Defaults
 using Formatting
 using LinearAlgebra
 using NLopt

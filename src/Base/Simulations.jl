@@ -16,8 +16,7 @@ update_dielectric!,
 update_pump!,
 update_sim!
 
-include("../Defaults.jl")
-using .Defaults
+using ...Defaults
 using ..Boundaries
 using ..Domains
 using ..Lattices

@@ -16,22 +16,25 @@ module Iros
 
 using Reexport
 
+include("Defaults.jl")
+using .Defaults
+
 include("Base/IrosBase.jl")
 @reexport using .IrosBase
 
-include("Spectral/IrosSpectral.jl")
-@reexport using .IrosSpectral
+include("Spectral/Spectral.jl")
+@reexport using .Spectral
 
-include("Floquet/IrosFloquet.jl")
-@reexport using .IrosFloquet
+include("Floquet/Floquet.jl")
+@reexport using .Floquet
 
-include("Scattering/IrosScattering.jl")
-@reexport using .IrosScattering
+include("Scattering/Scattering.jl")
+@reexport using .Scattering
 
-include("SALT/IrosSALT.jl")
-@reexport using .IrosSALT
+include("SALT/SALT.jl")
+@reexport using .SALT
 
-include("SCPA/IrosSCPA.jl")
-@reexport using .IrosSCPA
+include("SCPA/SCPA.jl")
+@reexport using .SCPA
 
 end # module

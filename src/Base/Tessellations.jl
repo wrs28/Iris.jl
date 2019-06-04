@@ -5,13 +5,12 @@ a convenience wrapper to pacakge VoronoiDelaunay, with main export Tessellation.
 """
 module Tessellations
 
-const EXPANSION_FACTOR = 1.025 # to make accessing the tessellation a little more stable
-
 export Tessellation,
 tessellation_coords,
 tessellation_inv_coords,
 get_surrounding_sites
 
+using ...Defaults
 using RecipesBase
 using VoronoiDelaunay
 
@@ -35,11 +34,11 @@ struct Tessellation
 
     function Tessellation(x,y)
         xmin, xmax = extrema(x)
-        xmin_new = (xmin+xmax)/2 - EXPANSION_FACTOR*(xmax-xmin)/2
-        xmax_new = (xmin+xmax)/2 + EXPANSION_FACTOR*(xmax-xmin)/2
+        xmin_new = (xmin+xmax)/2 - TESSELLATION_EXPANSION_FACTOR*(xmax-xmin)/2
+        xmax_new = (xmin+xmax)/2 + TESSELLATION_EXPANSION_FACTOR*(xmax-xmin)/2
         ymin, ymax = extrema(y)
-        ymin_new = (ymin+ymax)/2 - EXPANSION_FACTOR*(ymax-ymin)/2
-        ymax_new = (ymin+ymax)/2 + EXPANSION_FACTOR*(ymax-ymin)/2
+        ymin_new = (ymin+ymax)/2 - TESSELLATION_EXPANSION_FACTOR*(ymax-ymin)/2
+        ymax_new = (ymin+ymax)/2 + TESSELLATION_EXPANSION_FACTOR*(ymax-ymin)/2
         return Tessellation(x,y,xmin_new,xmax_new,ymin_new,ymax_new)
     end
     function Tessellation(x,y,xmin,xmax,ymin,ymax)

@@ -20,9 +20,7 @@ AbstractBL,
 AbstractRealBL,
 AbstractRealBC
 
-include("../Defaults.jl")
-
-using .Defaults
+using ...Defaults
 using ..Shapes
 using RecipesBase
 

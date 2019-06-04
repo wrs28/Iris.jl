@@ -15,8 +15,7 @@ Dielectric,
 Waveguide,
 Lead
 
-include("../Defaults.jl")
-using .Defaults
+using ...Defaults
 using ..Boundaries
 using ..DielectricFunctions
 using ..Lattices
@@ -192,19 +191,19 @@ struct Domain
     function (dom::Domain)(dielectric::DielectricFunction)
         return new(dom.type,
         dom.name,dom.boundary,dom.lattice,dielectric,dom.pump,
-        dom.x,dom.y,dom.ij,dom.ε,dom.F,dom.interior,dom.bulk,
+        dom.x,dom.y,dom.r,dom.θ,dom.ij,dom.ε,dom.F,dom.interior,dom.bulk,
         dom.surface,dom.corner,dom.nnxm,dom.nnxp,dom.nnym,dom.nnyp)
     end
     function (dom::Domain)(pump::PumpFunction)
         return new(dom.type,
         dom.name,dom.boundary,dom.lattice,dom.dielectric,pump,
-        dom.x,dom.y,dom.ij,dom.ε,dom.F,dom.interior,dom.bulk,
+        dom.x,dom.y,dom.r,dom.θ,dom.ij,dom.ε,dom.F,dom.interior,dom.bulk,
         dom.surface,dom.corner,dom.nnxm,dom.nnxp,dom.nnym,dom.nnyp)
     end
     function (dom::Domain)(bnd::Boundary)
         return new(dom.type,
         dom.name,bnd,dom.lattice,dom.dielectric,dom.pump,
-        dom.x,dom.y,dom.ij,dom.ε,dom.F,dom.interior,dom.bulk,
+        dom.x,dom.y,dom.r,dom.θ,dom.ij,dom.ε,dom.F,dom.interior,dom.bulk,
         dom.surface,dom.corner,dom.nnxm,dom.nnxp,dom.nnym,dom.nnyp)
     end
 

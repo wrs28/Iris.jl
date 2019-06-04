@@ -5,8 +5,7 @@ module Laplacians
 
 export Laplacian
 
-include("../Defaults.jl")
-using .Defaults
+using ...Defaults
 import ..Shapes
 using ..Simulations
 using SparseArrays

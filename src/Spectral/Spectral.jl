@@ -1,7 +1,7 @@
 """
-	module IrosSpectral
+	module Spectral
 """
-module IrosSpectral
+module Spectral
 
 export resonance_eigenproblem,
 cf_eigenproblem,
@@ -10,11 +10,9 @@ eig_kl,
 eig_cf,
 eig_knl
 
-include("../Base/IrosBase.jl")
-include("../Defaults.jl")
+using ..Defaults
+using ..IrosBase
 
-using .Defaults
-using .IrosBase
 using ArnoldiMethod
 using ArnoldiMethodTransformations
 using Distributed

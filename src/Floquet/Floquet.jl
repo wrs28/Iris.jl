@@ -1,4 +1,4 @@
-module IrosFloquet
+module Floquet
 
 greet() = print("Hello World!")
 

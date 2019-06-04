@@ -1,13 +1,11 @@
-module IrosScattering
+module Scattering
 
 export solve_scatter,
 green_fn
 
-include("../Base/IrosBase.jl")
-include("../Spectral/IrosSpectral.jl")
 
-using .IrosBase
-using .IrosSpectral
+using ..IrosBase
+using ..Spectral
 using ArnoldiMethodTransformations
 using LinearAlgebra
 using SparseArrays

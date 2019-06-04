@@ -1,0 +1,3 @@
+module SALT
+
+end # module
