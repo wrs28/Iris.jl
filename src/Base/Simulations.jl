@@ -8,7 +8,7 @@ Exports are `Simulation`, `smooth!`, `update_dielectric!`, `update_pump`
 """
 module Simulations
 
-const N_NEAREST_SITES_FOR_TESSELLATION = 11
+const N_NEAREST_SITES_FOR_TESSELLATION = 15
 
 export Simulation,
 smooth!,
@@ -1108,11 +1108,11 @@ end
 	dx = sim.domains[domain_index].lattice.dx
 	dy = sim.domains[domain_index].lattice.dy
 	inds = hypot.(sim.x.-X,sim.y.-Y) .< max(dx,dy)*NNT
-	x = sim.x[inds]; y=sim.y[inds]
 	deep = false
-	inds = get_surrounding_sites(Tessellation(x,y),X,Y,deep)
+	tess_inds = get_surrounding_sites(Tessellation(sim.x[inds],sim.y[inds]),X,Y,deep)
+	inds = findall(inds)[tess_inds]
 
-	inds = inds[hypot.(X.-x[inds],Y.-y[inds]).≤2NNN*max(dx,dy)]
+	# inds = inds[hypot.(X.-x[inds],Y.-y[inds]).≤2NNN*max(dx,dy)]
 	# inds = inds[sim.interior[inds]]
 	# surface && (sum(map(z->z.boundary.shape(x[site_index],y[site_index]),sim.domains)) ≤ 1) ? setdiff!(inds,sim.not_this_domains_exterior[domain_index]) : nothing
 	# surface=true
@@ -1133,6 +1133,7 @@ end
 	# inds = inds[perm[1:N]]
 
 	# find the combination of indices with the smallest condition number
+	x = sim.x; y=sim.y
 	C = collect(combinations(inds,N))
 	conds = Ref(Inf); ii = Ref(1)
 	for i ∈ eachindex(C)
