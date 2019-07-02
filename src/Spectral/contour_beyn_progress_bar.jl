@@ -41,7 +41,7 @@ function NonlinearEigenproblems.contour_beyn(::Type{T},
 
 
     function local_linsolve(λ::TT,V::Matrix{TT}) where {TT<:Number}
-        @ifd(print("."))
+#        @ifd(print("."))
         local M0inv::LinSolver = linsolvercreator(nep,λ+σ);
         # This requires that lin_solve can handle rectangular
         # matrices as the RHS
@@ -51,21 +51,21 @@ function NonlinearEigenproblems.contour_beyn(::Type{T},
     # Constructing integrands
     Tv(λ) = local_linsolve(T(λ),Vh)
     f(t) = Tv(g(t))*gp(t)
-    @ifd(print("Computing integrals"))
+    # @ifd(print("Computing integrals"))
 
     pg = Progress(N; dt=.1, desc="Contour integration...")
     local A0,A1
     if (quad_method == :quadg_parallel)
-        @ifd(print(" using quadg_parallel"))
+        # @ifd(print(" using quadg_parallel"))
         error("disabled");
     elseif (quad_method == :quadg)
-        @ifd(print(" using quadg"))
+        # @ifd(print(" using quadg"))
         error("disabled");
     elseif (quad_method == :ptrapz)
-        @ifd(print(" using ptrapz"))
+        # @ifd(print(" using ptrapz"))
         (A0,A1)=ptrapz(f,g,0,2*pi,N,pg);
     elseif (quad_method == :ptrapz_parallel)
-        @ifd(print(" using ptrapz_parallel"))
+        # @ifd(print(" using ptrapz_parallel"))
         channel = RemoteChannel(()->Channel{Bool}(pg.n+1),1)
         @sync begin
             @async begin
@@ -86,10 +86,10 @@ function NonlinearEigenproblems.contour_beyn(::Type{T},
     A0[:,:] = A0 ./(2im*pi);
     A1[:,:] = A1 ./(2im*pi);
 
-    @ifd(print("Computing SVD prepare for eigenvalue extraction "))
+    # @ifd(print("Computing SVD prepare for eigenvalue extraction "))
     V,S,W = svd(A0)
     p = count( S/S[1] .> rank_drop_tol);
-    @ifd(println(" p=",p));
+    # @ifd(println(" p=",p));
 
     V0 = V[:,1:p]
     W0 = W[:,1:p]
@@ -97,10 +97,10 @@ function NonlinearEigenproblems.contour_beyn(::Type{T},
 
     # Extract eigenval and eigvec approximations according to
     # step 6 on page 3849 in the reference
-    @ifd(println("Computing eigenvalues "))
+    # @ifd(println("Computing eigenvalues "))
     λ,VB=eigen(B)
     λ[:] = λ .+ σ
-    @ifd(println("Computing eigenvectors "))
+    # @ifd(println("Computing eigenvectors "))
     V = V0 * VB;
     for i = 1:p
         normalize!(V[:,i]);
@@ -140,7 +140,7 @@ function NonlinearEigenproblems.contour_beyn(::Type{T},
     # and potentially remove eigenvalues if more than neigs.
     local Vgood,λgood
     if( size(sorted_good_index,1) > neigs)
-        @ifd(println("Removing unwanted eigvals: neigs=",neigs,"<",size(sorted_good_index,1),"=found_eigvals"))
+        # @ifd(println("Removing unwanted eigvals: neigs=",neigs,"<",size(sorted_good_index,1),"=found_eigvals"))
         Vgood=V[:,sorted_good_index[sorted_good_inside_perm][1:neigs]];
         λgood=λ[sorted_good_index[sorted_good_inside_perm][1:neigs]];
     else
