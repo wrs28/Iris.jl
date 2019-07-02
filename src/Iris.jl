@@ -1,5 +1,5 @@
 """
-    module Iros
+    module Iris
 
 A package for scalar finite difference resonance and scattering calculations, for both
     closed and open systems.
@@ -12,7 +12,7 @@ A package for scalar finite difference resonance and scattering calculations, fo
     * `SALT`: the SALT algorithm for lasing
     * `SCPA`: saturable CPA
 """
-module Iros
+module Iris
 
 using Reexport
 
