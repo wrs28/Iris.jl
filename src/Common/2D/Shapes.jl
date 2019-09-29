@@ -10,6 +10,8 @@ The length of `parameters` depends on the shape. For example, `Circle` has just 
 parameter, the radius, while `Ellipse` has two, the semi-major and semi-minor axes.
 """
 module Shapes
+abstract type AbstractDisk <: AbstractShape{2,1} end
+abstract type AbstractQuadrilateral <: AbstractShape{2,4} end
 
 export Circle,
 Ellipse,

@@ -15,8 +15,8 @@ const NL_NORMAL_MAXEVAL = 400 # NLopt's maxeval
 export NL_NORMAL_ALGORITHM, NL_NORMAL_XTOL, NL_NORMAL_FTOL, NL_NORMAL_MAXEVAL
 
 # PML params used in Boundaries
-const EXTINCTION = 1e-10 # extinction in PML layer
-const SCALING_ANGLE = .25 # phase in conductivity to accelerate evanscent decay
+const EXTINCTION = 1e-8 # extinction in PML layer
+const SCALING_ANGLE = .15 # phase in conductivity to accelerate evanscent decay
 export EXTINCTION, SCALING_ANGLE
 
 const NUM_SUB_PIXEL = 5 # default for sub-pixel smoothing in Simulations

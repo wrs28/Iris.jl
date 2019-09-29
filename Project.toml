@@ -1,8 +1,8 @@
 name = "Iris"
 uuid = "573aa7f4-91c9-40a8-9c96-241bf90c799c"
-repo = "https://github.com/wrs28/Iris.jl.git"
 authors = ["William R Sweeney <wrsweeney2@gmail.com>"]
-version = "0.1.0"
+repo = "https://github.com/wrs28/Iris.jl.git"
+version = "0.2.0"
 
 [deps]
 ArnoldiMethod = "ec485272-7323-5ecc-a04f-4719b315124d"
@@ -24,18 +24,18 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 VoronoiDelaunay = "72f80fcb-8c52-57d9-aff0-40c1a3526986"
 
 [compat]
-julia = "1"
 ArnoldiMethod = "0.0"
 ArnoldiMethodTransformations = "0.1"
 Formatting = "0.3"
 NLopt = "0.5"
-NonlinearEigenproblems = "0.2.7"
+NonlinearEigenproblems = "0.3"
 Pardiso = "0.4"
 ProgressMeter = "1"
 RecipesBase = "0.7"
 Reexport = "0.2"
 StaticArrays = "0.11"
 VoronoiDelaunay = "0.3"
+julia = "1"
 
 [extras]
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
