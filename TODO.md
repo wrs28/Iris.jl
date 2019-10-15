@@ -7,8 +7,8 @@
 * [x] check PML normal incidence
 * [x] check PML nonnormal incidence
 * [x] boundary matching
+* [x] relearn NLsolve, see if still best
 * [ ] disperions: reorganize, two-level, kerr/chi-3
-* [ ] relearn NLsolve, see if still best
 * [ ] build single-mode SALT
 * [ ] define SCPA through SALT
 * [ ] floquet/periodic

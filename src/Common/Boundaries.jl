@@ -71,7 +71,7 @@ end
 
 Make a new `Boundary` object with conjugated boundary layers.
 """
-Base.conj(bnd::Boundary) = Boundary(bnd.shape,bnd.bcs,conj.(bnd.bls))
+Base.conj(bnd::Boundary) = Boundary(bnd.shape,conj.(bnd.bcs),conj.(bnd.bls))
 
 _bls_by_shape(bls,shape::AbstractShape) = bls
 

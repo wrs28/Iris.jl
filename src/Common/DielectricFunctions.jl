@@ -154,4 +154,8 @@ end
 piecewise_constant_F(args...) = get!(args[end],:F,nothing)
 
 
+function Base.conj(de::DielectricFunction{typeof(piecewise_constant_ε)})
+    return DielectricFunction(de.n1,-de.n2)
+end
+
 end # module

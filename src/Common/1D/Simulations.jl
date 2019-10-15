@@ -19,7 +19,7 @@ function Simulation(
 
 	lat = Lattice(dx;origin=start+dx/2)
 
-	domains = map(d->Domain(d.boundary,lat,d.dielectric,d.pump),domains)
+	domains = map(d->Domain(d.boundary,lat,d.dielectric,d.pump,d.χ;type=d.type,name=d.name),domains)
 
 	smoothed = Ref(false)
 
@@ -56,7 +56,6 @@ function Simulation(
 
 	curlcurl = Curlcurl(domains[1].lattice,α,α_half,nnm,nnp,indices,interior,surface,domain_wall)
 	Σ = SelfEnergy(domains,surface,domain_index,α_half,a,nnm,nnp,indices,interior,domain_wall)
-
 
 	return Simulation{1,Symmetric,ComplexF64,typeof(domains),2,typeof(Σ.f)}(
 		smoothed,
@@ -150,4 +149,8 @@ function boundary_layer(domain,x::Point{1},dim::Int)
 	bl2 = domain.boundary.bls[2]
 	σx = bl1(x)+bl2(x)
 	return σx
+end
+
+function Base.conj(sim::Simulation)
+	return Simulation(sim.ω₀,map(conj,sim.domains)...)
 end

@@ -45,6 +45,8 @@ export PumpFunction
 include("Dispersions.jl")
 using .Dispersions
 export TwoLevelSystem
+export jacobian_lasing
+export susceptability
 
 include("Lattices.jl")
 using .Lattices

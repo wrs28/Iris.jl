@@ -34,7 +34,9 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 
 		$TBL{SIDE}(depth) where SIDE = $TBL{SIDE}(depth,NaN,NaN)
 
-		Base.show(io::IO,tbl::$TBL{SIDE}) where SIDE = print(io,$TBL,", SIDE=",SIDE, ", depth=",fmt("1.1f",tbl.depth))
+		function Base.show(io::IO,tbl::$TBL{SIDE}) where SIDE
+			print(io,$TBL," (SIDE=",SIDE, ", depth=",fmt("1.1f",tbl.depth),")")
+		end
 
 		(tbl::$TBL)(x::Real,y...) = tbl(Point(x,y...))
 

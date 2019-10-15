@@ -9,18 +9,15 @@ function Curlcurl(lattice::Lattice{1},α::Array{ComplexF64},α_half::Array{Compl
 	∂ₓα⁻¹∂ₓ_bulk = _bulk_laplacian(lattice,N,interior,domain_wall,surface,nnm,nnp,α_half⁻¹)
 	∂ₓα⁻¹∂ₓ_domain_wall = _domain_wall_laplacian(lattice,N,interior,domain_wall,nnm,nnp,α_half⁻¹,indices)
 	∂ₓα⁻¹∂ₓ_surface = _surface_laplacian(lattice,N,interior,surface,nnm,nnp,α_half⁻¹,indices)
-	cc0 = ∂ₓα⁻¹∂ₓ_bulk + ∂ₓα⁻¹∂ₓ_domain_wall + ∂ₓα⁻¹∂ₓ_surface
+	∂ₓα⁻¹∂ₓ = ∂ₓα⁻¹∂ₓ_bulk + ∂ₓα⁻¹∂ₓ_domain_wall + ∂ₓα⁻¹∂ₓ_surface
 
 	∂ₓ_bulk = _bulk_derivative(lattice,N,interior,domain_wall,surface,nnm,nnp)
 	∂ₓ_domain_wall = _domain_wall_derivative(lattice,N,interior,domain_wall,nnm,nnp,α_half⁻¹,indices)
 	∂ₓ_surface = _surface_derivative(lattice,N,interior,surface,nnm,nnp,indices)
 	∂ₓ = ∂ₓ_bulk + ∂ₓ_domain_wall + ∂ₓ_surface
-	cc1 = -1im*∂ₓ
+	i∂ₓ = 1im*∂ₓ
 
-	α = spdiagm(0=>α)
-	cc2 = α
-
-	return Curlcurl{1}(cc0,cc1,cc2)
+	return Curlcurl{1}(∂ₓα⁻¹∂ₓ,i∂ₓ,spdiagm(0=>α))
 end
 
 function (cc::Curlcurl{1})(ky::Real,kz::Real)
@@ -29,7 +26,7 @@ function (cc::Curlcurl{1})(ky::Real,kz::Real)
 	kz² = kz^2
 	kykz = ky*kz
 
-	cc0 = kron(sparse([2,3],[2,3],[1,1],3,3),cc.cc0)
+	cc0 = kron(sparse([2,3],[2,3],[-1,-1],3,3),cc.cc0)
 	cc1 = kron(sparse([2,3,1,1],[1,1,2,2],[ky,kz,ky,kz],3,3),cc.cc1)
 	cc2 = kron(sparse([1,2,3,2,3],[1,2,2,3,3],[ky²+kz²,kz²,kykz,kykz,ky²],3,3),cc.cc2)
 

@@ -9,7 +9,6 @@ using StaticArrays
 
 struct Point{N}
 	vec::SVector{N,Float64}
-
 	Point(vec::SVector{N,T}) where {N,T<:Real} = new{N}(vec)
 end
 

@@ -10,6 +10,7 @@ export Domain
 # using ...Defaults
 using ..Boundaries
 using ..DielectricFunctions
+using ..Dispersions
 using ..Lattices
 using ..Points
 using ..Shapes
@@ -38,7 +39,7 @@ For example, to change the polarity of the boundary layers, do
 For geometric parameters it recomputes the whole domain, so this command is no
 more efficient than explicitly constructing a new domain. It might save some typing, however.
 """
-struct Domain{N,TBND,TLAT,TDF,TPF}
+struct Domain{N,TBND,TLAT,TDF,TPF,TCHI}
     type::Symbol
     name::Symbol
     boundary::TBND
@@ -50,6 +51,7 @@ struct Domain{N,TBND,TLAT,TDF,TPF}
     indices::Array{CartesianIndex{N},1}
     ε::Array{ComplexF64,1}
     F::Array{Float64,1}
+    χ::TCHI
 
     interior::BitArray{1}
     bulk::BitArray{1}
@@ -70,15 +72,16 @@ struct Domain{N,TBND,TLAT,TDF,TPF}
         indices::Array{CartesianIndex{N},1},
         ε::Array{ComplexF64,1},
         F::Array{Float64,1},
+        χ::TC,
         interior::BitArray{1},
         bulk::BitArray{1},
         surface::BitArray{1},
         corner::BitArray{1},
         nnm::NTuple{N,Array{Int,1}},
         nnp::NTuple{N,Array{Int,1}}
-        ) where {TBND<:Boundary,TLAT<:Lattice{N},TDF<:DielectricFunction,TPF<:PumpFunction} where N
+        ) where {TBND<:Boundary,TLAT<:Lattice{N},TDF<:DielectricFunction,TPF<:PumpFunction,TC<:Tuple} where N
 
-        new{N,TBND,TLAT,TDF,TPF}(type,name,boundary,lattice,dielectric,pump,x,indices,ε,F,interior,bulk,surface,corner,nnm,nnp)
+        new{N,TBND,TLAT,TDF,TPF,TC}(type,name,boundary,lattice,dielectric,pump,x,indices,ε,F,χ,interior,bulk,surface,corner,nnm,nnp)
     end
 
     # function (dom::Domain{N})(dielectric::DielectricFunction) where N
@@ -100,6 +103,29 @@ struct Domain{N,TBND,TLAT,TDF,TPF}
     #     dom.surface,dom.corner,dom.nnm,dom.nnp)
     # end
 end
+
+function Base.conj(d::Domain)
+    Domain(
+        d.type,
+        d.name,
+        conj(d.boundary),
+        d.lattice,
+        conj(d.dielectric),
+        d.pump,
+        d.x,
+        d.indices,
+        conj(d.ε),
+        d.F,
+        conj(d.χ),
+        d.interior,
+        d.bulk,
+        d.surface,
+        d.corner,
+        d.nnm,
+        d.nnp
+        )
+end
+
 
 # # for modifying non-geometric parameters of an already existing domain
 # function (dom::Domain)(args...)

@@ -36,13 +36,17 @@ BCLocality(::Union{noBC{SIDE},DirichletBC{SIDE},NeumannBC{SIDE}}) where SIDE = L
 BCLocality(::AbstractBC{SIDE}) where SIDE = NonLocalBC{SIDE}
 
 for TBC ∈ (noBC,DirichletBC,NeumannBC,FloquetBC)
-	@eval Base.show(io::IO,::$TBC{SIDE}) where SIDE = print(io,$TBC,", SIDE=",SIDE)
+	@eval Base.show(io::IO,::$TBC{SIDE}) where SIDE = print(io,$TBC," (SIDE=",SIDE,")")
 end
 function Base.show(io::IO,mbc::MatchedBC{SIDE}) where SIDE
-	println(io,"MatchedBC, SIDE=",SIDE,":")
-	println(io,"\tin: ", mbc.in)
-	print(io,"\tout: ", mbc.out)
+	print(io,"MatchedBC (SIDE=",SIDE,";")
+	print(io," in:", mbc.in)
+	print(io," out:", mbc.out)
+	print(io,")")
 end
+
+Base.conj(bc::AbstractRealBC) = bc
+Base.conj(bc::MatchedBC{SIDE}) where SIDE = MatchedBC{SIDE}(in=bc.out,out=bc.in)
 
 """
 	struct noBC{SIDE}
