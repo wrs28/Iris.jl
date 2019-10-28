@@ -3,93 +3,68 @@
 """
 module MaxwellOperators
 
+export Maxwell
 export maxwell
-export maxwell_lep
-export maxwell_nep
 
+files = (
+    "1D/MaxwellOperators1D.jl",
+    # "2D/MaxwellOperators2D.jl",
+    # "3D/MaxwellOperators3D.jl"
+    )
+
+import ..PRINTED_COLOR_DARK
+import ..PRINTED_COLOR_VARIABLE
+
+using ..ElectricFields
 using ..Simulations
 using ..Dispersions
-using Flatten
 using LinearAlgebra
-using NonlinearEigenproblems
 using SparseArrays
 
 const I3 = sparse(I,3,3)
 
-struct Maxwell_LEP{N,TSIM,TΣ}
-    sim::TSIM
-    Σs::TΣ
+struct Maxwell{N,TΣ,TSIM}
+    A::SparseMatrixCSC{ComplexF64,Int}
+    D²::SparseMatrixCSC{ComplexF64,Int}
+    αεpχ::SparseMatrixCSC{Complex{Float64},Int}
     curlcurl::SparseMatrixCSC{ComplexF64,Int}
-    αε::SparseMatrixCSC{Complex{Float64},Int}
-    αχ::SparseMatrixCSC{Complex{Float64},Int}
+    Σs::TΣ
+    αε::SparseMatrixCSC{ComplexF64,Int}
+    αχ::SparseMatrixCSC{ComplexF64,Int}
+    αχs::Vector{SparseMatrixCSC{ComplexF64,Int}}
+    αdχdψr::Vector{SparseMatrixCSC{ComplexF64,Int}}
+    αdχdψi::Vector{SparseMatrixCSC{ComplexF64,Int}}
+    sim::TSIM
     kx::Float64
     ky::Float64
     kz::Float64
     ka::Float64
     kb::Float64
     kc::Float64
-
-    function Maxwell_LEP(
-                sim::Simulation{N},
-                Σs::Tuple,
-                curlcurl::SparseMatrixCSC{ComplexF64,Int},
-                αε::SparseMatrixCSC{ComplexF64,Int},
-                αχ::SparseMatrixCSC{Complex{Float64},Int},
-                kx::Number,
-                ky::Number,
-                kz::Number,
-                ka::Number,
-                kb::Number,
-                kc::Number) where N
-
-        return new{N,typeof(sim),typeof(Σs)}(sim,Σs,curlcurl,αε,αχ,kx,ky,kz,ka,kb,kc)
-    end
-end
-function Base.show(io::IO,::Maxwell_LEP{N}) where N
-    print(io,"Maxwell Linear Eigenproblem (call w/ args ")
-    printstyled(io,"ω",color=:cyan)
-    print(io,", [")
-    printstyled(io,"ωs",color=:cyan)
-    print(io,",")
-    printstyled(io,"ψs",color=:cyan)
-    print(io,"] -> ")
-    printstyled(io,"A",color=:cyan)
-    print(io,", ")
-    printstyled(io,"B",color=:cyan)
-    print(io,")")
 end
 
-struct Maxwell{N,TM}
-    lep::TM
-    Maxwell(lep::Maxwell_LEP{N}) where N = new{N,typeof(lep)}(lep)
-end
+
+# load 1D, 2D, 3D
+foreach(include,files)
+
+
+"""
+    maxwell(simulation{1}; ky=0, kz=0)
+"""
+maxwell(args...;kwargs...) = Maxwell(args...;kwargs...)
+
+
 function Base.show(io::IO,::Maxwell{N}) where N
-    print(io,"Maxwell Operator (call w/ args ")
-    printstyled(io,"ω",color=:cyan)
+    print(io,N,"D ")
+    printstyled(io,"Maxwell ",color=PRINTED_COLOR_DARK)
+    print(io,"Operator (call w/ args ")
+    printstyled(io,"ω",color=PRINTED_COLOR_VARIABLE)
     print(io,", [")
-    printstyled(io,"ωs",color=:cyan)
+    printstyled(io,"ωs",color=PRINTED_COLOR_VARIABLE)
     print(io,",")
-    printstyled(io,"ψs",color=:cyan)
-    print(io,"])")
+    printstyled(io,"ψs",color=PRINTED_COLOR_VARIABLE)
+    print(io,"]) -> ")
+    printstyled(io,"A",color=PRINTED_COLOR_VARIABLE)
 end
-
-include("1D/MaxwellOperators.jl")
-# include("2D/MaxwellOperators.jl")
-# include("3D/MaxwellOperators.jl")
-
-"""
-    maxwell_lep(simulation; ky=0, kz=0)
-"""
-maxwell_lep
-
-"""
-    maxwell(simulation; ky=0, kz=0)
-"""
-maxwell
-
-"""
-    maxwell_nep(simulation; ky=0, kz=0, kwargs...)
-"""
-maxwell_nep
 
 end #module

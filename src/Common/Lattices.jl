@@ -5,11 +5,17 @@ for defining discrete Cartesian and Polar lattice grids used in Iris.
 """
 module Lattices
 
-# using ...Defaults
+files = (
+    "1D/Lattices1D.jl",
+    # "2D/Lattices2D.jl",
+    # "3D/Lattices3D.jl"
+)
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_WARN
+import ..PRINTED_COLOR_DARK
 using ..Points
 using Formatting
-# using LinearAlgebra
-# using RecipesBase
 using StaticArrays
 
 export Lattice
@@ -54,11 +60,11 @@ function Lattice(constants::NTuple{N,Float64};
 end
 
 function _lattice_type(type::Symbol)
-    if type ∈ (:r,:R,:rectangular, :Rectangular, :rect, :Rect, :rectilinear, :Rectilinear, :cart, :Cart, :cartesian, :Cartesian)
+    if Base.sym_in(type,(:r,:R,:rectangular, :Rectangular, :rect, :Rect, :rectilinear, :Rectilinear, :cart, :Cart, :cartesian, :Cartesian))
         return :Cartesian
-    elseif type ∈ (:p,:P,:polar, :Polar, :cyl, :Cyl, :cylindrical, :Cylindrical,:pol,:Pol)
+    elseif Base.sym_in(type,(:p,:P,:polar, :Polar, :cyl, :Cyl, :cylindrical, :Cylindrical,:pol,:Pol))
         return :Polar
-    elseif type ∈ (:s,:S,:spherical, :Spherical, :sph, :Sph)
+    elseif Base.sym_in(type,(:s,:S,:spherical, :Spherical, :sph, :Sph))
         return :Spherical
     else
         throw("unrecognized coordinate type $type")
@@ -67,9 +73,7 @@ end
 _lattice_origin(origin,constants::NTuple{N}) where N = Point(origin)
 _lattice_angles(angles,constants::NTuple{N}) where N = SVector{(N-1)N÷2,Float64}(angles)
 
-include("1D/Lattices.jl")
-# include("2D/Lattices.jl")
-# include("3D/Lattices.jl")
+foreach(include,files)
 
 function Base.getproperty(lat::Lattice,sym::Symbol)
     if sym == :dx

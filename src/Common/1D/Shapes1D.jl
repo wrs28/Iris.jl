@@ -1,6 +1,5 @@
 export Interval
 
-using ..Points
 
 struct Interval <: AbstractShape{1,2}
     start::Float64
@@ -25,17 +24,11 @@ function generate_origin(start::Real,stop::Real,ref::Symbol)
     return origin
 end
 
-# struct BraggStack{N,T}
-#     origin::Float64
-#     depths::NTuple{N,Float64}
-#     indices::NTuple{N,T}
-#     periods::Int
-#     integrated_depths::NTuple{N,Float64}
-#
-#     function BraggStack(origin,depths,indices,periods)
-#         new{length(depths),eltype(indices)}(origin,depths,indices,periods,tuple(cumsum(depths...)))
-#     end
-# end
-# function BraggStack(p::Point)
-#     0 ≤ (p.x-origin)
-# end
+function Base.show(io::IO,i::Interval)
+    printstyled(io, "Interval",color=PRINTED_COLOR_DARK)
+    print(io," (")
+    printstyled(io,i.start,color=PRINTED_COLOR_NUMBER)
+    print(io,",")
+    printstyled(io,i.stop,color=PRINTED_COLOR_NUMBER)
+    print(io,")")
+end

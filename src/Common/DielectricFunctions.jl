@@ -7,13 +7,15 @@ or with user-supplied functions
 """
 module DielectricFunctions
 
+export DielectricFunction
+export PumpFunction
+export piecewise_constant_ε
+export piecewise_constant_F
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
+
 using ..Points
-
-export DielectricFunction,
-PumpFunction,
-piecewise_constant_ε,
-piecewise_constant_F
-
 
 """
     struct DielectricFunction
@@ -70,23 +72,31 @@ DielectricFunction(ε::Function,n1::Real,n2::Real=0.0) = DielectricFunction(ε, 
 Base.getindex(de::DielectricFunction,sym::Symbol) = Base.getproperty(de,sym)
 function Base.getproperty(de::DielectricFunction,sym::Symbol)
     if Base.sym_in(sym,(:n1,:n₁))
-        return de.parameters[:n₁]
+        return getfield(de,:parameters)[:n₁]
     elseif Base.sym_in(sym,(:n2,:n₂))
-        return de.parameters[:n₂]
+        return getfield(de,:parameters)[:n₂]
     else
         getfield(de,sym)
     end
 end
 
 function Base.show(io::IO,d::DielectricFunction)
-    println(io, "DielectricFunction: ")
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
+    printstyled(io, "DielectricFunction ",color=PRINTED_COLOR_DARK)
     if d.ε==piecewise_constant_ε
-        print(io, "\tpiecewise_constant_ε: n = ",d.parameters[:n₁]+1im*d.parameters[:n₂])
+        print(io, "piecewise_constant_ε (n = ")
+        printstyled(io,d.parameters[:n₁]+1im*d.parameters[:n₂],color=PRINTED_COLOR_NUMBER)
+        print(io,")")
     else
+        print(io,"(")
+        count = 0
         for p ∈ d.parameters
-            print(io, "\t", p.first, ": ")
-            println(io, p.second)
+            count += 1
+            print(io,p.first,"=")
+            printstyled(io,p.second,color=PRINTED_COLOR_NUMBER)
+            count<length(d.parameters) ? print(io,", ") : nothing
         end
+        print(io,")")
     end
 end
 
@@ -123,14 +133,22 @@ PumpFunction(F::Real) = PumpFunction(piecewise_constant_F,Dict(:F=>F))
 (pf::PumpFunction)(p::Point) = pf.F(p,pf.parameters)
 
 function Base.show(io::IO,d::PumpFunction)
-    println(io, "PumpFunction: ")
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
+    printstyled(io, "PumpFunction ",color=PRINTED_COLOR_DARK)
     if d.F==piecewise_constant_F
-        print(io, "\tpiecewise_constant_F: ",d.parameters[:F])
+        print(io, "piecewise_constant_F (F = ")
+        printstyled(io, d.parameters[:F],color=PRINTED_COLOR_NUMBER)
+        print(io, ")")
     else
+        count = 0
+        print(io,"(")
         for p ∈ d.parameters
-            print(io, "\t", p.first, ": ")
-            println(io, p.second)
+            count += 1
+            print(io,p.first,"=")
+            printstyled(io, p.second,color=PRINTED_COLOR_NUMBER)
+            count<length(d.parameters) ? print(io,", ") : nothing
         end
+        print(io,")")
     end
 end
 

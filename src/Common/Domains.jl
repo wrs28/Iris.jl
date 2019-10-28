@@ -5,17 +5,23 @@ for constructing domains to be fed to Simulation
 """
 module Domains
 
+files = (
+    "1D/Domains1D.jl",
+    # "2D/Domains2D.jl",
+    # "3D/Domains3D.jl"
+)
+
 export Domain
 
-# using ...Defaults
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
 using ..Boundaries
 using ..DielectricFunctions
 using ..Dispersions
 using ..Lattices
 using ..Points
 using ..Shapes
-# using LinearAlgebra
-# using RecipesBase
+
 
 """
     struct Domain
@@ -116,7 +122,7 @@ function Base.conj(d::Domain)
         d.indices,
         conj(d.ε),
         d.F,
-        conj(d.χ),
+        map(conj,d.χ),
         d.interior,
         d.bulk,
         d.surface,
@@ -135,24 +141,30 @@ end
 #     return dom
 # end
 
-include("1D/Domains.jl")
-# include("2D/Domains.jl")
-# include("3D/Domains.jl")
+foreach(include,files)
 
 function Base.show(io::IO,dom::Domain)
-    println(io,"Domain ",dom.type,": ",dom.name)
-    println(io,"Number of sites: ",length(dom.x))
-    println(io,"Number of bulk points: ",sum(dom.bulk))
-    println(io,"Number of surface points: ",sum(dom.surface))
-    println(io,"Number of corner points: ",sum(dom.corner))
+    printstyled(io,"Domain ",color=PRINTED_COLOR_DARK)
+    println(io,"(",dom.type,"): ",dom.name)
+    print(io,"\tNumber of sites: ")
+    printstyled(io,length(dom.x),"\n",color=PRINTED_COLOR_NUMBER)
+    print(io,"\tNumber of bulk points: ")
+    printstyled(io,sum(dom.bulk),"\n",color=PRINTED_COLOR_NUMBER)
+    print(io,"\tNumber of surface points: ")
+    printstyled(io,sum(dom.surface),"\n",color=PRINTED_COLOR_NUMBER)
+    print(io,"\tNumber of corner points: ")
+    printstyled(io,sum(dom.corner),"\n",color=PRINTED_COLOR_NUMBER)
+    print(io,"\t\t====================")
     println(io)
-    println(io,dom.dielectric)
+    println(IOContext(io,:tabbed2=>true),dom.lattice)
     println(io)
-    println(io,dom.pump)
+    println(IOContext(io,:tabbed2=>true),dom.boundary)
     println(io)
-    println(io,dom.boundary)
+    println(IOContext(io,:tabbed2=>true),dom.dielectric)
     println(io)
-    print(io,dom.lattice)
+    println(IOContext(io,:tabbed2=>true),dom.pump)
+    println(io)
+    println(io,"\t\t",dom.χ)
 end
 
 # @recipe function f(d::Domain)

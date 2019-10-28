@@ -1,0 +1,3 @@
+module TimeDomain
+
+end # module

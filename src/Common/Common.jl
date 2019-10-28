@@ -1,16 +1,31 @@
 """
-    module IrosBase
+    module Common
 
-Essential tools used in the rest of Iros.
+Essential tools used in the rest of Iris.
 """
 module Common
+
+const PRINTED_COLOR_NUMBER = :light_cyan
+const PRINTED_COLOR_VARIABLE = :cyan
+const PRINTED_COLOR_WARN = :light_yellow
+const PRINTED_COLOR_GOOD = :green
+const PRINTED_COLOR_DARK = 63
+const PRINTED_COLOR_LIGHT = 171
+const PRINTED_COLOR_BAD = :light_red
+
+Base.conj(::Tuple{}) = ()
 
 include("Points.jl")
 using .Points
 export Point
 
+include("ElectricFields.jl")
+using .ElectricFields
+export ElectricField
+
 include("Shapes.jl")
 using .Shapes
+export AbstractShape
 export Interval
 export Circle
 export Ellipse
@@ -82,8 +97,19 @@ export Hermitian
 
 include("MaxwellOperators.jl")
 using .MaxwellOperators
+export Maxwell
 export maxwell
-export maxwell_lep
-export maxwell_nep
+
+
+include("LU_Factorizations.jl")
+using .LU_Factorizations
+export DEFAULT_LUPACK
+export MSolver
+export PSolver
+export USolver
+export AbstractLUPACK
+
+include("Plotting.jl")
+using .Plotting
 
 end # module

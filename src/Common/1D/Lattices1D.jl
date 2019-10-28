@@ -15,23 +15,17 @@ end
 latticeindex(lat::Lattice{1},p::Point{1}) = (p[1]-lat.origin[1])/lat.dx
 
 function Base.show(io::IO, lat::Lattice{1})
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     if lat.type==:Cartesian
-        if !get(io, :sub, false)
-            print(io, "Cartesian Lattice: \n",
-                "\tdx = ", fmt("3.2f",lat.dx), "\n",
-                "\torigin: ", fmt("3.2f",lat.x0))
-        elseif !get(io, :sub1, false)
-            print(io,
-                "\n\tdx = ", fmt("3.2f",lat.dx), "\n",
-                "\torigin: ", fmt("3.2f",lat.x0))
-        else
-            print(io,
-                "\n\t\tdx = ", fmt("3.2f",lat.dx),"\n",
-                "\t\torigin: ", fmt("3.2f",lat.x0))
-        end
+        printstyled(io,"Cartesian Lattice ",color=PRINTED_COLOR_DARK)
+        print(io,"(dx=")
+        printstyled(io, fmt("3.2f",lat.dx),color=PRINTED_COLOR_NUMBER)
+        print(io, ", origin=")
+        printstyled(io, fmt("3.2f",lat.x0),color=PRINTED_COLOR_NUMBER)
+        print(io,")")
     elseif lat.type==:Polar
-        println(io,"not yet implemented")
+        printstyled(io,"not yet implemented",color=PRINTED_COLOR_WARN)
     else
-        println(io, "unknown lattice type")
+        printstyled(io, "unknown lattice type",color=PRINTED_COLOR_WARN)
     end
 end

@@ -2,6 +2,13 @@ module SelfEnergies
 
 export SelfEnergy
 
+files = (
+    "1D/SelfEnergies1D.jl",
+    # "2D/SelfEnergies2D.jl",
+    # "3D/SelfEnergies3D.jl"
+    )
+
+import ..PRINTED_COLOR_DARK
 using ..BoundaryConditions
 using ..Domains
 using SparseArrays
@@ -13,12 +20,12 @@ struct SelfEnergy{N,M,TF}
     f::TF
 end
 
-include("1D/SelfEnergies.jl")
-# include("2D/SelfEnergies.jl")
-# include("3D/SelfEnergies.jl")
+foreach(include,files)
 
 function Base.show(io::IO,Σ::SelfEnergy{N,M}) where {N,M}
-    print(io,"SelfEnergy in $(N)D with $(M) parts")
+    print(io,"$(N)D ")
+    printstyled(io,"SelfEnergy",color=PRINTED_COLOR_DARK)
+    print(io," with ", M," components")
 end
 
-end
+end # module

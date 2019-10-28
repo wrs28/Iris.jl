@@ -13,10 +13,10 @@ uuid = "ec485272-7323-5ecc-a04f-4719b315124d"
 version = "0.0.4"
 
 [[ArnoldiMethodTransformations]]
-deps = ["ArnoldiMethod", "LinearAlgebra", "LinearMaps", "Requires", "SparseArrays"]
-git-tree-sha1 = "24e6c55edcf02edf8850cbb8b50eceeb92a113c5"
+deps = ["ArnoldiMethod", "LinearAlgebra", "LinearMaps", "Pardiso", "SparseArrays"]
+path = "/Users/wrs/.julia/dev/ArnoldiMethodTransformations"
 uuid = "fede57cc-428a-11e9-3e5c-c149a0a4072d"
-version = "0.1.1"
+version = "0.1.3"
 
 [[ArrayInterface]]
 deps = ["LinearAlgebra", "Requires", "SparseArrays"]
@@ -39,18 +39,6 @@ git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
 version = "0.5.6"
 
-[[CMake]]
-deps = ["BinDeps"]
-git-tree-sha1 = "c67a8689dc5444adc5eb2be7d837100340ecba11"
-uuid = "631607c0-34d2-5d66-819e-eb0f9aa2061a"
-version = "1.1.2"
-
-[[CMakeWrapper]]
-deps = ["BinDeps", "CMake", "Libdl", "Parameters", "Test"]
-git-tree-sha1 = "16d4acb3d37dc05b714977ffefa8890843dc8985"
-uuid = "d5fb7624-851a-54ee-a528-d3f3bac0b4a0"
-version = "0.2.3"
-
 [[Calculus]]
 deps = ["Compat"]
 git-tree-sha1 = "bd8bbd105ba583a42385bd6dc4a20dad8ab3dc11"
@@ -69,12 +57,6 @@ git-tree-sha1 = "c9c1845d6bf22e34738bee65c357a69f416ed5d1"
 uuid = "5ae59095-9a9b-59fe-a467-6f913c188581"
 version = "0.9.6"
 
-[[Combinatorics]]
-deps = ["LinearAlgebra", "Polynomials", "Test"]
-git-tree-sha1 = "50b3ae4d643dc27eaff69fb6be06ee094d5500c9"
-uuid = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
-version = "0.7.0"
-
 [[CommonSubexpressions]]
 deps = ["Test"]
 git-tree-sha1 = "efdaf19ab11c7889334ca247ff4c9f7c322817b0"
@@ -83,9 +65,9 @@ version = "0.2.0"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "84aa74986c5b9b898b0d1acaf3258741ee64754f"
+git-tree-sha1 = "ed2c4abadf84c53d9e58510b5fc48912c2336fbb"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "2.1.0"
+version = "2.2.0"
 
 [[Conda]]
 deps = ["JSON", "VersionParsing"]
@@ -152,10 +134,10 @@ uuid = "4c728ea3-d9ee-5c9a-9642-b6f7d7dc04fa"
 version = "0.2.1"
 
 [[Formatting]]
-deps = ["Compat"]
-git-tree-sha1 = "289003271ce9c8194c1ce56a3c433f1c51841125"
+deps = ["Printf"]
+git-tree-sha1 = "a0c901c29c0e7c763342751c0a94211d56c0de5c"
 uuid = "59287772-0a20-5a39-b81b-1366585eb4c0"
-version = "0.3.5"
+version = "0.4.1"
 
 [[ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "InteractiveUtils", "LinearAlgebra", "NaNMath", "Random", "SparseArrays", "SpecialFunctions", "StaticArrays", "Test"]
@@ -183,6 +165,12 @@ deps = ["Dates", "Mmap", "Parsers", "Unicode"]
 git-tree-sha1 = "b34d7cef7b337321e97d22242c3c2b91f476748e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.0"
+
+[[LaTeXStrings]]
+deps = ["Compat"]
+git-tree-sha1 = "7ab9b8788cfab2bdde22adf9004bda7ad9954b6c"
+uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+version = "1.0.3"
 
 [[LibGit2]]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
@@ -213,12 +201,6 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
-[[MathProgBase]]
-deps = ["Compat"]
-git-tree-sha1 = "3bf2e534e635df810e5f4b4f1a8b6de9004a0d53"
-uuid = "fdba3010-5040-5b88-9595-932c9decdf73"
-version = "0.7.7"
-
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
@@ -227,12 +209,6 @@ deps = ["Calculus", "DiffEqDiffTools", "DiffResults", "Distributed", "ForwardDif
 git-tree-sha1 = "f1b8ed89fa332f410cfc7c937682eb4d0b361521"
 uuid = "d41bc354-129a-5804-8e4c-c37616107c6c"
 version = "7.5.0"
-
-[[NLopt]]
-deps = ["BinaryProvider", "CMakeWrapper", "Libdl", "MathProgBase", "Test"]
-git-tree-sha1 = "b46237debcacd4fed7bbeb31200667a75b90384f"
-uuid = "76087f3c-5699-56af-9a33-bf431cd00edd"
-version = "0.5.1"
 
 [[NLsolve]]
 deps = ["DiffEqDiffTools", "Distances", "ForwardDiff", "LineSearches", "LinearAlgebra", "NLSolversBase", "Printf", "Reexport"]
@@ -266,7 +242,7 @@ version = "0.12.0"
 
 [[Pardiso]]
 deps = ["Libdl", "LinearAlgebra", "Random", "SparseArrays"]
-git-tree-sha1 = "201ca51ff7d5869e4cc705aeb0dbccde56a811b9"
+path = "/Users/wrs/.julia/dev/Pardiso"
 uuid = "46dd5b70-b6fb-5a00-ae2d-e8fea33afaf2"
 version = "0.4.3"
 
@@ -281,10 +257,10 @@ deps = ["Dates", "LibGit2", "Markdown", "Printf", "REPL", "Random", "SHA", "UUID
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Polynomials]]
-deps = ["LinearAlgebra", "SparseArrays", "Test"]
-git-tree-sha1 = "62142bd65d3f8aeb2226ec64dd8493349147df94"
+deps = ["LinearAlgebra", "RecipesBase"]
+git-tree-sha1 = "f7c0c07e82798aef542d60a6e6e85e39f4590750"
 uuid = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
-version = "0.5.2"
+version = "0.5.3"
 
 [[Printf]]
 deps = ["Unicode"]
@@ -346,9 +322,9 @@ version = "0.8.0"
 
 [[StaticArrays]]
 deps = ["LinearAlgebra", "Random", "Statistics"]
-git-tree-sha1 = "db23bbf50064c582b6f2b9b043c8e7e98ea8c0c6"
+git-tree-sha1 = "1085ffbf5fd48fdba64ef8e902ca429c4e1212d3"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "0.11.0"
+version = "0.11.1"
 
 [[Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -361,6 +337,11 @@ uuid = "4607b0f0-06f3-5cda-b6b1-a6196a1729e9"
 [[Test]]
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[[TupleTools]]
+git-tree-sha1 = "62a7a6cd5a608ff71cecfdb612e67a0897836069"
+uuid = "9d95972d-f1c8-5527-a6e0-b4b365fa01f6"
+version = "1.2.0"
 
 [[URIParser]]
 deps = ["Test", "Unicode"]
@@ -382,7 +363,7 @@ uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
 version = "1.1.3"
 
 [[VoronoiDelaunay]]
-deps = ["Colors", "GeometricalPredicates", "Random", "Test"]
-git-tree-sha1 = "ecb1fddc8f749154904f70fe44846a6d51351bec"
+deps = ["Colors", "GeometricalPredicates", "Random"]
+git-tree-sha1 = "da5560a4c7c767476e85e2dbf4d8c8ca112e542b"
 uuid = "72f80fcb-8c52-57d9-aff0-40c1a3526986"
-version = "0.3.1"
+version = "0.4.0"

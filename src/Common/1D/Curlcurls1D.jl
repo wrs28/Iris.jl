@@ -27,8 +27,8 @@ function (cc::Curlcurl{1})(ky::Real,kz::Real)
 	kykz = ky*kz
 
 	cc0 = kron(sparse([2,3],[2,3],[-1,-1],3,3),cc.cc0)
-	cc1 = kron(sparse([2,3,1,1],[1,1,2,2],[ky,kz,ky,kz],3,3),cc.cc1)
-	cc2 = kron(sparse([1,2,3,2,3],[1,2,2,3,3],[ky²+kz²,kz²,kykz,kykz,ky²],3,3),cc.cc2)
+	cc1 = kron(sparse([2,3,1,1],[1,1,2,3],[ky,kz,ky,kz],3,3),cc.cc1)
+	cc2 = kron(sparse([1,2,3,2,3],[1,2,2,3,3],[ky²+kz²,kz²,-kykz,-kykz,ky²],3,3),cc.cc2)
 
 	return cc0+cc1+cc2
 end

@@ -17,7 +17,16 @@ export Unsymmetric
 export Symmetric
 export Hermitian
 
-using ...Defaults
+files = (
+	"1D/Simulations1D.jl",
+	# "2D/Simulations2D.jl",
+	# "3D/Simulations3D.jl"
+	)
+
+import ..PRINTED_COLOR_GOOD
+import ..PRINTED_COLOR_WARN
+import ..PRINTED_COLOR_DARK
+
 using ..Curlcurls
 using ..Domains
 using ..Lattices
@@ -25,8 +34,8 @@ using ..Points
 using ..SelfEnergies
 using ..Shapes
 using LinearAlgebra
-# using RecipesBase
 using SparseArrays
+
 
 struct Unsymmetric end
 
@@ -73,24 +82,35 @@ struct Simulation{N,C,T,TDOM,M,TF}
 	k₃₀::Float64
 end
 
-include("1D/Simulations.jl")
-# include("2D/Simulations.jl")
-# include("3D/Simulations.jl")
+Base.length(sim::Simulation) = length(sim.x)
 
 function Base.show(io::IO,sim::Simulation{N,CLASS}) where {N,CLASS}
 	suffix = length(sim.domains)>1 ? "s" : ""
 	if sim.smoothed[]
-        println(io,"Smoothed ", N, "D ", CLASS, " Simulation with ", length(sim.domains) ," domain", suffix)
+		printstyled(io,"Smoothed ",color=PRINTED_COLOR_GOOD)
+		print(io,"$(N)D ", CLASS)
+		printstyled(io," Simulation",color=PRINTED_COLOR_DARK)
+		println(io, " with ", length(sim.domains)," domain",suffix)
 	else
-		println(io,"Unsmoothed ", N, "D ", CLASS, " Simulation with ", length(sim.domains)," domain",suffix)
+		printstyled(io,"Unsmoothed ",color=PRINTED_COLOR_WARN)
+		print(io,N, "D ", CLASS)
+		printstyled(io," Simulation",color=PRINTED_COLOR_DARK)
+		println(io, " with ", length(sim.domains)," domain",suffix)
 	end
-    println(io,"\tsites: ",length(sim.x))
+    print(io,"\tn sites: ")
+	printstyled(io,length(sim),"\n",color=:light_cyan)
 	println(io,"\t\t====================")
 	for d ∈ eachindex(sim.domains)
-		println(io,"\t\tDomain ", d,": ",sim.domains[d].type)
+		printstyled(io,"\t\tDomain ",color=PRINTED_COLOR_DARK)
+		print(io, d," (",sim.domains[d].type,"): ")
+		print(io,sim.domains[d].name)
+		d < length(sim.domains) ? println(io) : nothing
 	end
 end
 
+Base.conj(sim::Simulation) = Simulation(sim.ω₀,map(conj,sim.domains)...)
+
+foreach(include,files)
 
 # take individually defined domains and concatenate all relevant data
 function append_domains!(domain_index,nnm,nnp,name,x,indices,ε,F,interior,bulk,surface,corner,domains)

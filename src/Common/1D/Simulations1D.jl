@@ -1,3 +1,14 @@
+function Base.getproperty(sim::Simulation{1},sym::Symbol)
+	if sym == :dx
+		return getfield(sim,:domains)[1].lattice.dx
+	elseif Base.sym_in(sym,(:lat,:lattice,:Lat,:Lattice))
+		return getfield(sim,:domains)[1].lattice
+	else
+		return getfield(sim,sym)
+	end
+end
+
+
 function Simulation(
 	ω₀::Real,
 	domains::Vararg{Domain{1},N};
@@ -149,8 +160,4 @@ function boundary_layer(domain,x::Point{1},dim::Int)
 	bl2 = domain.boundary.bls[2]
 	σx = bl1(x)+bl2(x)
 	return σx
-end
-
-function Base.conj(sim::Simulation)
-	return Simulation(sim.ω₀,map(conj,sim.domains)...)
 end

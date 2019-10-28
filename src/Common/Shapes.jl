@@ -11,15 +11,24 @@ parameter, the radius, while `Ellipse` has two, the semi-major and semi-minor ax
 """
 module Shapes
 
+files = (
+    "1D/Shapes1D.jl",
+    # "2D/Shapes2D.jl",
+    # "3D/Shapes3D.jl",
+    )
+
 export AbstractShape
 export nsides
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
+
+using ..Points
 
 abstract type AbstractShape{NDIMS,NSIDES} end
 Base.ndims(::AbstractShape{NDIMS,NSIDES}) where {NDIMS,NSIDES} = NDIMS
 nsides(::AbstractShape{NDIMS,NSIDES}) where {NDIMS,NSIDES} = NSIDES
 
-include("1D/Shapes.jl")
-# include("2D/Shapes.jl")
-# include("3D/Shapes.jl")
+foreach(include,files)
 
 end #module

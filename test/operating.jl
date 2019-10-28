@@ -64,8 +64,8 @@ F2(Point(1.1))
 ## lattices
 using Iris
 lat = Lattice(.01)
-# Lattice(1.0,1.0;type=:Polar)
-# lat = Lattice(1.0,1.0,1.0;angles=(.1,.1,0.))
+Lattice(1.0,1.0;type=:Polar)
+lat = Lattice(1.0,1.0,1.0;angles=(.1,.1,0.))
 
 @code_warntype Lattice(1.0)
 @code_warntype Lattice(1.0,1.0)
@@ -77,6 +77,29 @@ f(lat) = lat.r0
 ## Boundary
 using Iris
 interval = Interval(0,1)
+
+Boundary(interval,NeumannBC,PML)
+@code_warntype Boundary(interval,NeumannBC,PML)
+Boundary(interval,NeumannBC)
+@code_warntype Boundary(interval,NeumannBC)
+Boundary(interval;depth=.2)
+@code_warntype Boundary(interval;depth=.2)
+
+Boundary(NeumannBC,interval,PML)
+@code_warntype Boundary(NeumannBC,interval,PML)
+Boundary(NeumannBC,interval)
+@code_warntype Boundary(NeumannBC,interval)
+Boundary(PML,interval)
+@code_warntype Boundary(PML,interval)
+
+Boundary(NeumannBC,PML,interval)
+@code_warntype Boundary(NeumannBC,PML,interval)
+Boundary(PML,NeumannBC,interval)
+@code_warntype Boundary(PML,NeumannBC,interval)
+
+bnd = Boundary(interval,DirichletBC{2}())
+@code_warntype Boundary(interval,DirichletBC{2}())
+
 bcs = (DirichletBC{1}(),DirichletBC{2}())
 bls = (PML{1}(.3),PML{2}(.3))
 bnd = Boundary(interval,bcs,bls)
@@ -112,26 +135,38 @@ sim = Simulation(10,dom1,dom2)
 
 
 ##
-using Iris
 using NLsolve
-lat = Lattice(2π/30/15/3)
-interval1 = Interval(0,3)
-interval2 = Interval(1,2)
-bcs1 = (MatchedBC{1}(in=[1]),MatchedBC{2}(in=[1]))
-bls1 = (noBL{1}(4*2π/30),noBL{2}(4*2π/30))
-bcs2 = (noBC{1}(),noBC{2}())
-bls2 = (noBL{1}(),noBL{2}())
-bnd1 = Boundary(interval1,bcs1,bls1)
-bnd2 = Boundary(interval2,bcs2,bls2)
+using Iris
+    using Plots
+    lat = Lattice(2π/30/15/3)
+    interval1 = Interval(0,3)
+    interval2 = Interval(1,2)
+    bcs1 = (MatchedBC{1}(out=[1]),MatchedBC{2}(out=[1]))
+    bls1 = (noBL{1}(4*2π/30),noBL{2}(4*2π/30))
+    bcs2 = (noBC{1}(),noBC{2}())
+    bls2 = (noBL{1}(),noBL{2}())
+    bnd1 = Boundary(interval1,bcs1,bls1)
+    bnd2 = Boundary(interval2,bcs2,bls2)
 
-dom1 = Domain(bnd1,lat,DielectricFunction(1),PumpFunction(0))
-dom2 = Domain(bnd2,lat,DielectricFunction(3),PumpFunction(1),TwoLevelSystem(30,-.15,2))
-sim = Simulation(30,dom2,dom1)
+    dom1 = Domain(bnd1,lat,DielectricFunction(1),PumpFunction(0))
+    dom2 = Domain(bnd2,lat,DielectricFunction(3),PumpFunction(1),TwoLevelSystem(30,-.15,2))
+    sim = Simulation(10,dom2,dom1)
+
+    m = maxwell(sim)
+
+    @time ωl,ψl = maxwell_eigs_l(sim,30;nev=3)
+    sct = scattering_nl(sim,30;show_trace=true)
+plot(sctl)
+plot(sct)
+
 @time ms = maxwell_salt(sim,1)
-ωl,ψl = eig_kl(sim,30;nev=1)
-@time nlsolve(ms,real(ωl),.1ψl;show_trace=true);
+@time mc = maxwell_scpa(sim,1)
+
+@time nlsolve(ms,real(ωl),ψl;show_trace=true);
+@time nlsolve(mc,real(ωl),.1ψl;show_trace=true);
 @time SALT(sim,real(ωl),ψl;show_trace=true)
 
+@time sct = scattering(sim,10;start=.5,stop=2.5)
 
 @btime eig_kl(sim,30);
 @code_warntype eig_kl(sim,30)
@@ -165,23 +200,22 @@ bnd1 = Boundary(interval1,bcs1,bls1)
 bnd2 = Boundary(interval2,bcs2,bls2)
 
 dom1 = Domain(bnd1,lat,DielectricFunction(1),PumpFunction(0))
-dom2 = Domain(bnd2,lat,DielectricFunction(3),PumpFunction(1),TwoLevelSystem(31,.01,2))
+dom2 = Domain(bnd2,lat,DielectricFunction(3),PumpFunction(1),TwoLevelSystem(31,.1,2))
 sim = Simulation(30,dom2,dom1)
 
-nep1 = maxwell_nep(sim)
-nep2 = SPMF_NEP(nep1.A[1:7],nep1.fi[1:7])
-ω,ψ = contour_beyn(nep1;σ=32,radius=1,neigs=3,k=5,logger=2,N=75)
+nep = maxwell_nep(sim)
+ω,ψ = contour_beyn(nep;σ=32,radius=1,neigs=3,k=5,logger=2,N=75)
 ω2,ψ2 = contour_beyn(nep2;σ=32,radius=1,neigs=3,k=5,logger=2,N=75)
 # newton(nep1;λ=32,maxit=50,logger=2)
 # newton(nep2;λ=32,maxit=50,logger=2)
 # augnewton(nep1;λ=32,maxit=50,logger=2)
 # augnewton(nep2;λ=32,maxit=50,logger=2)
-resinv(nep1;λ=32,logger=2)
-resinv(nep2;λ=32,logger=2)
-quasinewton(nep1;λ=32,logger=2)
-quasinewton(nep2;λ=32,logger=2)
-mslp(nep1;λ=32,logger=2)
-mslp(nep2;λ=32,logger=2)
+resinv(nep.nep;λ=31.3,logger=2,maxit=200)
+resinv(nep.nep;λ=32,logger=2)
+quasinewton(nep.nep;λ=32,logger=2)
+quasinewton(nep.nep;λ=32,logger=2,maxit=200)
+mslp(nep.nep;λ=32,logger=2,linsolvercreator=IrisLinSolverCreator(USolver))
+mslp(nep.nep;λ=32,logger=2)
 # implicitdet(nep1;λ=32,maxit=150,logger=2)
 # implicitdet(nep2;λ=32,maxit=150,logger=2)
 # nlar(nep1;λ=32,logger=2,neigs=2)
@@ -192,11 +226,11 @@ mslp(nep2;λ=32,logger=2)
 # jd_effenberger(nep2;λ=32,logger=2)
 # contour_block_SS(nep1;σ=32,neigs=1,radius=1,k=6,logger=2,N=150)
 # contour_block_SS(nep2;σ=32,neigs=3,k=5,logger=2,N=75)
-# iar(nep1;σ=32,logger=1,neigs=2)
+a,b = iar(nep.nep;σ=32,logger=1,neigs=2)
 iar(nep2;σ=32,logger=1,neigs=2)
-# iar_chebyshev(nep1;σ=32,logger=1,neigs=2)
+iar_chebyshev(nep.nep;σ=32,logger=1,neigs=2)
 iar_chebyshev(nep2;σ=32,logger=1,neigs=2)
-# tiar(nep1;σ=32,logger=1,neigs=2)
+tiar(nep1;σ=32,logger=1,neigs=2)
 tiar(nep2;σ=32,logger=1,neigs=2)
 # ilan(nep1;σ=32,logger=1,neigs=1)
 # ilan(nep2;σ=32,logger=1,neigs=1)

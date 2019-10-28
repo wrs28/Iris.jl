@@ -3,6 +3,7 @@
 """
 module BoundaryConditions
 
+export get_side
 export noBC
 export DirichletBC
 export NeumannBC
@@ -15,9 +16,14 @@ export LocalBC
 export NonLocalBC
 export BCLocality
 
+import ..PRINTED_COLOR_DARK
+import ..get_side
+
 abstract type AbstractBC{SIDE} end
 abstract type AbstractRealBC{SIDE} <: AbstractBC{SIDE} end
 abstract type AbstractComplexBC{SIDE} <: AbstractBC{SIDE} end
+
+get_side(::AbstractBC{SIDE}) where SIDE = SIDE
 
 struct noBC{SIDE} <: AbstractRealBC{SIDE} end
 struct DirichletBC{SIDE} <: AbstractRealBC{SIDE} end
@@ -36,13 +42,18 @@ BCLocality(::Union{noBC{SIDE},DirichletBC{SIDE},NeumannBC{SIDE}}) where SIDE = L
 BCLocality(::AbstractBC{SIDE}) where SIDE = NonLocalBC{SIDE}
 
 for TBC ∈ (noBC,DirichletBC,NeumannBC,FloquetBC)
-	@eval Base.show(io::IO,::$TBC{SIDE}) where SIDE = print(io,$TBC," (SIDE=",SIDE,")")
+	@eval begin
+		function Base.show(io::IO,::$TBC{SIDE}) where SIDE
+			printstyled(io,$TBC,color=PRINTED_COLOR_DARK)
+			!get(io,:compact,false) ? print(io," SIDE=",SIDE) : nothing
+		end
+	end
 end
 function Base.show(io::IO,mbc::MatchedBC{SIDE}) where SIDE
-	print(io,"MatchedBC (SIDE=",SIDE,";")
-	print(io," in:", mbc.in)
-	print(io," out:", mbc.out)
-	print(io,")")
+	printstyled(io,"MatchedBC",color=PRINTED_COLOR_DARK)
+	!get(io,:compact,false) ? print(io," SIDE=",SIDE,";") : nothing
+	print(IOContext(io,:typeinfo=>Array{Int})," in:", mbc.in)
+	print(io,"/out:", mbc.out)
 end
 
 Base.conj(bc::AbstractRealBC) = bc

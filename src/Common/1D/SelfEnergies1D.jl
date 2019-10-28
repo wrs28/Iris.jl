@@ -73,26 +73,23 @@ function SelfEnergy(domains::NTuple{L,Domain{1}},surface,domain_index,α_half,a,
     return SelfEnergy{1,2,typeof(fs)}((-Σ0L,-Σ0R),(Σ1L,Σ1R),Σ2,(fL,fR))
 end
 
-# fdl(ω,_...) = one(ω)
-# fnl(ω,_...) = one(ω)
-# ffl(ka,a) = exp(-1im*ka*a)
-
-# fdr(ω,_...) = one(ω)
-# fnr(ω,_...) = one(ω)
-# ffr(ka,a) = exp(+1im*ka*a)
-
-# fmin(ω,ka,ky,kz,dx)  = exp(-1im*sqrt(ω^2-one(ω)*ky^2-one(ω)*kz^2)*dx)
-# fmout(ω,ka,ky,kz,dx) = exp(+1im*sqrt(ω^2-one(ω)*ky^2-one(ω)*kz^2)*dx)
-
-
 struct FM
     dx::Float64
     sign::Int
 end
-function (fm::FM)(ω,ka,ky,kz)
+function (fm::FM)(ω::Number,ka,ky,kz)
     if iszero(fm.sign)
-        complex(1,0)
+        return complex(1.0,0)
     else
-        exp(fm.sign*1im*sqrt(ω^2-one(ω)*ky^2-one(ω)*kz^2)*fm.dx)
+        kx = 2asin(sqrt(ω^2 - ky^2 - kz^2)*fm.dx/2)/fm.dx
+        return exp(fm.sign*1im*kx*fm.dx)
+    end
+end
+function (fm::FM)(ω::Matrix,ka,ky,kz)
+    if iszero(fm.sign)
+        return one(convert(Matrix{ComplexF64},ω))
+    else
+        kx::Matrix{ComplexF64} = 2asin(sqrt(ω^2 - one(ω)*ky^2 - one(ω)*kz^2)*fm.dx/2)/fm.dx
+        return exp(fm.sign*1im*kx*fm.dx)
     end
 end

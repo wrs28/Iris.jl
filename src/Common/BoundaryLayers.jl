@@ -3,18 +3,27 @@
 """
 module BoundaryLayers
 
+export get_side
 export PML
 export cPML
 export noBL
 export AbstractBL
 
-using ...Defaults
+# PML params used in Boundaries
+const EXTINCTION = 1e-8 # extinction in PML layer
+const SCALING_ANGLE = .15 # phase in conductivity to accelerate evanscent decay
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
+
 using ..Points
 using Formatting
 
 abstract type AbstractBL{SIDE} end
 abstract type AbstractRealBL{SIDE} <: AbstractBL{SIDE} end
 abstract type AbstractComplexBL{SIDE} <: AbstractBL{SIDE} end
+
+get_side(::AbstractBL{SIDE}) where SIDE = SIDE
 
 for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 					 (:AbstractComplexBL,:AbstractComplexBL,:AbstractRealBL))
@@ -35,7 +44,10 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 		$TBL{SIDE}(depth) where SIDE = $TBL{SIDE}(depth,NaN,NaN)
 
 		function Base.show(io::IO,tbl::$TBL{SIDE}) where SIDE
-			print(io,$TBL," (SIDE=",SIDE, ", depth=",fmt("1.1f",tbl.depth),")")
+			printstyled(io,$TBL,color=PRINTED_COLOR_DARK)
+			!get(io,:compact,false) ? print(io," SIDE=",SIDE) : nothing
+			print(io," depth=")
+			printstyled(io,fmt("1.1f",tbl.depth),color=PRINTED_COLOR_NUMBER)
 		end
 
 		(tbl::$TBL)(x::Real,y...) = tbl(Point(x,y...))

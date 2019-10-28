@@ -5,16 +5,19 @@ module Points
 
 export Point
 
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
 using StaticArrays
 
 struct Point{N}
-	vec::SVector{N,Float64}
+	vector::SVector{N,Float64}
 	Point(vec::SVector{N,T}) where {N,T<:Real} = new{N}(vec)
 end
 
 Point(x::Real,y...) = Point((x,y...))
 Point(vec::NTuple{N}) where N = Point(SVector{N,Float64}(vec))
 Point(p::Point) = p
+
 """
 	struct Point{N}
 
@@ -29,8 +32,18 @@ Base.:*(a::Number,p::Point) = Point(a*p.vec)
 Base.:+(p1::Point,p2::Point) = Point(p1.vec+p2.vec)
 Base.:-(p1::Point,p2::Point) = Point(p1.vec-p2.vec)
 
+Base.ndims(::Point{N}) where N = N
+Base.getindex(p::Point,index::Integer) = getfield(p,:vector)[index]
+fnames = (:firstindex, :lastindex, :length, :size, :eltype, :iterate)
+for fname ∈ fnames @eval Base.$fname(p::Point) = $fname(p.vec) end
+Base.iterate(p::Point,state) = iterate(p.vec,state)
+Base.IndexStyle(::Point) = IndexStyle(p.vec)
+
+
 function Base.getproperty(p::Point{N},sym::Symbol) where N
-	if Base.sym_in(sym,(:x,:X))
+	if sym == :vec
+		return getfield(p,:vector)
+	elseif Base.sym_in(sym,(:x,:X))
 		N≥1 || throw(ErrorException("N=$N not compatible with x"))
 		return p[1]
 	elseif Base.sym_in(sym,(:y,:Y))
@@ -40,37 +53,52 @@ function Base.getproperty(p::Point{N},sym::Symbol) where N
 		N≥3 || throw(ErrorException("N=$N not compatible with z"))
 		return p[3]
 	elseif Base.sym_in(sym,(:r,))
-		return hypot(getfield(p,:vec)...)
+		return hypot(getfield(p,:vector)...)
 	elseif Base.sym_in(sym,(:ϕ,:φ,:𝝋,:phi))
 		2≤N≤3 || throw(ErrorException("ϕ only defined for 2≤N≤3, but N=$N"))
 		return atan(p[2],p[1])
 	elseif Base.sym_in(sym,(:θ,:theta,:ϑ))
 		N==3 || throw(ErrorException("θ only defined for N=3, but N=$N"))
-		return acos(p[3]/hypot(getfield(p,:vec)...))
+		return acos(p[3]/hypot(getfield(p,:vector)...))
 	else
 		return getfield(p,sym)
 	end
 end
 
-Base.getindex(p::Point,index::Integer) = getfield(p,:vec)[index]
 
-Base.ndims(::Point{N}) where N = N
+################################################################################
+# Pretty Printing
 
-Base.length(p::Point) = length(p.vec)
-Base.eltype(p::Point) = Float64
-Base.iterate(p::Point) = (p.vec[1],1)
-Base.iterate(p::Point,state) = state ≥ length(p) ? nothing : (p.vec[state+1],state+1)
+function Base.show(io::IO,p::Point{1})
+	print(io,"1D ")
+	printstyled(io,"Point",color=PRINTED_COLOR_DARK)
+	print(io, ": ")
+	printstyled(io, p.x,color=PRINTED_COLOR_NUMBER)
+end
+
+function Base.show(io::IO,p::Point{2})
+	print(io,"2D ")
+	printstyled(io,"Point",color=PRINTED_COLOR_DARK)
+	print(io, ": x=")
+	printstyled(io, p.x,color=PRINTED_COLOR_NUMBER)
+	print(io, ", y=")
+	printstyled(io, p.y,color=PRINTED_COLOR_NUMBER)
+end
+
+function Base.show(io::IO,p::Point{3})
+	print(io,"3D ")
+	printstyled(io,"Point",color=PRINTED_COLOR_DARK)
+	print(io, ": x=")
+	printstyled(io, p.x,color=PRINTED_COLOR_NUMBER)
+	print(io, ", y=")
+	printstyled(io, p.y,color=PRINTED_COLOR_NUMBER)
+	print(io, ", z=")
+	printstyled(io, p.z,color=PRINTED_COLOR_NUMBER)
+end
 
 function Base.show(io::IO,p::Point{N}) where N
-	print(io,N,"-dimensional point:")
-	if N≤3
-		N≥1 ? print(io," (x=",p.x) : nothing
-		N≥2 ? print(io,", y=",p.y) : nothing
-		N≥3 ? print(io,", z=",p.z) : nothing
-		print(io,")")
-	else
-		print(io," ",p.vec)
-	end
+	print(io, "$(N)D ")
+	printstyled(io,"Point",color=PRINTED_COLOR_DARK)
 end
 
 end # module
