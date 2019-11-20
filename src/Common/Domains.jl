@@ -143,6 +143,7 @@ end
 
 foreach(include,files)
 
+# Pretty Printing
 function Base.show(io::IO,dom::Domain)
     printstyled(io,"Domain ",color=PRINTED_COLOR_DARK)
     println(io,"(",dom.type,"): ",dom.name)
@@ -164,7 +165,8 @@ function Base.show(io::IO,dom::Domain)
     println(io)
     println(IOContext(io,:tabbed2=>true),dom.pump)
     println(io)
-    println(io,"\t\t",dom.χ)
+    printstyled(io,"\t\tDispersions ", color=PRINTED_COLOR_DARK)
+    println(io,dom.χ)
 end
 
 # @recipe function f(d::Domain)

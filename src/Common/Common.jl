@@ -5,25 +5,20 @@ Essential tools used in the rest of Iris.
 """
 module Common
 
-const PRINTED_COLOR_NUMBER = :light_cyan
-const PRINTED_COLOR_VARIABLE = :cyan
-const PRINTED_COLOR_WARN = :light_yellow
-const PRINTED_COLOR_GOOD = :green
-const PRINTED_COLOR_DARK = 63
-const PRINTED_COLOR_LIGHT = 171
-const PRINTED_COLOR_BAD = :light_red
+# `Defaults`: contains all default parameters in one location for uniformity and easy alteration.
+include("../Defaults.jl")
 
 Base.conj(::Tuple{}) = ()
 
-include("Points.jl")
+include("Points.jl") # ✅
 using .Points
 export Point
 
-include("ElectricFields.jl")
+include("ElectricFields.jl") # ✅
 using .ElectricFields
 export ElectricField
 
-include("Shapes.jl")
+include("Shapes.jl") # ✅
 using .Shapes
 export AbstractShape
 export Interval
@@ -34,7 +29,7 @@ export Annulus
 export Square
 export Rectangle
 
-include("BoundaryLayers.jl")
+include("BoundaryLayers.jl") # ✅
 using .BoundaryLayers
 export PML
 export cPML
@@ -81,6 +76,10 @@ export Lead
 include("Curlcurls.jl")
 using .Curlcurls
 export Curlcurl
+#
+# include("Curls.jl")
+# using .Curls
+# export Curl
 
 include("SelfEnergies.jl")
 using .SelfEnergies
@@ -91,6 +90,7 @@ export Simulation
 export smooth!
 export update_dielectric!
 export update_pump!
+export update!
 export Unsymmetric
 export Symmetric
 export Hermitian
@@ -111,5 +111,9 @@ export AbstractLUPACK
 
 include("Plotting.jl")
 using .Plotting
+
+ElectricField(sim::Simulation{1}) = ElectricField(sim.x,1)
+ElectricField(sim::Simulation{1},val) = ElectricField(sim.x,val)
+ElectricField(val,sim::Simulation{1}) = ElectricField(val,sim.x)
 
 end # module

@@ -23,7 +23,7 @@ function Domain(
     x = lat[imin:imax]
     inds_keep = bnd.shape.(x)
     x = x[inds_keep]
-    indices = CartesianIndex.(imin:imax)[inds_keep]
+    indices = map(CartesianIndex,(imin:imax)[inds_keep])
     ε = dielectric.(x)
     F = pump.(x)
     interior = trues(size(x))

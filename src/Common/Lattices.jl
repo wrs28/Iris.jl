@@ -109,6 +109,14 @@ function Base.getproperty(lat::Lattice,sym::Symbol)
     end
 end
 
+function Base.propertynames(::Lattice{1},private=false)
+    if private
+        return fieldnames(Lattice)
+    else
+        return (:dx,:x0)
+    end
+end
+
 latticeindex(lat::Lattice,x...) = latticeindex(lat,Point(x...))
 
 end # module

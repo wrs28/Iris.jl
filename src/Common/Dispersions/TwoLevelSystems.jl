@@ -1,17 +1,23 @@
 #NOTE: \perp does not work, reserved as infix operator, use \bigbot instead
+"""
+    module TwoLevelSystems
+
+Defines two-level dispersion, and utilties for Jacobians.
+"""
 module TwoLevelSystems
 
 export TwoLevelSystem
 
+using Formatting
 using LinearAlgebra
 using SparseArrays
 using ...ElectricFields
 
 import ...PRINTED_COLOR_NUMBER
 import ...PRINTED_COLOR_DARK
+import ...INDEX_OFFSET
 import ..AbstractDispersion
 import ..susceptability
-
 
 mutable struct TwoLevelSystem <: AbstractDispersion
     ωₐ::Float64
@@ -19,9 +25,12 @@ mutable struct TwoLevelSystem <: AbstractDispersion
     γ⟘::Float64
     h::Vector{Float64}
     hp1⁻¹::Vector{Float64}
-    chi::Matrix{ComplexF64}
-    dχdψr::Matrix{ComplexF64}
-    dχdψi::Matrix{ComplexF64}
+    chi::Vector{ComplexF64}
+    chis::Matrix{ComplexF64}
+    dχdψr::Array{ComplexF64,3}
+    dχdψi::Array{ComplexF64,3}
+    dχdω::Array{ComplexF64,3}
+    dχdϕ::Array{ComplexF64,3}
 
     TwoLevelSystem(ωₐ, D₀, γ⟘) = new(ωₐ, D₀, γ⟘)
 end
@@ -29,10 +38,12 @@ end
 function TwoLevelSystem(;ωₐ=0, D₀=0, γ⟘=1e8, kwargs...)
     ωa = get(kwargs,:ωa,ωₐ)
     omega_a = get(kwargs,:omega_a,ωa)
-    ω = get(kwargs,:ω,omega_a)
+    omega = get(kwargs,:omega,omega_a)
+    ω = get(kwargs,:ω,omega)
 
     γ_perp = get(kwargs,:γ_perp,γ⟘)
-    γp = get(kwargs,:γp,γ_perp)
+    γperp = get(kwargs,:γperp,γ_perp)
+    γp = get(kwargs,:γp,γperp)
     gamma_perp = get(kwargs,:gamma_perp,γp)
     γ = get(kwargs,:γ,gamma_perp)
 
@@ -41,15 +52,15 @@ function TwoLevelSystem(;ωₐ=0, D₀=0, γ⟘=1e8, kwargs...)
     return TwoLevelSystem(ω, D, γ)
 end
 
-susceptability(tls::TwoLevelSystem,ω,args...) = χ(tls,ω,args...)
-# susceptability(tls::TwoLevelSystem,args...) = χ(tls,args...)
+susceptability(tls::TwoLevelSystem,ω) = χ(tls,ω)
+susceptability(tls::TwoLevelSystem,args...) = χ!(tls,args...)
 
 Base.conj(tls::TwoLevelSystem) = TwoLevelSystem(tls.ωa,tls.D0,-tls.γp)
 
 function Base.getproperty(tls::TwoLevelSystem,sym::Symbol)
-    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp))
+    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp,:γperp))
         return getfield(tls,:γ⟘)
-    elseif Base.sym_in(sym,(:ω,:omega_a,:ωa))
+    elseif Base.sym_in(sym,(:ω,:omega_a,:ωa,:omega))
         return getfield(tls,:ωₐ)
     elseif Base.sym_in(sym,(:D,:D0))
         return getfield(tls,:D₀)
@@ -58,26 +69,28 @@ function Base.getproperty(tls::TwoLevelSystem,sym::Symbol)
     end
 end
 
+Base.propertynames(::TwoLevelSystem) = (:γ⟘,:ωₐ,:D₀)
+
 function Base.setproperty!(tls::TwoLevelSystem,sym::Symbol,val::Real)
-    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp))
-        return setfield!(tls,:γ⟘,val)
-    elseif Base.sym_in(sym,(:ω,:omega_a,:ωa))
-        return setfield!(tls,:ωₐ,val)
+    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp,:γperp))
+        return setfield!(tls,:γ⟘,float(val))
+    elseif Base.sym_in(sym,(:ω,:omega_a,:ωa,:omega))
+        return setfield!(tls,:ωₐ,float(val))
     elseif Base.sym_in(sym,(:D,:D0))
-        return setfield!(tls,:D₀,val)
+        return setfield!(tls,:D₀,float(val))
     else
-        return setfield!(tls,sym,val)
+        return setfield!(tls,sym,float(val))
     end
 end
 
 function Base.show(io::IO, tls::TwoLevelSystem)
     printstyled(io, "Two Level System",color=PRINTED_COLOR_DARK)
     print(io," (ωₐ=")
-    printstyled(io, tls.ωₐ,color=PRINTED_COLOR_NUMBER)
+    printstyled(io, fmt("3.2f",tls.ωₐ),color=PRINTED_COLOR_NUMBER)
     print(io,", D₀=")
-    printstyled(io, tls.D₀,color=PRINTED_COLOR_NUMBER)
+    printstyled(io, fmt("2.3f",tls.D₀),color=PRINTED_COLOR_NUMBER)
     print(io,", γ⟘=")
-    printstyled(io, tls.γ⟘,color=PRINTED_COLOR_NUMBER)
+    printstyled(io, fmt("1.1f",tls.γ⟘),color=PRINTED_COLOR_NUMBER)
     print(io,")")
 end
 
@@ -87,44 +100,68 @@ end
 
 Γ(tls::TwoLevelSystem,ω) = abs2(γ(tls,ω))
 
+H!(tls::TwoLevelSystem) = nothing
 @inline function H!(tls::TwoLevelSystem,ωs::Vector,ψs::ElectricField)
     N,M = size(ψs)
     isdefined(tls,:h) ? nothing : tls.h = zeros(Float64,N)
     isdefined(tls,:hp1⁻¹) ? nothing : tls.hp1⁻¹ = similar(tls.h)
-    isdefined(tls,:chi) ? nothing : tls.chi = Matrix{ComplexF64}(undef,N,M)
-    isdefined(tls,:dχdψr) ? nothing : tls.dχdψr = similar(chi)
-    isdefined(tls,:dχdψi) ? nothing : tls.dχdψi = similar(chi)
+    isdefined(tls,:chi) ? nothing : tls.chi = Vector{ComplexF64}(undef,N)
+    isdefined(tls,:chis) ? nothing : tls.chis = Array{ComplexF64,2}(undef,N,M)
+    isdefined(tls,:dχdψr) ? nothing : tls.dχdψr = Array{ComplexF64,3}(undef,N,M,M)
+    isdefined(tls,:dχdψi) ? nothing : tls.dχdψi = Array{ComplexF64,3}(undef,N,M,M)
+    isdefined(tls,:dχdω) ? nothing : tls.dχdω = Array{ComplexF64,3}(undef,N,M,M)
+    isdefined(tls,:dχdϕ) ? nothing : tls.dχdϕ = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.h)==(N,1) ? nothing : tls.h = Vector{Float64}(undef,N)
+    size(tls.hp1⁻¹)==(N,1) ? nothing : tls.hp1⁻¹ = Vector{Float64}(undef,N)
+    size(tls.chi)==(N,1) ? nothing : tls.chi = Vector{ComplexF64}(undef,N)
+    size(tls.chis)==(N,M) ? nothing : tls.chis = Array{ComplexF64,2}(undef,N,M)
+    size(tls.dχdψr)==(N,M) ? nothing : tls.dχdψr = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.dχdψi)==(N,M) ? nothing : tls.dχdψi = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.dχdω)==(N,M) ? nothing : tls.dχdω = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.dχdϕ)==(N,M) ? nothing : tls.dχdϕ = Array{ComplexF64,3}(undef,N,M,M)
     ψx,ψy,ψz = ψs.x,ψs.y,ψs.z
     for i ∈ 1:N tls.h[i] = 0 end
-    for μ ∈ eachindex(ωs)
+    @inbounds for μ ∈ eachindex(ωs)
         G = Γ(tls,ωs[μ])
-        for i ∈ 1:N
+        @inbounds for i ∈ 1:N
             j = mod1(i,N÷3)
             tls.h[i] += G*(abs2(ψx[j,μ])+abs2(ψy[j,μ])+abs2(ψz[j,μ]))
         end
     end
-    for i ∈ 1:N tls.hp1⁻¹[i] = 1/(1+tls.h[i]) end
+    @fastmath @inbounds @simd for i ∈ 1:N tls.hp1⁻¹[i] = 1/(1+tls.h[i]) end
     return nothing
 end
 
 χ(tls::TwoLevelSystem,ω) = tls.D₀*γ(tls,ω)
 
+
 @inline function χ!(tls::TwoLevelSystem,ω,ωs::Vector,ψs::ElectricField)
+    index = size(ψs,1)÷2+INDEX_OFFSET
     H!(tls,ωs,ψs)
     Dg = tls.D₀*γ(tls,ω)
-    for i ∈ eachindex(tls.h) tls.chi[i,1] = Dg*tls.hp1⁻¹[i] end
-    return nothing
-end
-
-@inline function χ!(tls::TwoLevelSystem,ωs::Vector,ψs::ElectricField)
-    H!(tls,ωs,ψs)
-    for μ ∈ eachindex(ωs)
-        ω = ωs[μ]
-        Dg = tls.D₀*γ(tls,ω)
-        Dg2G = Dg*2Γ(tls,ω)
-        for i ∈ eachindex(tls.chi)
-            tls.chi[i,μ] = Dg*tls.hp1⁻¹[i]
-            tls.dχdψr[i,μ], tls.dχdψi[i,μ] = -Dg2G*(tls.hp1⁻¹[i])^2 .*reim(ψs[i,μ])
+    gp² = tls.γp^2
+    @fastmath @inbounds @simd for i ∈ eachindex(tls.chi) tls.chi[i] = Dg*tls.hp1⁻¹[i] end
+    @inbounds for μ ∈ eachindex(ωs)
+        Dg = tls.D₀*γ(tls,ωs[μ])
+        @fastmath @inbounds @simd for i ∈ eachindex(tls.chi) tls.chis[i,μ] = Dg*tls.hp1⁻¹[i] end
+    end
+    ψx, ψy, ψz = ψs.x, ψs.y, ψs.z
+    @inbounds for ν ∈ eachindex(ωs) # derivative wrt ν
+        Gν = Γ(tls,ωs[ν])
+        ων = ωs[ν]
+        @inbounds for μ ∈ eachindex(ωs) # field μ
+            Dgμ = tls.D₀*γ(tls,ωs[μ])
+            Dgμ² = tls.D₀*γ(tls,ωs[μ])^2
+            Dgμ2Gν = Dgμ*2Gν
+            Dgμ2Gν² = Dgμ2Gν*Gν
+            @inbounds @simd ivdep for i ∈ eachindex(tls.chi)
+                k = mod1(i,length(tls.chi)÷3)
+                hp1⁻² = tls.hp1⁻¹[i]^2
+                tls.dχdψr[i,μ,ν], tls.dχdψi[i,μ,ν] = -Dgμ2Gν*hp1⁻².*reim(ψs[i,ν])
+                tls.dχdω[i,μ,ν] = -(μ==ν)*Dgμ²*tls.hp1⁻¹[i]/tls.γp +
+                    Dgμ2Gν²*hp1⁻²*(ων-tls.ωa)*(abs2(ψx[k,ν])+abs2(ψy[k,ν])+abs2(ψz[k,ν]))/gp²
+                tls.dχdϕ[i,μ,ν] = -Dgμ2Gν*hp1⁻²*(abs2(ψx[k,ν])+abs2(ψy[k,ν])+abs2(ψz[k,ν]))/real(ψs[index,ν])
+            end
         end
     end
     return nothing
@@ -132,14 +169,17 @@ end
 
 
 """
-    struct TwoLevelSystem
-    TwoLevelSystem(tls; :key1 => value1, :key2 => value2, ...) -> tls
+    mutable struct TwoLevelSystem
+
+    TwoLevelSystem(; [ωa=0][D0=0][γperp=1e8]) -> tls
 """
 TwoLevelSystem
 
 """
-    susceptability(::TwoLevelSystem,ω)
-    susceptability(::TwoLevelSystem,ωs,ψs)
+    susceptability(::TwoLevelSystem,ω) -> χ::ComplexF64
+    susceptability(::TwoLevelSystem,ω,ωs,ψs)
+
+The second computes in-place (stored in TwoLevelSystem).
 """
 susceptability
 

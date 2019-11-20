@@ -10,6 +10,7 @@ module Simulations
 
 export Simulation
 export smooth!
+export update!
 export update_dielectric!
 export update_pump!
 export update_sim
@@ -209,11 +210,11 @@ update_pump!(sim::Simulation) = update_pump!(sim,simulation_pump.(Ref(sim),sim.x
 
 
 """
-	update_sim!(sim)
+	update!(sim)
 
 update simulation `sim` by recomputing the dielectric and pump functions
 """
-function update_sim!(sim::Simulation)
+function update!(sim::Simulation)
 	update_dielectric!(sim)
 	update_pump!(sim)
 	return nothing
@@ -244,18 +245,30 @@ end
 simulation_dielectric(sim::Simulation,x) = simulation_dielectric(sim.domains,x)
 
 # used in the smoothing routing smooth!, it computes the pump as a function of position (x,y)
-function simulation_pump!(F,domains,x)
-    for i ∈ eachindex(x)
-        F[i] = simulation_pump(domains,x[i])
-    end
+simulation_pump(sim::Simulation,x) = simulation_pump(sim.domains,x)
+function simulation_pump(domains::Tuple,x::AbstractArray)
+    F = similar(x,Float64)
+	simulation_pump!(F,domains,x)
+    return F
+end
+
+function simulation_pump!(F::AbstractArray,domains::Tuple,x::AbstractArray)
+	pumps = map(d->d.pump,domains)
+    for i ∈ eachindex(x) F[i] = simulation_pump(domains,x[i],pumps) end
     return nothing
 end
-function simulation_pump(domains,x)
+function simulation_pump(domains::Tuple,x::Point,pumps)
+    dom = which_domain(domains,x)
+    F = dom==0 ? 0.0 : pumps[dom](x)
+    return F
+end
+function simulation_pump(domains::Tuple,x::Point)
     dom = which_domain(domains,x)
     F = dom==0 ? 0.0 : domains[dom].pump(x)
     return F
 end
-simulation_pump(sim::Simulation,x) = simulation_pump(sim.domains,x)
+
+
 
 
 

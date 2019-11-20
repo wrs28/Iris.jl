@@ -19,9 +19,9 @@ function Base.show(io::IO, lat::Lattice{1})
     if lat.type==:Cartesian
         printstyled(io,"Cartesian Lattice ",color=PRINTED_COLOR_DARK)
         print(io,"(dx=")
-        printstyled(io, fmt("3.2f",lat.dx),color=PRINTED_COLOR_NUMBER)
+        printstyled(io, fmt("3.4f",lat.dx),color=PRINTED_COLOR_NUMBER)
         print(io, ", origin=")
-        printstyled(io, fmt("3.2f",lat.x0),color=PRINTED_COLOR_NUMBER)
+        printstyled(io, fmt("3.4f",lat.x0),color=PRINTED_COLOR_NUMBER)
         print(io,")")
     elseif lat.type==:Polar
         printstyled(io,"not yet implemented",color=PRINTED_COLOR_WARN)

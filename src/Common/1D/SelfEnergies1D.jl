@@ -81,7 +81,9 @@ function (fm::FM)(ω::Number,ka,ky,kz)
     if iszero(fm.sign)
         return complex(1.0,0)
     else
-        kx = 2asin(sqrt(ω^2 - ky^2 - kz^2)*fm.dx/2)/fm.dx
+        k̂ = sqrt(ω^2 - ky^2 - kz^2)*fm.dx/2
+        abs(k̂)<1 || throw(DomainError(fm.dx,"lattice spacing $(fm.dx) too large. for |ω|=$(abs(ω)), ky=$ky, kz=$kz, should be < $(abs(1/sqrt(ω^2 - ky^2 - kz^2)))"))
+        kx = 2asin(k̂)/fm.dx
         return exp(fm.sign*1im*kx*fm.dx)
     end
 end

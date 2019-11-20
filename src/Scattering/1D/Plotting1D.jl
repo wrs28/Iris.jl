@@ -1,8 +1,19 @@
 using LaTeXStrings
 using RecipesBase
 
+@recipe f(mls::Maxwell_LS{1};by=abs2) = mls.solution,by
+@recipe f(mls::Maxwell_LS{1},sim::Simulation{1};by=abs2) = sim,mls.solution,by
+@recipe f(sim::Simulation{1},mls::Maxwell_LS{1};by=abs2) = sim,mls.solution,by
+
+@recipe f(nls::Maxwell_NLS{1};by=abs2) = nls.solution,by
+@recipe f(nls::Maxwell_NLS{1},sim::Simulation{1};by=abs2) = sim,nls.solution,by
+@recipe f(sim::Simulation{1},nls::Maxwell_NLS{1};by=abs2) = sim,nls.solution,by
+
 # Scattering
-@recipe function f(sct::ScatteringSolution{1};by=abs2)
+@recipe f(sct::ScatteringSolution;by=abs2) = sct,by
+@recipe f(by::Function, sct::ScatteringSolution) = sct,by
+
+@recipe function f(sct::ScatteringSolution{1},by::Function)
     x = map(a->a.vec[1],sct.tot.pos)
     perm = sortperm(x)
     x = x[perm]

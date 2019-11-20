@@ -1,131 +1,51 @@
-# linear
-################################################################################
-function maxwell_eigs_l(
-            sim::Simulation{1,Symmetric,T},
-            ω::Number;
-            ky::Number=0,
-            kz::Number=0,
-            verbose::Bool=false,
-            kwargs...
-            ) where T
+using Flatten
+using SparseArrays
 
-    lep = maxwell_lep(sim;ky=ky,kz=kz)
-    return maxwell_eigs(lep,ω;verbose=verbose,kwargs...)
-end
-
-
-# cf
-################################################################################
-function maxwell_eigs_cf(
-            sim::Simulation{1,Symmetric,T},
-            ω::Number;
-            ky::Number=0,
-            kz::Number=0,
-            verbose::Bool=false,
-            kwargs...
-            ) where T
-
-    cf = maxwell_cf(sim;ky=ky,kz=kz)
-    return maxwell_eigs(cf,ω;verbose=verbose,kwargs...)
-end
-
-
-# nonlinear
-################################################################################
-function maxwell_eigs_nl(
-            sim::Simulation{1,Symmetric,T},
-            ω::Number;
-            ky::Number=0,
-            kz::Number=0,
-            kwargs...) where T
-
-    nep = maxwell_nep(sim;ky=ky,kz=ka)
-    return maxwell_eigs(nep,ω; kwargs...)
-end
-
-
-function Maxwell_NEP(
-            sim::Simulation{1,C,T};
+"""
+    MaxwellNEP(::Simulation{1}; ky=0, kz=0) -> nep
+"""
+function MaxwellNEP(
+            sim::Simulation{1,C,T},
+            args...;
             ky::Number = 0,
             kz::Number = 0,
-            FType::DataType = T,
             kwargs...
             ) where {C,T}
 
-    M = maxwell(sim;ky=ky,kz=kz)
+    M = maxwell(sim; ky=ky, kz=kz)
     ka = 0
     f = map(f->(ω->f(ω,ka,ky,kz)),M.sim.self_energy.f)
     Σ1,Σ2,Σ3 = M.Σs
-    αF, fχ = _compute_αχ(sim)
+    αF, fχ = _compute_αχ(sim,args...)
     As = vcat([Σ1,Σ2,Σ3,sim.curlcurl(ky,kz),M.αε],αF)
     fs = [f[1],f[2],one,one,ω->-ω^2,map(ϝ->(ω->-ω^2*ϝ(ω)),fχ)...]
     nep = SPMF_NEP(As,fs;kwargs...)
-    return Maxwell_NEP(M,nep)
+    return MaxwellNEP(M,nep)
 end
 
 
 ################################################################################
-function _compute_αχ(sim::Simulation{1})
+function _compute_αχ(sim::Simulation{1},args...)
     χs = flatten(map(d->d.χ,sim.domains),Common.Dispersions.AbstractDispersion)
-    domain_inds = flatten(map(d->ntuple(identity,length(d.χ)),sim.domains))
+    domain_inds = flatten(map(d->ntuple(i->d,length(sim.domains[d].χ)),ntuple(identity,length(sim.domains))))
     fχs = map(x->(ω->susceptability(x,ω)),χs)
 
     n = length(sim.x)
     Fs = map(d->sim.domains[d].pump,domain_inds)
-    αFs = Array{SparseMatrixCSC{ComplexF64,Int},1}(undef,length(domain_inds))
+    αFs = Array{SparseMatrixCSC{ComplexF64,Int},1}(undef,length(domain_inds)) # number of dispersions × number of domains
     for d ∈ eachindex(αFs)
         αFs[d] = spdiagm(0=>zeros(ComplexF64,3n))
+        typeof(χs[d])<:TwoLevelSystem ? Common.Dispersions.TwoLevelSystems.H!(χs[d],args...) : nothing
         for i ∈ 1:3n
             j = mod1(i,n)
             if domain_inds[d]==sim.domain_indices[j]
-                αFs[d].nzval[i] = Fs[d](sim.x[j])*sim.α[1][j]
+                this_domain = sim.domain_indices[j]
+                αFs[d].nzval[i] = Fs[this_domain](sim.x[j])*sim.α[1][j]*(isempty(args) ? 1 : χs[this_domain].hp1⁻¹[j])
             end
         end
     end
     return αFs,fχs
 end
-
-
-################################################################################
-"""
-    maxwell_eigs
-"""
-maxwell_eigs
-
-
-"""
-    maxwell_eigs_l(sim, ω; ky=0, kz=0, verbose=false, kwargs...]) -> ω, ψ
-
-Linear eigenvalue solve for `ω`.
-
-Keyword `verbose` defaults to `false`.
-See docs for ArnoldiMethodWrapper for details of `kwargs`.
-"""
-maxwell_eigs_l
-
-
-"""
-    maxwell_eigs_nl(sim, k, ka=0, kb=0; method=contour_beyn, nk=3, display=false, quad_n=100, kwargs...) -> k,ψ
-"""
-maxwell_eigs_nl
-
-
-"""
-    maxwell_eigs_cf(sim, k, [ka=0, kb=0; η=0, verbose, lupack, kwargs...]) -> η, u
-
-Linear CF eigenvalues closest to `η`
-
-Keyword `verbose` defaults to `false`.
-Keyword `lupack` defaults to `:auto` and contrls which package is used in the eigensolver.
-See docs for ArnoldiMethodWrapper for details.
-"""
-maxwell_eigs_cf
-
-
-
-
-
-
 
 
 

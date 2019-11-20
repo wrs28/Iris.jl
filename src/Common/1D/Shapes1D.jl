@@ -1,6 +1,15 @@
 export Interval
 
+"""
+    struct Interval(start, stop; [ref=:center]) -> I
 
+1-Dimensional Interval shape.
+
+`(::Interval)(::Point)` evaluates to true if the point is between `start` and `stop`.
+Alternately, `(::Interval)(x,y,z...)`
+
+`ref` determines where `origin` of the interval is relative to `start` & `stop`
+"""
 struct Interval <: AbstractShape{1,2}
     start::Float64
     stop::Float64

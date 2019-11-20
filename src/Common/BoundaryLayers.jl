@@ -10,8 +10,8 @@ export noBL
 export AbstractBL
 
 # PML params used in Boundaries
-const EXTINCTION = 1e-8 # extinction in PML layer
-const SCALING_ANGLE = .15 # phase in conductivity to accelerate evanscent decay
+import ..EXTINCTION
+import ..SCALING_ANGLE
 
 import ..PRINTED_COLOR_NUMBER
 import ..PRINTED_COLOR_DARK
@@ -46,8 +46,10 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 		function Base.show(io::IO,tbl::$TBL{SIDE}) where SIDE
 			printstyled(io,$TBL,color=PRINTED_COLOR_DARK)
 			!get(io,:compact,false) ? print(io," SIDE=",SIDE) : nothing
-			print(io," depth=")
-			printstyled(io,fmt("1.1f",tbl.depth),color=PRINTED_COLOR_NUMBER)
+			if $TBL!==noBL
+				print(io," depth=")
+				printstyled(io,fmt("1.1f",tbl.depth),color=PRINTED_COLOR_NUMBER)
+			end
 		end
 
 		(tbl::$TBL)(x::Real,y...) = tbl(Point(x,y...))
@@ -63,7 +65,7 @@ noBL{SIDE}() where SIDE = noBL{SIDE}(0,NaN,NaN)
 
 
 """
-	struct PML{SIDE}(depth) -> pml
+	PML{SIDE}(depth) -> pml
 
 absorbing PML along dimension `SIDE` with `depth`. The location of the PML is later determined
 by associating it with a shape in a call to `Boundary`.
@@ -79,7 +81,7 @@ evaluate the PML conductivity `σ` at the point `x,y...` in local frame.
 PML
 
 """
-	struct cPML{SIDE}(depth) -> pml
+	cPML{SIDE}(depth) -> pml
 
 amplifying conjugate PML along dimension `SIDE` with `depth`. The location of the cPML is later determined
 by associating it with a shape in a call to `Boundary`.
@@ -95,7 +97,7 @@ evaluate the PML conductivity `σ` at the point `x,y...` in local frame
 cPML
 
 """
-	struct noBL{SIDE}(depth) -> nobl
+	noBL{SIDE}(depth) -> nobl
 
 lack of boundary layer along dimension `SIDE`. `depth` is not used, but it there for consistency.
 The location is later determined by associating it with a shape in a call to `Boundary`.
@@ -152,6 +154,5 @@ end
 # used inside cPML
 conj_conductivity_profile(z,start,stop) = -conj(conductivity_profile(z,start,stop))
 conj_integrated_conductivity_profile(z,start,stop) = -conj(integrated_conductivity_profile(z,start,stop))
-
 
 end # module

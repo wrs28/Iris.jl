@@ -1,5 +1,6 @@
 module LU_Factorizations
 
+export LUfact
 export MSolver
 export PSolver
 export USolver
@@ -14,7 +15,8 @@ using LinearAlgebra
 using Pardiso
 using SparseArrays
 
-const DEFAULT_LUPACK = USolver
+import ..LUPACK
+@eval const DEFAULT_LUPACK = $(LUPACK)()
 AbstractLUPACK = AbstractSolver
 
 # colors for pretty printing

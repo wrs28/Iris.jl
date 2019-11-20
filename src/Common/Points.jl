@@ -21,7 +21,10 @@ Point(p::Point) = p
 """
 	struct Point{N}
 
----------
+`N`-Dimensional point.
+Can be accessed with fields `:x`, `:y`, `:z`, `:r`, `:ϕ`, `:θ` and their variants.
+
+------------
 	Point(x,y...) -> point
 
 """
@@ -31,6 +34,10 @@ Base.:*(p::Point,a::Number) = a*p
 Base.:*(a::Number,p::Point) = Point(a*p.vec)
 Base.:+(p1::Point,p2::Point) = Point(p1.vec+p2.vec)
 Base.:-(p1::Point,p2::Point) = Point(p1.vec-p2.vec)
+Base.:+(p1::Point{1},p2::Number) = Point(p1.vec .+ p2)
+Base.:+(p2::Number,p1::Point{1}) = Point(p1,p2)
+Base.:-(p1::Point{1},p2::Number) = Point(p1.vec .- p2)
+Base.:-(p2::Number,p1::Point{1}) = Point(p1,p2)
 
 Base.ndims(::Point{N}) where N = N
 Base.getindex(p::Point,index::Integer) = getfield(p,:vector)[index]
@@ -65,6 +72,13 @@ function Base.getproperty(p::Point{N},sym::Symbol) where N
 	end
 end
 
+function Base.propertynames(::Point{1},private=false)
+	if private
+		return fieldnames(Point)
+	else
+		return (:x, :vector)
+	end
+end
 
 ################################################################################
 # Pretty Printing

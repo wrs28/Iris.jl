@@ -9,6 +9,7 @@ include("1D/Plotting1D.jl")
 # include("3D/Plotting3D.jl")
 
 @recipe f(e::ElectricField;by=abs2) = e,by
+@recipe f(by::Function,e::ElectricField) = e,by
 @recipe f(sim::Simulation,e::ElectricField;by=abs2) = sim,e,by
 @recipe f(e::ElectricField,sim::Simulation;by=abs2) = sim,e,by
 

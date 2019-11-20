@@ -14,6 +14,7 @@ files = (
 
 import ..PRINTED_COLOR_DARK
 import ..PRINTED_COLOR_VARIABLE
+import ..PRINTED_COLOR_INSTRUCTION
 
 using ..ElectricFields
 using ..Simulations
@@ -32,9 +33,11 @@ struct Maxwell{N,TΣ,TSIM}
     αε::SparseMatrixCSC{ComplexF64,Int}
     αχ::SparseMatrixCSC{ComplexF64,Int}
     αχs::Vector{SparseMatrixCSC{ComplexF64,Int}}
-    αdχdψr::Vector{SparseMatrixCSC{ComplexF64,Int}}
-    αdχdψi::Vector{SparseMatrixCSC{ComplexF64,Int}}
-    sim::TSIM
+    αdχdψr::Array{ComplexF64,3}
+    αdχdψi::Array{ComplexF64,3}
+    αdχdω::Array{ComplexF64,3}
+    αdχdϕ::Array{ComplexF64,3}
+    simulation::TSIM
     kx::Float64
     ky::Float64
     kz::Float64
@@ -53,18 +56,36 @@ foreach(include,files)
 """
 maxwell(args...;kwargs...) = Maxwell(args...;kwargs...)
 
-
+# Pretty Printing
 function Base.show(io::IO,::Maxwell{N}) where N
     print(io,N,"D ")
     printstyled(io,"Maxwell ",color=PRINTED_COLOR_DARK)
-    print(io,"Operator (call w/ args ")
+    print(io,"Operator ")
+    printstyled(io,"(call w/ args ",color=PRINTED_COLOR_INSTRUCTION)
     printstyled(io,"ω",color=PRINTED_COLOR_VARIABLE)
-    print(io,", [")
+    printstyled(io,", [",color=PRINTED_COLOR_INSTRUCTION)
     printstyled(io,"ωs",color=PRINTED_COLOR_VARIABLE)
-    print(io,",")
+    printstyled(io,",",color=PRINTED_COLOR_INSTRUCTION)
     printstyled(io,"ψs",color=PRINTED_COLOR_VARIABLE)
-    print(io,"]) -> ")
+    printstyled(io,"]) -> ",color=PRINTED_COLOR_INSTRUCTION)
     printstyled(io,"A",color=PRINTED_COLOR_VARIABLE)
 end
+
+function Base.getproperty(m::Maxwell,sym::Symbol)
+    if sym==:sim
+        return getfield(m,:simulation)
+    else
+        return getfield(m,sym)
+    end
+end
+
+function Base.propertynames(::Maxwell{1},private=false)
+    if private
+        return fieldnames(Maxwell)
+    else
+        (:simulation,:ky,:kz)
+    end
+end
+
 
 end #module

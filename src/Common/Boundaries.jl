@@ -3,36 +3,30 @@
 """
 module Boundaries
 
+export Boundary
+
 files = (
 	"1D/Boundaries1D.jl",
 	# "2D/Boundaries2D.jl",
 	# "3D/Boundaries3D.jl"
 	)
 
-export Boundary
-
-import ..PRINTED_COLOR_DARK
-
-# using ...Defaults
 using ..BoundaryConditions
 using ..BoundaryLayers
 using ..Shapes
 using TupleTools
 
-const DEFAULT_BC = noBC
-const DEFAULT_BL = noBL
+import ..PRINTED_COLOR_DARK
+import ..BL_DEPTH
+import ..DEFAULT_BC
+import ..DEFAULT_BL
 
-"""
-	struct Boundary
+@eval begin
+	const DEFAULT_BCS = $(DEFAULT_BC)
+	const DEFAULT_BLS = $(DEFAULT_BL)
+end
+const DEFAULT_BL_DEPTH = BL_DEPTH
 
-	Boundary(shape::Shape,bcs,bls) -> bnd
-
-`bcs` is either tuple of boundary conditions, or it is a single boundary condition which applies to all sides.
-`bls` is either tuple of boundary layers, or it is a single boundary layer which applies to all sides.
-
-if fewer boundary conditions or layers are supplied than the number of sides of
-`shape`, it assumes `noBC` and `noBL`
-"""
 struct Boundary{TS,TBC,TBL}
     shape::TS
     bcs::TBC
@@ -54,76 +48,82 @@ struct Boundary{TS,TBC,TBL}
     end
 end
 
+"""
+	Boundary(shape, boundary_conditions..., boundary_layers...; depth=$DEFAULT_BL_DEPTH) -> bnd
 
+`boundary_conditions` can be given as a tuple, individual conditions (such as
+`DirichletBC{2}()` for Dirichlet on side 2), or a type to be applied to all sides,
+such as `NeumannBC`. Any side left otherwise unspecified is assumed to be `noBC`.
+The boundary condition types are `DirichletBC`, `NeumannBC`, `MatchedBC`, `FloquetBC`,
+`noBC` (the default).
+
+`boundary_layers` is specified similarly to `boundary_conditions`. The types are
+`PML`, `cPML`, `noBL` (the default). The optional argument `depth` sets the depth
+of any unspecified layer.
+
+No default `shape` is assumed.
+
+The arguments can be entered in any order. For example, `Boundary(PML{2}(.2),shape,NeumannBC)`,
+`Boundary((NeumannBC{1}(),DirichletBC{2}()),shape,cPML)` and `Boundary(DirichletBC,shape)` are
+all valid.
+"""
 function Boundary(
 	shape::AbstractShape{NDIMS,NSIDES},
 	bcs::NTuple{MBC,AbstractBC},
-	bls::NTuple{MBL,AbstractBC}
+	bls::NTuple{MBL,AbstractBL}
 	) where {NDIMS,NSIDES,MBC,MBL}
 
-	MBC ≤ NDIMS || throw("more boundary conditions $MBC than sides $NSIDES")
-	MBL ≤ NDIMS || throw("more boundary layers $MBC than sides $NSIDES")
+	MBC ≤ NSIDES || throw("more boundary conditions $MBC than sides $NSIDES")
+	MBL ≤ NSIDES || throw("more boundary layers $MBC than sides $NSIDES")
 
 	all_sides = ntuple(identity,NSIDES)
 
 	sides_bcs = map(b->get_side(b),bcs)
-	missing_sides_bcs = _get_missing_sides(all_sides,sides_bcs)
-	new_bcs = ntuple(i->DEFAULT_BC{missing_sides_bcs[i]}(),NSIDES-MBC)
+	if isempty(sides_bcs)
+		missing_sides_bcs = all_sides
+	else
+		missing_sides_bcs = TupleTools.deleteat(all_sides,sides_bcs)
+	end
+	new_bcs = map(s->DEFAULT_BCS{s}(),missing_sides_bcs)
 
 	sides_bls = map(b->get_side(b),bls)
-	missing_sides_bls = _get_missing_sides(all_sides,sides_bls)
-	new_bls = ntuple(i->DEFAULT_BL{missing_sides_bls[i]}(),NSIDES-MBL)
+	if isempty(sides_bls)
+		missing_sides_bls = all_sides
+	else
+		missing_sides_bls = TupleTools.deleteat(all_sides,sides_bls)
+	end
+	new_bls = map(s->DEFAULT_BLS{s}(DEFAULT_BL_DEPTH),missing_sides_bls)
 
 	return Boundary(shape,(bcs...,new_bcs...), (bls...,new_bls...))
 end
 
-function _get_missing_sides(all_sides::NTuple,sides::NTuple)
-	if all_sides[1] ∈ sides
-		return _get_missing_sides(Base.tail(all_sides),sides)
-	else
-		return (all_sides[1],_get_missing_sides(Base.tail(all_sides),sides)...)
-	end
-end
-_get_missing_sides(all_sides::Tuple{},sides::NTuple) = ()
-
 Base.ndims(bnd::Boundary) = ndims(bnd.shape)
+
 Shapes.nsides(bnd::Boundary) = nsides(bnd.shape)
 
-function Boundary(sh::AbstractShape,::Type{BC}=DEFAULT_BC,::Type{BL}=DEFAULT_BL; depth::Real=.1) where {BC<:AbstractBC,BL<:AbstractBL}
-	bcs = ntuple(i->BC{i}(),nsides(sh))
-	bls = ntuple(i->BL{i}(1),nsides(sh))
-	for bl ∈ bls bl.depth = depth end
-	return Boundary(sh,bcs,bls)
-end
-Boundary(sh::AbstractShape,bl::Type{BL},bc::Type{BC}=DEFAULT_BC; depth::Real=.1) where {BC<:AbstractBC,BL<:AbstractBL} =
-	Boundary(sh,bc,bl;depth=depth)
-Boundary(bc::Type{BC},sh::AbstractShape,bl::Type{BL}=DEFAULT_BL; depth::Real=.1) where {BC<:AbstractBC,BL<:AbstractBL} =
-	Boundary(sh,bc,bl;depth=depth)
-Boundary(bl::Type{BL},sh::AbstractShape,bc::Type{BC}=DEFAULT_BC; depth::Real=.1) where {BC<:AbstractBC,BL<:AbstractBL} =
-	Boundary(sh,bc,bl;depth=depth)
-Boundary(bc::Type{BC},bl::Type{BL},sh::AbstractShape; depth::Real=.1) where {BC<:AbstractBC,BL<:AbstractBL} =
-	Boundary(sh,bc,bl;depth=depth)
-Boundary(bl::Type{BL},bc::Type{BC},sh::AbstractShape; depth::Real=.1) where {BC<:AbstractBC,BL<:AbstractBL} =
-	Boundary(sh,bc,bl;depth=depth)
-
-
-function Boundary(args...)
+function Boundary(args...;depth::Real=DEFAULT_BL_DEPTH)
 	sh = _get_shape(args...)
-	bcs = _get_bcs(args...)
-	bls = _get_bls(args...)
+	bcs = _get_bcs(sh,args...)
+	bls = _get_bls(sh,args...)
+	for bl ∈ bls
+		bl ∈ args ? nothing : bl.depth=depth
+	end
 	return Boundary(sh,bcs,bls)
 end
+
 _get_shape(sh::AbstractShape,args...) = sh
-_get_shape(args...) = _get_shape(Base.tail(args)...)
+_get_shape(arg,args...) = _get_shape(args...)
 _get_shape() = throw("no shape given")
 
-_get_bcs(bc::AbstractBC,args...) = (bc,_get_bcs(args...)...)
-_get_bcs(args...) = _get_bcs(Base.tail(args)...)
-_get_bcs() = ()
+_get_bcs(sh::AbstractShape,bc::AbstractBC,args...) = (bc,_get_bcs(sh::AbstractShape,args...)...)
+_get_bcs(sh::AbstractShape,::Type{BC},args...) where BC<:AbstractBC = ntuple(i->BC{i}(),nsides(sh))
+_get_bcs(sh::AbstractShape,arg,args...) = _get_bcs(sh::AbstractShape,args...)
+_get_bcs(sh::AbstractShape) = ()
 
-_get_bls(bc::AbstractBL,args...) = (bc,_get_bls(args...)...)
-_get_bls(args...) = _get_bls(Base.tail(args)...)
-_get_bls() = ()
+_get_bls(sh::AbstractShape,bl::AbstractBL,args...) = (bl,_get_bls(sh,args...)...)
+_get_bls(sh::AbstractShape,::Type{BL},args...) where BL<:AbstractBL = ntuple(i->BL{i}(DEFAULT_BL_DEPTH),nsides(sh))
+_get_bls(sh::AbstractShape,arg,args...) = _get_bls(sh,args...)
+_get_bls(sh::AbstractShape) = ()
 
 
 function Base.show(io::IO,bnd::Boundary)

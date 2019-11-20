@@ -66,6 +66,7 @@ function Simulation(
 	α_half = 1 .+ 1im*σ_half[1]/k₁₀
 
 	curlcurl = Curlcurl(domains[1].lattice,α,α_half,nnm,nnp,indices,interior,surface,domain_wall)
+
 	Σ = SelfEnergy(domains,surface,domain_index,α_half,a,nnm,nnp,indices,interior,domain_wall)
 
 	return Simulation{1,Symmetric,ComplexF64,typeof(domains),2,typeof(Σ.f)}(

@@ -80,6 +80,9 @@ function Base.getproperty(de::DielectricFunction,sym::Symbol)
     end
 end
 
+Base.propertynames(::DielectricFunction,private=false) = (:n₁,:n₂,:parameters)
+
+# Pretty Printing
 function Base.show(io::IO,d::DielectricFunction)
     get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     printstyled(io, "DielectricFunction ",color=PRINTED_COLOR_DARK)
@@ -132,6 +135,7 @@ PumpFunction() = PumpFunction(piecewise_constant_F,Dict{Symbol,Float64}(:F=>0))
 PumpFunction(F::Real) = PumpFunction(piecewise_constant_F,Dict(:F=>F))
 (pf::PumpFunction)(p::Point) = pf.F(p,pf.parameters)
 
+# Pretty Printing
 function Base.show(io::IO,d::PumpFunction)
     get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     printstyled(io, "PumpFunction ",color=PRINTED_COLOR_DARK)
@@ -171,9 +175,6 @@ end
 """
 piecewise_constant_F(args...) = get!(args[end],:F,nothing)
 
-
-function Base.conj(de::DielectricFunction{typeof(piecewise_constant_ε)})
-    return DielectricFunction(de.n1,-de.n2)
-end
+Base.conj(de::DielectricFunction{typeof(piecewise_constant_ε)}) = DielectricFunction(de.n1,-de.n2)
 
 end # module

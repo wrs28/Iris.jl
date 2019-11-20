@@ -1,5 +1,10 @@
+# TODO: add simulation-modifying convenience wrappers to make bc's incoming. Without that, this module provides essentially no utility above SALT
 """
     module SaturableCPA
+
+Convenience wrappers for solution of the nonlinear SatruableCPA equation.
+Exports `maxwell_scpa` constructor and extends methods of `NLsolve`, which must
+be separately imported. Also convenience wrapper `SCPA`.
 """
 module SaturableCPA
 
@@ -11,12 +16,49 @@ using ..Lasing
 using NLsolve
 using RecipesBase
 
-const PRINTED_COLOR_LIGHT = Common.PRINTED_COLOR_LIGHT
-const PRINTED_COLOR_WARN = Common.PRINTED_COLOR_WARN
-const PRINTED_COLOR_VARIABLE = Common.PRINTED_COLOR_VARIABLE
-const PRINTED_COLOR_GOOD = Common.PRINTED_COLOR_GOOD
-const PRINTED_COLOR_BAD = Common.PRINTED_COLOR_BAD
+import ..Common.PRINTED_COLOR_LIGHT
+import ..Common.PRINTED_COLOR_WARN
+import ..Common.PRINTED_COLOR_VARIABLE
+import ..Common.PRINTED_COLOR_GOOD
+import ..Common.PRINTED_COLOR_BAD
+import ..Common.PRINTED_COLOR_INSTRUCTION
 
+struct Maxwell_SCPA{TMS} SALT::TMS end
+
+maxwell_scpa(args...; kwargs...) = Maxwell_SCPA(maxwell_salt(args...; kwargs...))
+
+
+fnames = (:nlsolve,:fixedpoint)
+for fn ∈ fnames
+
+    @eval NLsolve.$(fn)(ms::Maxwell_SCPA; kwargs...) = $(fn)(ms, ms.ωs, ms.ψs; kwargs...)
+
+    @eval begin function NLsolve.$(fn)(ms::Maxwell_SCPA, ωs_init::Union{Real,Vector}, ψs_init::ElectricField; kwargs...)
+            N = ms.m
+            n,m = size(ψs_init)
+            N==m || throw("number of modes in ψs_init ($m) must be the same as given in Maxwell_SCPA ($N)")
+            return $(fn)(ms.SALT,ωs_init,ψs_init; kwargs...)
+        end
+    end
+
+end
+
+function Base.getproperty(mcpa::Maxwell_SCPA,sym::Symbol)
+    if sym == :SALT
+        getfield(mcpa,:SALT)
+    else
+        getproperty(getfield(mcpa,:SALT),sym)
+    end
+end
+
+Base.propertynames(::Maxwell_SCPA,private=false) = propertynames(Maxwell_SALT,private)
+
+"""
+    SCPA(simulation, ωs_init, ψs_init; kwargs...) -> ωs, ψs
+
+Convenience wrapper, solving SCPA problem for `simulation`, initialized at CPA
+frequencies `ωs_init` and fields `ψs_init`.
+"""
 function SCPA(
             sim::Simulation,
             ωs_init::Vector{Float64},
@@ -30,60 +72,39 @@ function SCPA(
     return ωs, ψs
 end
 
-struct Maxwell_SCPA{TMS}
-    SALT::TMS
-end
-maxwell_scpa(sim::Simulation,m::Int) = Maxwell_SCPA(maxwell_salt(conj(sim),m))
-
-
-fnames = (:nlsolve,:fixedpoint)
-for fn ∈ fnames
-    @eval begin function NLsolve.$(fn)(ms::Maxwell_SCPA, ωs_init::Vector, ψs_init::ElectricField; kwargs...)
-            return nlsolve(ms.SALT,ωs_init,conj(ψs_init);kwargs...)
-        end
-    end
-end
-
-function Base.getproperty(ms::Maxwell_SCPA,sym::Symbol)
-    if sym == :ωs
-        getfield(ms.SALT,:ωs)
-    elseif sym == :ψs
-        getfield(ms.SALT,:ψs)
-    else
-        return getfield(ms,sym)
-    end
-end
-
+# Pretty Printing
 function Base.show(io::IO,ms::Maxwell_SCPA)
-    printstyled(io,"Maxwell_SCPA ",color = PRINTED_COLOR_LIGHT)
-    print(io,"with ", ms.SALT.m, " mode")
-    ms.SALT.m>1 ? print(io,"s") : nothing
-    if !ms.SALT.solved[]
-        print(io," (")
+    print(io,ms.m, " mode")
+    ms.m>1 ? print(io,"s") : nothing
+    printstyled(io," Maxwell_SCPA",color = PRINTED_COLOR_LIGHT)
+    if !ms.solved[]
+        printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"unsolved",color=PRINTED_COLOR_WARN)
-        print(io,", for use in ")
-        printstyled(io,"nlsolve",color=PRINTED_COLOR_VARIABLE)
-        print(io,")")
-    elseif ms.SALT.converged[]
-        print(io," (")
+        printstyled(io,", pass to ",color=PRINTED_COLOR_INSTRUCTION)
+        printstyled(io,"NLsolve.nlsolve",color=PRINTED_COLOR_VARIABLE)
+        printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
+    elseif ms.converged[]
+        printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"solved",color=PRINTED_COLOR_GOOD)
-        print(io,", solution in fields ")
+        printstyled(io,", solution in fields ",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"ωs",color=:cyan)
-        print(io,", ")
+        printstyled(io,", ",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"ψs",color=:cyan)
-        print(io,")")
+        printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
     else
-        print(io," (")
+        printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"solve attempted",color=PRINTED_COLOR_BAD)
-        print(io,", ")
+        printstyled(io,", ",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"no convergence",color=PRINTED_COLOR_BAD)
-        print(io,")")
+        printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
     end
 end
 
 # Plotting
-@recipe f(ms::Maxwell_SCPA;by=abs2) = ms.ψs,by
-@recipe f(sim::Simulation,ms::Maxwell_SCPA;by=abs2) = sim,ms.ψs,by
-@recipe f(ms::Maxwell_SCPA,sim::Simulation;by=abs2) = sim,ms.ψs,by
+@recipe f(ms::Maxwell_SCPA;by=abs2) = ms,by
+@recipe f(by::Function,ms::Maxwell_SCPA) = ms,by
+@recipe f(ms::Maxwell_SCPA,by::Function) = ms.SALT,by
+@recipe f(sim::Simulation,ms::Maxwell_SCPA;by=abs2) = sim,ms.SALT,by
+@recipe f(ms::Maxwell_SCPA,sim::Simulation;by=abs2) = sim,ms.SALT,by
 
 end # module

@@ -13,21 +13,23 @@ function Maxwell(
     D² = Σs[1]*f[1](0,ka,ky,kz) + Σs[2]*f[2](0,ka,ky,kz) + Σs[3] + curlcurl
 
     αε = _compute_αε(sim)
-    αεpχ = similar(αε)
-    αχ = similar(αε)
+    αεpχ = copy(αε)
+    αχ = copy(αε)
 
     αχs = Vector{SparseMatrixCSC{ComplexF64,Int}}(undef,m)
-    αdχdψr = similar(αχs)
-    αdχdψi = similar(αdχdψr)
-    for i ∈ eachindex(αχs) αχs[i] = similar(αε) end
-    for i ∈ eachindex(αdχdψr) αdχdψr[i] = similar(αε) end
-    for i ∈ eachindex(αdχdψr) αdχdψi[i] = similar(αε) end
-
-    Maxwell{1,typeof(Σs),TSIM}(D²+αχ,D²,αεpχ,curlcurl,Σs,αε,αχ,αχs,αdχdψr,αdχdψi,sim,kx,ky,kz,ka,kb,kc)
+    αdχdψr = zeros(ComplexF64,3length(sim),m,m)
+    αdχdψi = copy(αdχdψr)
+    αdχdω = copy(αdχdψi)
+    αdχdϕ = copy(αdχdω)
+    for i ∈ eachindex(αχs)
+        αχs[i] = copy(αε)
+        @inbounds for j ∈ eachindex(αχs[i].nzval) αχs[i].nzval[j] = 0 end
+    end
+    Maxwell{1,typeof(Σs),TSIM}(D²+I,D²,αεpχ,curlcurl,Σs,αε,αχ,αχs,αdχdψr,αdχdψi,αdχdω,αdχdϕ,sim,kx,ky,kz,ka,kb,kc)
 end
 
 
-function (m::Maxwell{1})(ω::Number,args...)
+@inline function (m::Maxwell{1})(ω::Number,args...)
     ka, ky, kz = m.ka, m.ky, m.kz
     f = m.sim.self_energy.f
 
@@ -37,9 +39,9 @@ function (m::Maxwell{1})(ω::Number,args...)
     rows = rowvals(m.D²)
     vals = nonzeros(m.D²)
     _, n = size(m.D²)
-    for i ∈ 1:n
+    @inbounds for i ∈ 1:n
         col = i
-        for j ∈ nzrange(m.D², i)
+        @fastmath @inbounds @simd for j ∈ nzrange(m.D², i)
             row = rows[j]
             vals[j] = m.Σs[1][row,col]*f1 + m.Σs[2][row,col]*f2 + m.Σs[3][row,col] + m.curlcurl[row,col]
         end
@@ -50,15 +52,12 @@ function (m::Maxwell{1})(ω::Number,args...)
 
     rows = rowvals(m.A)
     vals = nonzeros(m.A)
-    _, n = size(m.A)
-    for i ∈ 1:n
-        col = i
-        for j ∈ nzrange(m.A, i)
+    @inbounds for col ∈ 1:n
+        @fastmath @inbounds @simd for j ∈ nzrange(m.A, col)
             row = rows[j]
             vals[j] = m.D²[row,col] - ω²*m.αεpχ[row,col]
         end
     end
-
     return m.A
 end
 
@@ -67,57 +66,69 @@ end
 ################################################################################
 
 # linear
-function maxwell_susceptability!(m::Maxwell{1},ω::Number,args...)
+@inline function maxwell_susceptability!(m::Maxwell{1},ω::Number)
     sim = m.sim
     n::Int = length(sim)
     χs = map(d->d.χ,sim.domains)
     Fs = map(d->d.pump,sim.domains)
-    χχ = map(x->susceptability(x,ω,args...),χs)
+    χχ = map(x->susceptability(x,ω),χs)
     foreach((χ,d)->begin
-                    for i ∈ eachindex(m.αχ.nzval)
+                    @inbounds for i ∈ eachindex(m.αχ.nzval)
                         j = mod1(i,n)
                         if d==m.sim.domain_indices[j]
                             m.αχ.nzval[i]=0
-                            for x ∈ χ m.αχ.nzval[i] += Fs[d](m.sim.x[j])*m.sim.α[1][j]*x end
+                            # @fastmath @inbounds @simd for x ∈ χ m.αχ.nzval[i] += Fs[d](m.sim.x[j])*m.sim.α[1][j]*x end
+                            @fastmath @inbounds @simd for x ∈ χ m.αχ.nzval[i] += m.sim.F[j]*m.sim.α[1][j]*x end
                         end
                     end
                 end, χχ, eachindex(χχ))
-    for i ∈ eachindex(m.αε.nzval) m.αεpχ.nzval[i] = m.αε.nzval[i] + m.αχ.nzval[i] end
+    @fastmath @inbounds @simd for i ∈ eachindex(m.αε.nzval) m.αεpχ.nzval[i] = m.αε.nzval[i] + m.αχ.nzval[i] end
     return nothing
 end
 
 
 # nonlinear + local jacobian
-function maxwell_susceptability!(m::Maxwell{1},ωs::Vector,ψs::ElectricField)
+@inline function maxwell_susceptability!(m::Maxwell{1},ω,args...)
     sim = m.sim
     n::Int = length(sim)
     χs = map(d->d.χ,sim.domains)
     Fs = map(d->d.pump,sim.domains)
-    foreach(x->susceptability(x,ωs,ψs),χs)
+    foreach(x->susceptability(x,ω,args...),χs)
     foreach((χ,d)->begin
-                    for μ ∈ eachindex(ml.αχ)
-                        for i ∈ eachindex(ml.αχ[μ].nzval)
+                    @inbounds for μ ∈ eachindex(m.αχs)
+                        @inbounds for i ∈ eachindex(m.αχs[μ].nzval)
                             j = mod1(i,n)
-                            if d==ml.sim.domain_indices[j]
-                                ml.αχ[μ].nzval[i]=0
-                                for x ∈ χ
-                                    ml.αχ[μ].nzval[i] += Fs[d](ml.sim.x[j])*ml.sim.α[1][j]*x.chi[i,μ]
-                                    ml.αdχdψr[μ].nzval[i] += Fs[d](ml.sim.x[j])*ml.sim.α[1][j]*x.dχdψr[i,μ]
-                                    ml.αdχdψi[μ].nzval[i] += Fs[d](ml.sim.x[j])*ml.sim.α[1][j]*x.dχdψi[i,μ]
+                            if d==m.sim.domain_indices[j]
+                                μ==1 ? m.αχ.nzval[i]=0 : nothing
+                                m.αχs[μ].nzval[i]=0
+                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdψr[i,μ,ν] = 0 end
+                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdψi[i,μ,ν] = 0 end
+                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdω[i,μ,ν] = 0 end
+                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdϕ[i,μ,ν] = 0 end
+                                @inbounds for x ∈ χ
+                                    # Fα = Fs[d](m.sim.x[j])*m.sim.α[1][j]
+                                    Fα = m.sim.F[j]*m.sim.α[1][j]
+                                    μ==1 ? m.αχ.nzval[i] += Fα*x.chi[i] : nothing
+                                    m.αχs[μ].nzval[i] += Fα*x.chis[i,μ]
+                                    @inbounds @simd for ν ∈ eachindex(m.αχs)
+                                        m.αdχdψr[i,μ,ν] += Fα*x.dχdψr[i,μ,ν]
+                                        m.αdχdψi[i,μ,ν] += Fα*x.dχdψi[i,μ,ν]
+                                        m.αdχdω[i,μ,ν] += Fα*x.dχdω[i,μ,ν]
+                                        m.αdχdϕ[i,μ,ν] += Fα*x.dχdϕ[i,μ,ν]
+                                    end
                                 end
                             end
                         end
                     end
                 end, χs, eachindex(χs))
-
-    for μ ∈ eachindex(ml.αεχ) for i ∈ eachindex(ml.αε.nzval) ml.αεχ[μ].nzval[i] = ml.αε.nzval[i] + ml.αχ[μ].nzval[i] end end
+    @fastmath @inbounds @simd for i ∈ eachindex(m.αε.nzval) m.αεpχ.nzval[i] = m.αε.nzval[i] + m.αχ.nzval[i] end
     return nothing
 end
 
 
 ################################################################################
 
-function _compute_Σs(sim::Simulation{1},ky::Number,kz::Number)
+@inline function _compute_Σs(sim::Simulation{1},ky::Number,kz::Number)
 
     ky², kz², kykz = ky^2, kz^2, ky*kz
 
