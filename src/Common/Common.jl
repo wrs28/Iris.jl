@@ -5,6 +5,10 @@ Essential tools used in the rest of Iris.
 """
 module Common
 
+dimensional_files = (
+    "1D/Common1D.jl",
+    )
+
 # `Defaults`: contains all default parameters in one location for uniformity and easy alteration.
 include("../Defaults.jl")
 
@@ -42,6 +46,9 @@ export DirichletBC
 export NeumannBC
 export FloquetBC
 export MatchedBC
+export BCHermiticity
+export HermitianBC
+export NonHermitianBC
 
 include("Boundaries.jl")
 using .Boundaries
@@ -49,13 +56,15 @@ export Boundary
 
 include("DielectricFunctions.jl")
 using .DielectricFunctions
-export DielectricFunction
-export PumpFunction
+export AbstractDielectricFunction
+
+include("PumpFunctions.jl")
+using .PumpFunctions
+export AbstractPumpFunction
 
 include("Dispersions.jl")
 using .Dispersions
 export TwoLevelSystem
-export jacobian_lasing
 export susceptability
 
 include("Lattices.jl")
@@ -65,13 +74,15 @@ export Lattice
 
 include("Domains.jl")
 using .Domains
-export Domain
-export Cavity
-export Resonator
-export Void
-export Dielectric
-export Waveguide
-export Lead
+export LatticeDomain
+export NondispersiveDomain
+export DispersiveDomain
+# export Cavity
+# export Resonator
+# export Void
+# export Dielectric
+# export Waveguide
+# export Lead
 
 include("Curlcurls.jl")
 using .Curlcurls
@@ -88,9 +99,9 @@ include("Simulations.jl")
 using .Simulations
 export Simulation
 export smooth!
+export update!
 export update_dielectric!
 export update_pump!
-export update!
 export Unsymmetric
 export Symmetric
 export Hermitian
@@ -99,7 +110,6 @@ include("MaxwellOperators.jl")
 using .MaxwellOperators
 export Maxwell
 export maxwell
-
 
 include("LU_Factorizations.jl")
 using .LU_Factorizations
@@ -112,8 +122,6 @@ export AbstractLUPACK
 include("Plotting.jl")
 using .Plotting
 
-ElectricField(sim::Simulation{1}) = ElectricField(sim.x,1)
-ElectricField(sim::Simulation{1},val) = ElectricField(sim.x,val)
-ElectricField(val,sim::Simulation{1}) = ElectricField(val,sim.x)
+foreach(include,dimensional_files)
 
 end # module

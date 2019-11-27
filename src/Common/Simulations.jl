@@ -1,5 +1,4 @@
 # TODO: add waveguide sites for matched conditions
-
 """
 	module Simulations
 
@@ -13,7 +12,6 @@ export smooth!
 export update!
 export update_dielectric!
 export update_pump!
-export update_sim
 export Unsymmetric
 export Symmetric
 export Hermitian
@@ -24,11 +22,8 @@ files = (
 	# "3D/Simulations3D.jl"
 	)
 
-import ..PRINTED_COLOR_GOOD
-import ..PRINTED_COLOR_WARN
-import ..PRINTED_COLOR_DARK
-
 using ..Curlcurls
+using ..Dispersions
 using ..Domains
 using ..Lattices
 using ..Points
@@ -36,54 +31,251 @@ using ..SelfEnergies
 using ..Shapes
 using LinearAlgebra
 using SparseArrays
+using Statistics
 
+import ..PRINTED_COLOR_GOOD
+import ..PRINTED_COLOR_WARN
+import ..PRINTED_COLOR_DARK
+import ..AbstractDomain
+import ..NUM_SUBPIXELS
 
 struct Unsymmetric end
 
 """
-	struct Simulation
+	Simulation(ω₀, domains...; [k₂₀, k₃₀, k₁₀]) -> simulation
 
-	Simulation(domains...; verbose=true) -> sim
+Build a simulation object which can be passed to the various solvers to find
+resonance frequencies, etc.
 
-	(::Simulation)(;kwargs...) -> new_sim
+There are three types of `domains`: `LatticeDomain`, `NondispersiveDomain`,
+`DispersiveDomain`, which can be provided in any order, though at least one
+`LatticeDomain` must be provided.
+Where domains of the same type overlap, the one that appears first takes priority.
 
-Takes all the given `domains` and builds a simulation object which can be passed
-to the various solvers to find resonance frequencies, etc. The where domains overlap,
-the one that appears first in the arguments of `Simulation` takes priority.
-
-Contains all the information that defines a simulation (except for frequency).
-It contains several kinds of fields:
- * vectors of data about each site, such as `x`, `y`, `ε`, `F`
- * boolean vectors that give geometric properites of each site, such as whether it is an `interior` point
- * vectors of weights and indices giving the coupling between sites
- * vectors of weights and indices giving the self-couplings
- * the `tessellation` used to guide interpolation
-
- Constructing a `Simulation` is sped up if multiple threads are running,
- i.e. by declaring the environment variable "JULIA\\_NUM\\_THREADS" *before*
- starting Julia.
 """
-struct Simulation{N,C,T,TDOM,M,TF}
-	smoothed::Base.RefValue{Bool}
-	ε::Array{ComplexF64,1}
-	F::Array{Float64,1}
+struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
+	lattice_domains::TLDOM
+	nondispersive_domains::TNDOM
+	dispersive_domains::TDDOM
+
+	x::Vector{Point{N}}
+	lattice_domain_indices::Vector{Int}
+	nondispersive_domain_indices::Vector{Int}
+	dispersive_domain_indices::Vector{Int}
+	ε::Vector{ComplexF64}
+	F::Vector{Float64}
+	χ::Vector{AbstractDispersion}
+
 	curlcurl::Curlcurl{N}
-	self_energy::SelfEnergy{N,M,TF}
-	domains::TDOM
-	domain_indices::Array{Int,1}
-	x::Array{Point{N},1}
-	x_half::NTuple{N,Array{Point{N},1}}
-	α::NTuple{N,Array{ComplexF64,1}}
-	σ::NTuple{N,Array{ComplexF64,1}}
-	σ_half::NTuple{N,Array{ComplexF64,1}}
-	name::Array{Symbol,1}
+	self_energy::TSE
+	α::NTuple{N,Vector{ComplexF64}}
+	σ::NTuple{N,Vector{ComplexF64}}
+	x_half::NTuple{N,Vector{Point{N}}}
+	σ_half::NTuple{N,Vector{ComplexF64}}
 	ω₀::Float64
 	k₁₀::Float64
 	k₂₀::Float64
 	k₃₀::Float64
+	smoothed::Base.RefValue{Bool}
 end
 
+foreach(include,files)
+
 Base.length(sim::Simulation) = length(sim.x)
+Base.ndims(sim::Simulation{N}) where N = N
+
+# Base.conj(sim::Simulation) = Simulation(sim.ω₀,map(conj,sim.domains)...)
+
+"""
+	smooth!(sim,[num_sub_pixel])
+
+Use sub-pixel sampling along domain walls to smooth the dieletric and pump profiles.
+
+`num_sub_pixel` defaults to `NUM_SUB_PIXEL` in module `Defaults`, which is currently set to 5.
+"""
+function smooth!(sim::Simulation, num_sub_pixel::Integer = NUM_SUBPIXELS)
+    smooth_dielectric!(sim, num_sub_pixel)
+	smooth_pump!(sim, num_sub_pixel)
+	sim.smoothed[] = true
+    return nothing
+end
+
+"""
+	update!(sim)
+
+update simulation `sim` by recomputing the dielectric and pump functions
+"""
+function update!(sim::Simulation)
+	update_dielectric!(sim)
+	update_pump!(sim)
+	return nothing
+end
+
+"""
+	update_dielectric!(sim,[ε])
+
+update simulation `sim` by recomputing the dielectric function or by giving it an explicit array `ε`
+"""
+function update_dielectric!(sim::Simulation)
+	simulation_dielectric!(sim.ε, sim, sim.x)
+	sim.smoothed[] = false
+	return nothing
+end
+function update_dielectric!(sim::Simulation,ε::AbstractVecOrMat)
+	copyto!(sim.ε,ε)
+	sim.smoothed[] = false
+	return nothing
+end
+
+"""
+	update_pump!(sim,[F])
+
+update simulation `sim` by recomputing the pump function or by giving it an explicit array `F`
+"""
+function update_pump!(sim::Simulation)
+	simulation_pump!(sim.F, sim, sim.x)
+	sim.smoothed[] = false
+	return nothing
+end
+function update_pump!(sim::Simulation,F::AbstractVecOrMat)
+	copyto!(sim.F, F)
+	sim.smoothed[] = false
+	return nothing
+end
+
+
+# the dielectric as a function of position (x,y)
+# function simulation_dielectric(sim::Simulation, x::Vector)
+	# ε = Vector{ComplexF64}(undef,length(x))
+	# simulation_dielectric!(ε, sim , x)
+	# return ε
+# end
+function simulation_dielectric!(ε::Vector, sim::Simulation, x::Vector, backgrounds=map(d->d.ε, sim.lattice_domains), dielectrics=map(d->d.dielectric, sim.nondispersive_domains))
+    for i ∈ eachindex(x) ε[i] = simulation_dielectric(sim, x[i], backgrounds, dielectrics) end
+    return nothing
+end
+@inline function simulation_dielectric(sim::Simulation, x::Point, backgrounds=map(d->d.ε, sim.lattice_domains), dielectrics=map(d->d.dielectric, sim.nondispersive_domains))
+    lattice_index = which_domain(sim.lattice_domains, x)
+	nondispersive_index = which_domain(sim.nondispersive_domains, x)
+	if nondispersive_index==0
+		return backgrounds[lattice_index]
+	else
+	    return dielectrics[nondispersive_index](x)
+	end
+end
+
+# the dielectric as a function of position (x,y)
+# function simulation_pump(sim::Simulation, x::Vector)
+# 	F = Vector{Float64}(undef,length(x))
+# 	simulation_pump!(F, sim , x)
+# 	return F
+# end
+function simulation_pump!(F::Vector, sim::Simulation, x::Vector, pumps=map(d->d.pump, sim.dispersive_domains))
+    for i ∈ eachindex(x) F[i] = simulation_pump(sim, x[i], pumps) end
+    return nothing
+end
+@inline function simulation_pump(sim::Simulation, x::Point, pumps=map(d->d.pump, sim.dispersive_domains))
+	dispersive_index = which_domain(sim.dispersive_domains, x)
+	if dispersive_index==0
+		return 0.0
+	else
+	    return pumps[dispersive_index](x)
+	end
+end
+
+################################################################################
+# utilities
+
+# identify which domain is associated with a given spatial position (x)
+function which_domains(domains, x::Vector)
+    indices = Vector{Int}(undef, length(x))
+	shapes = map(z->z.shape, domains)
+    which_domains!(indices, domains, shapes, x)
+    return indices
+end
+function which_domains!(indices::Vector{Int}, domains, shapes, x)
+    @inbounds for i ∈ eachindex(x) indices[i] = which_domain(domains, shapes, x[i]) end
+    return nothing
+end
+# above is for arrays of points, below is for single points
+function which_domain(domains,x::Point)
+	shapes = map(z->z.shape,domains)
+    return which_domain(domains, shapes, x)
+end
+@inline function which_domain(domains, shapes, x::Point)
+	index = findfirst(z->z(x),shapes)
+    isnothing(index) ? index=0 : nothing
+    iszero(index) ? nothing : (isvoid(domains[index]) ? index=0 : nothing)
+    return index
+end
+
+isvoid(domain::AbstractDomain) = domain.type==:Void
+
+function boundary_layer!(Σ, domains, x::Vector{Point{N}}, domain_indices) where N
+	for j ∈ eachindex(Σ) for i ∈ eachindex(x)
+		Σ[j][i] = boundary_layer(domains[domain_indices[i]],x[i],j)
+	end end
+	return nothing
+end
+
+
+
+
+
+
+
+
+
+
+
+
+# take individually defined domains and concatenate all relevant data
+function append_domains!(domain_index,nnm,nnp,name,x,indices,ε,F,interior,bulk,surface,corner,domains)
+	count = 1
+	for d ∈ domains
+		append!(domain_index,fill(count,length(d.x)))
+		for i ∈ eachindex(d.nnm)
+			append!(nnm[i],d.nnm[i].+length(nnm[i]))
+			append!(nnp[i],d.nnp[i].+length(nnp[i]))
+		end
+		append!(name,fill(d.name,length(d.x)))
+		append!(x,d.x)
+		append!(indices,d.indices)
+		append!(ε,d.ε)
+		append!(F,d.F)
+		append!(interior,d.interior)
+		append!(bulk,d.bulk)
+		append!(surface,d.surface)
+		append!(corner,d.corner)
+		count += 1
+	end
+	return nothing
+end
+
+# identify which sites are to be removed by determining which sites belong to the topmost domain.
+get_sites_to_remove(domains,dom,x) = which_domains(domains,x).!==dom
+
+# remove the pre-computed nearest neighbors, which makes the bulk nn calculation very fast
+function trim_nn!(nnm,nnp,removed,bulk)
+	cr = cumsum(removed)
+	for j ∈ eachindex(nnm)
+		for i ∈ eachindex(nnm[j])
+			if bulk[i]
+				nnm[j][i] -= cr[nnm[j][i]]
+				nnp[j][i] -= cr[nnp[j][i]]
+			end
+		end
+	end
+end
+
+# remove the sites determined by get_sites_to_remove
+remove_sites!(sites::Tuple,removed) = map(z->remove_sites!(z,removed),sites)
+remove_sites!(site::NTuple{N,Array},removed) where N = map(z->deleteat!(z,findall(removed)),site)
+remove_sites!(site,removed) = deleteat!(site,findall(removed))
+
+
+################################################################################
+#Pretty Printing
 
 function Base.show(io::IO,sim::Simulation{N,CLASS}) where {N,CLASS}
 	suffix = length(sim.domains)>1 ? "s" : ""
@@ -109,181 +301,5 @@ function Base.show(io::IO,sim::Simulation{N,CLASS}) where {N,CLASS}
 	end
 end
 
-Base.conj(sim::Simulation) = Simulation(sim.ω₀,map(conj,sim.domains)...)
-
-foreach(include,files)
-
-# take individually defined domains and concatenate all relevant data
-function append_domains!(domain_index,nnm,nnp,name,x,indices,ε,F,interior,bulk,surface,corner,domains)
-	count = 1
-	for d ∈ domains
-		append!(domain_index,fill(count,length(d.x)))
-		for i ∈ eachindex(d.nnm)
-			append!(nnm[i],d.nnm[i].+length(nnm[i]))
-			append!(nnp[i],d.nnp[i].+length(nnp[i]))
-		end
-		append!(name,fill(d.name,length(d.x)))
-		append!(x,d.x)
-		append!(indices,d.indices)
-		append!(ε,d.ε)
-		append!(F,d.F)
-		append!(interior,d.interior)
-		append!(bulk,d.bulk)
-		append!(surface,d.surface)
-		append!(corner,d.corner)
-		count += 1
-	end
-	return nothing
-end
-
-
-# identify which sites are to be removed by determining which sites belong to the topmost domain.
-get_sites_to_remove(domains,dom,x) = which_domains(domains,x).!==dom
-
-# identify which domain is associated with a given spatial position (x)
-function which_domains(domains,x)
-    doms = Array{Int}(undef,length(x))
-	shapes = map(z->z.boundary.shape,domains)
-    which_domains!(doms,domains,shapes,x)
-    return doms
-end
-function which_domains!(doms::Array{Int},domains,shapes,x)
-    for i ∈ eachindex(x)
-		doms[i] = which_domain(domains,shapes,x[i])
-    end
-    return nothing
-end
-function which_domain(domains,x)
-	bnd = map(z->z.boundary,domains)
-	shapes = map(z->z.boundary.shape,domains)
-    return which_domain(domains,shapes,x)
-end
-@inline function which_domain(domains,shapes,x::Point)
-	dom = findfirst(map(z->z(x),shapes))
-    isnothing(dom) ? dom=0 : nothing
-    iszero(dom) ? nothing : (isvoid(domains[dom]) ? dom=0 : nothing)
-    return dom
-end
-
-isvoid(domain::Domain) = domain.type==:Void
-
-# remove the pre-computed nearest neighbors, which makes the bulk nn calculation very fast
-function trim_nn!(nnm,nnp,removed,bulk)
-	cr = cumsum(removed)
-	for j ∈ eachindex(nnm)
-		for i ∈ eachindex(nnm[j])
-			if bulk[i]
-				nnm[j][i] -= cr[nnm[j][i]]
-				nnp[j][i] -= cr[nnp[j][i]]
-			end
-		end
-	end
-end
-
-# remove the sites determined by get_sites_to_remove
-remove_sites!(sites::Tuple,removed) = map(z->remove_sites!(z,removed),sites)
-remove_sites!(site::NTuple{N,Array},removed) where N = map(z->deleteat!(z,findall(removed)),site)
-remove_sites!(site,removed) = deleteat!(site,findall(removed))
-
-"""
-	update_dielectric!(sim,[ε])
-
-update simulation `sim` by recomputing the dielectric function or by giving it an explicit array `ε`
-"""
-function update_dielectric!(sim::Simulation,ε::Array)
-	sim.ε[:] = ε
-	sim.smoothed[] = false
-	return nothing
-end
-update_dielectric!(sim::Simulation) = update_dielectric!(sim,simulation_dielectric.(Ref(sim),sim.x))
-"""
-	update_pump!(sim,[F])
-
-update simulation `sim` by recomputing the pump function or by giving it an explicit array `F`
-"""
-function update_pump!(sim::Simulation,F::Array)
-	sim.F[:] = F
-	sim.smoothed[] = false
-	return nothing
-end
-update_pump!(sim::Simulation) = update_pump!(sim,simulation_pump.(Ref(sim),sim.x))
-
-
-"""
-	update!(sim)
-
-update simulation `sim` by recomputing the dielectric and pump functions
-"""
-function update!(sim::Simulation)
-	update_dielectric!(sim)
-	update_pump!(sim)
-	return nothing
-end
-
-
-"""
-	smooth!(sim,[num_sub_pixel])
-
-Use sub-pixel sampling along domain walls to smooth the dieletric and pump profiles.
-
-`num_sub_pixel` defaults to `NUM_SUB_PIXEL` in module `Defaults`, which is currently set to 5.
-"""
-smooth!
-
-# used in the smoothing routing smooth!, it computes the dielectric as a function of position (x,y)
-function simulation_dielectric!(ε,domains,x)
-    for i ∈ eachindex(x)
-        ε[i] = simulation_dielectric(domains,x[i])
-    end
-    return nothing
-end
-function simulation_dielectric(domains,x)
-    dom = which_domain(domains,x)
-    ε = dom==0 ? complex(NaN,NaN) : domains[dom].dielectric(x)
-    return ε
-end
-simulation_dielectric(sim::Simulation,x) = simulation_dielectric(sim.domains,x)
-
-# used in the smoothing routing smooth!, it computes the pump as a function of position (x,y)
-simulation_pump(sim::Simulation,x) = simulation_pump(sim.domains,x)
-function simulation_pump(domains::Tuple,x::AbstractArray)
-    F = similar(x,Float64)
-	simulation_pump!(F,domains,x)
-    return F
-end
-
-function simulation_pump!(F::AbstractArray,domains::Tuple,x::AbstractArray)
-	pumps = map(d->d.pump,domains)
-    for i ∈ eachindex(x) F[i] = simulation_pump(domains,x[i],pumps) end
-    return nothing
-end
-function simulation_pump(domains::Tuple,x::Point,pumps)
-    dom = which_domain(domains,x)
-    F = dom==0 ? 0.0 : pumps[dom](x)
-    return F
-end
-function simulation_pump(domains::Tuple,x::Point)
-    dom = which_domain(domains,x)
-    F = dom==0 ? 0.0 : domains[dom].pump(x)
-    return F
-end
-
-
-
-
-
-function boundary_layer(domains,x::Array{Point{N}},domain_index) where N
-	Σ = ntuple(i->Array{ComplexF64}(undef,length(x)),N)
-	boundary_layer!(Σ,domains,x,domain_index)
-	return Σ
-end
-function boundary_layer!(Σ,domains,x::Array{Point{N}},domain_index) where N
-	for j ∈ eachindex(Σ)
-		for i ∈ eachindex(x)
-			Σ[j][i] = boundary_layer(domains[domain_index[i]],x[i],j)
-		end
-	end
-	return nothing
-end
 
 end # module

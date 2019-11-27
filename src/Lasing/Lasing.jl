@@ -9,7 +9,7 @@ be separately imported. Also convenience wrapper `SALT`.
 """
 module Lasing
 
-export maxwell_salt
+export MaxwellSALT
 export SALT
 # export SALTbootstrap
 
@@ -32,9 +32,9 @@ import ..Common.PRINTED_COLOR_NUMBER
 import ..Common.PRINTED_COLOR_INSTRUCTION
 
 """
-    Maxwell_SALT(simulation, m::Int) -> salt
+    MaxwellSALT(simulation, m::Int) -> salt
 """
-struct Maxwell_SALT{NMODES,TM,DIM}
+struct MaxwellSALT{NMODES,TM,DIM}
     maxwell::TM
     ωs::Vector{Float64}
     ψs::ElectricField{DIM}
@@ -47,51 +47,54 @@ struct Maxwell_SALT{NMODES,TM,DIM}
     converged::Ref{Bool}
 end
 
-function Maxwell_SALT(sim::Simulation{DIM},m::Integer) where DIM
-    M = maxwell(sim;m=m)
+"""
+    MaxwellSALT(simulation,m) -> salt
+
+defines SALT problem with `m` modes, which can then be solved by the methods of package `NLsolve`.
+"""
+function MaxwellSALT(sim::Simulation{DIM},m::Integer) where DIM
+    M = Maxwell(sim;m=m)
     n = 3length(sim)
     ωs = Vector{Float64}(undef,m)
     ψs = ElectricField(sim.x,m)
     n÷2>INDEX_OFFSET || throw("INDEX_OFFSET=$(INDEX_OFFSET) requires number of sites in ψs_init ($(n÷3)) to be greater than $(2INDEX_OFFSET÷3)")
-    x = ωψ_to_x(ωs,ψs)
+    x = Vector{Float64}(undef,2n*m)
     res = Vector{ComplexF64}(undef,n)
     index = n÷2+INDEX_OFFSET
-    return Maxwell_SALT{m,typeof(M),DIM}(M,ωs,ψs,x,n,m,res,index,Ref(false),Ref(false))
+    return MaxwellSALT{m,typeof(M),DIM}(M,ωs,ψs,x,n,m,res,index,Ref(false),Ref(false))
 end
 
-"""
-    maxwell_salt(simulation,m) -> salt
 
-defines SALT problem with `m` modes, which can then be solved by the methods of package `NLsolve`.
-"""
-maxwell_salt(args...; kwargs...) = Maxwell_SALT(args...; kwargs...)
-
-function Base.getproperty(s::Maxwell_SALT,sym::Symbol)
-    if sym==:M
-        return getfield(s,:maxwell)
-    elseif Base.sym_in(sym,(:ω,:freq,:Freq,:frequencies,:frequency,:Frequencies,:Frequency,:omega,:omegas))
+function Base.getproperty(s::MaxwellSALT,sym::Symbol)
+    if Base.sym_in(sym,(:ω,:freq,:Freq,:frequencies,:frequency,:Frequencies,:Frequency,:omega,:omegas))
         return getfield(s,:ωs)
     elseif Base.sym_in(sym,(:ψ,:field,:Field,:fields,:Fields,:psi,:psis))
         return getfield(s,:ψs)
     elseif Base.sym_in(sym,(:sol,:Sol,:solution,:Solution))
         return (getfield(s,:ωs),getfield(s,:ψs))
-    elseif Base.sym_in(sym,(:sim,:simulation))
+    elseif sym == :simulation
         return getfield(getfield(s,:maxwell),:simulation)
     else
         return getfield(s,sym)
     end
 end
 
-Base.propertynames(::Maxwell_SALT) = (:ωs,:ψs,:solution,:simulation)
+function Base.propertynames(::MaxwellSALT,private=false)
+    if private
+        return fieldnames(MaxwellSALT)
+    else
+        return (:ωs,:ψs,:solution,:simulation)
+    end
+end
 
 fnames = (:nlsolve,:fixedpoint)
 for fn ∈ fnames
 
-    @eval NLsolve.$(fn)(ms::Maxwell_SALT{N}; kwargs...) where N = $(fn)(ms,ms.ωs,ms.ψs; kwargs...)
+    @eval NLsolve.$(fn)(ms::MaxwellSALT{N}; kwargs...) where N = $(fn)(ms,ms.ωs,ms.ψs; kwargs...)
 
-    @eval NLsolve.$(fn)(ms::Maxwell_SALT{N}, ωs_init::Real, ψs_init::ElectricField; kwargs...) where N = $(fn)(ms,[ωs_init],ψs_init; kwargs...)
+    @eval NLsolve.$(fn)(ms::MaxwellSALT{N}, ωs_init::Real, ψs_init::ElectricField; kwargs...) where N = $(fn)(ms,[ωs_init],ψs_init; kwargs...)
 
-    @eval begin function NLsolve.$(fn)(ms::Maxwell_SALT{N}, ωs_init::Vector, ψs_init::ElectricField; kwargs...) where N
+    @eval begin function NLsolve.$(fn)(ms::MaxwellSALT{N}, ωs_init::Vector, ψs_init::ElectricField; kwargs...) where N
             n,m = size(ψs_init)
             N==m || throw("number of modes in ψs_init ($m) must be the same as given in Maxwell_SALT ($N)")
             n==3length(ms.simulation) || throw("number of sites in ψs_init ($(n÷3)) must be the same as given in simulation ($(length(ms.simulation)))")
@@ -142,7 +145,7 @@ function SALT(
             ψs_init::ElectricField;
             kwargs...)
 
-    ms = maxwell_salt(sim,length(ωs_init))
+    ms = MaxwellSALT(sim,length(ωs_init))
     results = nlsolve(ms, ωs_init, ψs_init; kwargs...)
     ωs, ψs = x_to_ωψ(sim,results.zero,length(ωs_init))
     (results.f_converged || results.x_converged) || printstyled("beware: no convergence",color=PRINTED_COLOR_BAD)
@@ -152,9 +155,9 @@ end
 ################################################################################
 # nonlinear objective + jacobian
 
-(ms::Maxwell_SALT)(F::Vector,x::Vector) = ms(F,nothing,x)
-(ms::Maxwell_SALT)(J::AbstractMatrix,x::Vector) = ms(nothing,J,x)
-@inline function (ms::Maxwell_SALT)(F,J,x::Vector)
+(ms::MaxwellSALT)(F::Vector,x::Vector) = ms(F,nothing,x)
+(ms::MaxwellSALT)(J::AbstractMatrix,x::Vector) = ms(nothing,J,x)
+@inline function (ms::MaxwellSALT)(F,J,x::Vector)
     x_to_ωψ!(ms,x)
     n,m = ms.n,ms.m
     nm = n*m
@@ -164,7 +167,7 @@ end
 
     ψμ = ms.ψs[:,1]
     @inbounds for μ ∈ 1:m
-        Aμ = ms.M(ms.ωs[μ],ms.ωs,ms.ψs)
+        Aμ = ms.maxwell(ms.ωs[μ],ms.ωs,ms.ψs)
         @inbounds for i ∈ 1:n ψμ[i] = ms.ψs[i,μ] end
 
         if !isnothing(F)
@@ -182,38 +185,38 @@ end
                 @fastmath @inbounds @simd for j ∈ 1:n
                     k = mod1(j,n÷3)
 
-                    rr,ir = reim(-ρνμω²μ*ms.M.αdχdψr[j,μ,ν]*ψx[k,μ])
+                    rr,ir = reim(-ρνμω²μ*ms.maxwell.dFχdψr[j,μ,ν]*ψx[k,μ])
                     J[k+0n÷3+(μ-1)n   , j+(ν-1)n] = rr
                     J[k+0n÷3+(μ-1)n+nm, j+(ν-1)n] = ir
 
-                    rr,ir = reim(-ρνμω²μ*ms.M.αdχdψr[j,μ,ν]*ψy[k,μ])
+                    rr,ir = reim(-ρνμω²μ*ms.maxwell.dFχdψr[j,μ,ν]*ψy[k,μ])
                     J[k+1n÷3+(μ-1)n   , j+(ν-1)n] = rr
                     J[k+1n÷3+(μ-1)n+nm, j+(ν-1)n] = ir
 
-                    rr,ir = reim(-ρνμω²μ*ms.M.αdχdψr[j,μ,ν]*ψz[k,μ])
+                    rr,ir = reim(-ρνμω²μ*ms.maxwell.dFχdψr[j,μ,ν]*ψz[k,μ])
                     J[k+2n÷3+(μ-1)n   , j+(ν-1)n] = rr
                     J[k+2n÷3+(μ-1)n+nm, j+(ν-1)n] = ir
 
-                    rr,ir = reim(-ρνμω²μ*ms.M.αdχdψi[j,μ,ν]*ψx[k,μ])
+                    rr,ir = reim(-ρνμω²μ*ms.maxwell.dFχdψi[j,μ,ν]*ψx[k,μ])
                     J[k+0n÷3+(μ-1)n   , j+(ν-1)n+nm] = rr
                     J[k+0n÷3+(μ-1)n+nm, j+(ν-1)n+nm] = ir
 
-                    rr,ir = reim(-ρνμω²μ*ms.M.αdχdψi[j,μ,ν]*ψy[k,μ])
+                    rr,ir = reim(-ρνμω²μ*ms.maxwell.dFχdψi[j,μ,ν]*ψy[k,μ])
                     J[k+1n÷3+(μ-1)n   , j+(ν-1)n+nm] = rr
                     J[k+1n÷3+(μ-1)n+nm, j+(ν-1)n+nm] = ir
 
-                    rr,ir = reim(-ρνμω²μ*ms.M.αdχdψi[j,μ,ν]*ψz[k,μ])
+                    rr,ir = reim(-ρνμω²μ*ms.maxwell.dFχdψi[j,μ,ν]*ψz[k,μ])
                     J[k+2n÷3+(μ-1)n   , j+(ν-1)n+nm] = rr
                     J[k+2n÷3+(μ-1)n+nm, j+(ν-1)n+nm] = ir
                 end
 
                 @fastmath @inbounds @simd for i ∈ 1:n
-                    J[(μ-1)n+i,(ν-1)n+index], J[nm+(μ-1)n+i,(ν-1)n+index] = reim(-ω²μϕ*(ms.M.αdχdϕ[i,μ,ν]*ψμ[i]))
-                    J[(μ-1)n+i,nm+(ν-1)n+index], J[nm+(μ-1)n+i,nm+(ν-1)n+index] = reim(-ω²μϕ*ms.M.αdχdω[i,μ,ν]*ψμ[i])
+                    J[(μ-1)n+i,(ν-1)n+index], J[nm+(μ-1)n+i,(ν-1)n+index] = reim(-ω²μϕ*(ms.maxwell.dFχdϕ[i,μ,ν]*ψμ[i]))
+                    J[(μ-1)n+i,nm+(ν-1)n+index], J[nm+(μ-1)n+i,nm+(ν-1)n+index] = reim(-ω²μϕ*ms.maxwell.dFχdω[i,μ,ν]*ψμ[i])
                 end
                 if μ == ν
                     @fastmath @inbounds for i ∈ 1:n
-                        tr, ti = reim(-2ωμϕ*(ms.M.αεpχ.nzval[i]*ψμ[i]))
+                        tr, ti = reim(-2ωμϕ*(ms.maxwell.αεpFχ.nzval[i]*ψμ[i]))
                         J[     (μ-1)n+i,nm+(ν-1)n+index] += tr
                         J[nm + (μ-1)n+i,nm+(ν-1)n+index] += ti
                     end
@@ -240,9 +243,7 @@ end
 end
 
 
-
-
-function initialize_J(ms::Maxwell_SALT)
+function initialize_J(ms::MaxwellSALT)
     n,m = ms.n,ms.m
     nm = n*m
     index = ms.index
@@ -251,9 +252,9 @@ function initialize_J(ms::Maxwell_SALT)
     count = 1
     rows = Vector{Float64}(undef,max_count)
     cols = Vector{Float64}(undef,max_count)
-    vals = zeros(Float64,max_count)#Vector{Float64}(undef,max_count)
+    vals = zeros(Float64,max_count)
     for μ ∈ 1:m
-        Aμ = ms.M(ms.ωs[μ],ms.ωs,ms.ψs)
+        Aμ = ms.maxwell(ms.ωs[μ],ms.ωs,ms.ψs)
         for ν ∈ 1:m # derivative wrt to ν, evaluated for field μ
             for j ∈ 1:n
                 k = mod1(j,n÷3)
@@ -345,7 +346,7 @@ function ωψ_to_x(ωs::Vector,ψs::ElectricField)
     ωψ_to_x!(x,ωs,ψs)
     return x
 end
-ωψ_to_x!(ms::Maxwell_SALT) = ωψ_to_x!(ms.x,ms.ωs,ms.ψs)
+ωψ_to_x!(ms::MaxwellSALT) = ωψ_to_x!(ms.x,ms.ωs,ms.ψs)
 @inline function ωψ_to_x!(x::Vector,ωs::Vector,ψs::ElectricField)
     n,m = size(ψs)
     nm = n*m
@@ -356,6 +357,7 @@ end
                 x[(μ-1)n+index] = abs(ψs[index,μ])
                 x[nm+(μ-1)n+index] = ωs[μ]
             else
+                iszero(ψs[index,μ]) ? throw("field vanishes at $index, perhaps due to symmetry") : nothing
                 x[(μ-1)n+i], x[nm+(μ-1)n+i] = reim(ψs[i,μ]/ψs[index,μ])
             end
         end
@@ -369,8 +371,8 @@ function x_to_ωψ(sim::Simulation{N},x::Vector,m::Integer) where N
     x_to_ωψ!(ωs,ψs,x)
     return ωs,ψs
 end
-x_to_ωψ!(ms::Maxwell_SALT) = x_to_ωψ!(ms.ωs,ms.ψs,ms.x)
-x_to_ωψ!(ms::Maxwell_SALT,x) = x_to_ωψ!(ms.ωs,ms.ψs,x)
+x_to_ωψ!(ms::MaxwellSALT) = x_to_ωψ!(ms.ωs,ms.ψs,ms.x)
+x_to_ωψ!(ms::MaxwellSALT,x) = x_to_ωψ!(ms.ωs,ms.ψs,x)
 @inline function x_to_ωψ!(ωs::Vector,ψs::ElectricField,x::Vector)
     n,m = size(ψs)
     nm = n*m
@@ -510,10 +512,10 @@ end
 ################################################################################
 # Pretty Printing & Plotting
 
-function Base.show(io::IO,ms::Maxwell_SALT)
+function Base.show(io::IO,ms::MaxwellSALT)
     print(io,ms.m, " mode")
     ms.m>1 ? print(io,"s") : nothing
-    printstyled(io," Maxwell_SALT",color = PRINTED_COLOR_LIGHT)
+    printstyled(io," MaxwellSALT",color = PRINTED_COLOR_LIGHT)
     if !ms.solved[]
         printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"unsolved",color=PRINTED_COLOR_WARN)
@@ -537,11 +539,11 @@ function Base.show(io::IO,ms::Maxwell_SALT)
     end
 end
 
-@recipe f(ms::Maxwell_SALT;by=abs2) = ms,by
-@recipe f(ms::Maxwell_SALT,by::Function) = ms.ψs,by
-@recipe f(by::Function,ms::Maxwell_SALT) = ms.ψs,by
-@recipe f(sim::Simulation,ms::Maxwell_SALT;by=abs2) = sim,ms.ψs,by
-@recipe f(ms::Maxwell_SALT,sim::Simulation;by=abs2) = sim,ms.ψs,by
+@recipe f(ms::MaxwellSALT;by=abs2) = ms,by
+@recipe f(ms::MaxwellSALT,by::Function) = ms.ψs,by
+@recipe f(by::Function,ms::MaxwellSALT) = ms.ψs,by
+@recipe f(sim::Simulation,ms::MaxwellSALT;by=abs2) = sim,ms.ψs,by
+@recipe f(ms::MaxwellSALT,sim::Simulation;by=abs2) = sim,ms.ψs,by
 
 
 end # module

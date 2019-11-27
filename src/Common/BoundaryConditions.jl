@@ -15,6 +15,9 @@ export AbstractComplexBC
 export LocalBC
 export NonLocalBC
 export BCLocality
+export BCHermiticity
+export HermitianBC
+export NonHermitianBC
 
 import ..PRINTED_COLOR_DARK
 import ..get_side
@@ -40,11 +43,14 @@ end
 MatchedBC{SIDE}(;in::Array{Int,1}=Int[],out::Array{Int,1}=Int[]) where SIDE = MatchedBC{SIDE}(in,out)
 
 struct LocalBC{SIDE} end
-
 struct NonLocalBC{SIDE} end
-
 BCLocality(::Union{noBC{SIDE},DirichletBC{SIDE},NeumannBC{SIDE}}) where SIDE = LocalBC{SIDE}
 BCLocality(::AbstractBC{SIDE}) where SIDE = NonLocalBC{SIDE}
+
+struct HermitianBC{SIDE} end
+struct NonHermitianBC{SIDE} end
+BCHermiticity(::Union{noBC{SIDE},DirichletBC{SIDE},NeumannBC{SIDE},FloquetBC{SIDE}}) where SIDE = HermitianBC{SIDE}
+BCHermiticity(::AbstractBC{SIDE}) where SIDE = NonHermitianBC{SIDE}
 
 for TBC ∈ (noBC,DirichletBC,NeumannBC,FloquetBC)
 	@eval begin

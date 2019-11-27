@@ -1,3 +1,11 @@
+function Base.propertynames(::Lattice{1},private=false)
+    if private
+        return fieldnames(Lattice)
+    else
+        return (:dx, :x0)
+    end
+end
+
 lattice_primitives(constants::NTuple{1}) = (Point(1.0),), SMatrix{1,1}(1.0)
 
 Base.getindex(lat::Lattice{1},i::CartesianIndex) = getindex(lat,i[1])

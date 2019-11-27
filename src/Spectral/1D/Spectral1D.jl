@@ -1,50 +1,34 @@
-using Flatten
 using SparseArrays
 
 """
     MaxwellNEP(::Simulation{1}; ky=0, kz=0) -> nep
 """
 function MaxwellNEP(
-            sim::Simulation{1,C,T},
-            args...;
+            sim::Simulation{1,C,T};
             ky::Number = 0,
             kz::Number = 0,
             kwargs...
             ) where {C,T}
 
-    M = maxwell(sim; ky=ky, kz=kz)
     ka = 0
+    M = Maxwell(sim; ky=ky, kz=kz)
     f = map(f->(ω->f(ω,ka,ky,kz)),M.sim.self_energy.f)
     Σ1,Σ2,Σ3 = M.Σs
-    αF, fχ = _compute_αχ(sim,args...)
-    As = vcat([Σ1,Σ2,Σ3,sim.curlcurl(ky,kz),M.αε],αF)
-    fs = [f[1],f[2],one,one,ω->-ω^2,map(ϝ->(ω->-ω^2*ϝ(ω)),fχ)...]
+    Fs, fχs = _compute_Fsfχs(sim)
+    As = vcat([Σ1,Σ2,Σ3,sim.curlcurl(ky,kz),M.αε],Fs)
+    fs = [f[1],f[2],one,one,ω->-ω^2,map(ϝ->(ω->-ω^2*ϝ(ω)),fχs)...]
     nep = SPMF_NEP(As,fs;kwargs...)
-    return MaxwellNEP(M,nep)
+    return MaxwellNEP(M,nep,6:length(As))
 end
 
 
 ################################################################################
-function _compute_αχ(sim::Simulation{1},args...)
-    χs = flatten(map(d->d.χ,sim.domains),Common.Dispersions.AbstractDispersion)
-    domain_inds = flatten(map(d->ntuple(i->d,length(sim.domains[d].χ)),ntuple(identity,length(sim.domains))))
+function _compute_Fsfχs(sim::Simulation{1})
+    χs = map(d->d.χ,sim.dispersive_domains)
     fχs = map(x->(ω->susceptability(x,ω)),χs)
-
-    n = length(sim.x)
-    Fs = map(d->sim.domains[d].pump,domain_inds)
-    αFs = Array{SparseMatrixCSC{ComplexF64,Int},1}(undef,length(domain_inds)) # number of dispersions × number of domains
-    for d ∈ eachindex(αFs)
-        αFs[d] = spdiagm(0=>zeros(ComplexF64,3n))
-        typeof(χs[d])<:TwoLevelSystem ? Common.Dispersions.TwoLevelSystems.H!(χs[d],args...) : nothing
-        for i ∈ 1:3n
-            j = mod1(i,n)
-            if domain_inds[d]==sim.domain_indices[j]
-                this_domain = sim.domain_indices[j]
-                αFs[d].nzval[i] = Fs[this_domain](sim.x[j])*sim.α[1][j]*(isempty(args) ? 1 : χs[this_domain].hp1⁻¹[j])
-            end
-        end
-    end
-    return αFs,fχs
+    Fs = Vector{SparseMatrixCSC{ComplexF64,Int}}(undef,length(sim.nondispersive_domains))
+    for d ∈ eachindex(Fs) Fs[d] = spdiagm(0=>repeat(sim.F,3)) end
+    return Fs,fχs
 end
 
 

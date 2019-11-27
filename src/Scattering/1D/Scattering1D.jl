@@ -1,125 +1,77 @@
 """
-    scattering(::Simulation{1}, ω, left_amplitude, [aright_amplitude=0; lupack=$(DEFAULT_LUPACK), start=-Inf, stop=Inf, ky=0, kz=0]) -> sol
-"""
-scattering(sim::Simulation{1}, ω::Real, aL::Number, aR::Number=0; kwargs...) =
-    scattering(sim,ω,[aL,aR]; kwargs...)
+    MaxwellLS(::Simulation{1}, ω, aL, [aR=0 ;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
 
+    MaxwellLS(::Simulation{1}, ω, [amplitudes::Vector ;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
 """
-    scattering(::Simulation{1}, ω, amplitudes::Vector;[lupack=$(DEFAULT_LUPACK), start=-Inf, stop=Inf, ky=0, kz=0]) -> sol
-"""
-function scattering(
-            sim::Simulation{1},
-            ω::Real,
-            a::AbstractVecOrMat;
-            lupack::AbstractLUPACK=DEFAULT_LUPACK,
-            kwargs...)
-
-    mls = Maxwell_LS(sim, ω, a; kwargs...)
-    scattering!(mls, lupack)
-    return mls.solution
-end
-
-"""
-    maxwell_ls(::Simulation{1}, ω, aL, [aR=0 ;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
-    maxwell_ls(::Simulation{1}, ω, [amplitudes::Vector ;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
-"""
-maxwell_ls
-Maxwell_LS(sim::Simulation{1}, ω::Real, aL::Number, aR::Number=0; kwargs...) =
-    Maxwell_LS(sim,ω,[aL,aR];kwargs...)
-function Maxwell_LS(sim::Simulation{1},ω::Real,a::Vector;
+MaxwellLS(sim::Simulation{1}, ω::Real, aL::Number, aR::Number=0; kwargs...) =
+    MaxwellLS(sim,ω,[aL,aR];kwargs...)
+function MaxwellLS(sim::Simulation{1},ω::Real,a::Vector;
             start::Real=-Inf, stop::Real=Inf, ky::Number=0, kz::Number=0)
-    M = maxwell(sim; ky=ky,kz=kz)
+    M = Maxwell(sim; ky=ky,kz=kz)
     M(ω) # evaluate at ω
     es = EquivalentSource(sim, ω, a; start=start, stop=stop, ky=ky, kz=kz)
     j = es(M.D²,ky,kz)
     sol = ScatteringSolution(sim,ω,a)
-    return Maxwell_LS{1,typeof(M),typeof(es)}(M,es,j,Ref(false),Ref(false),sol)
+    return MaxwellLS{1,typeof(M),typeof(es)}(M,es,j,Ref(false),Ref(false),sol)
 end
 
 
-Common.update!(mls::Maxwell_LS{1}, aL::Number,aR::Number) = update!(mls,[aL,aR])
-function Common.update!(mls::Maxwell_LS{1}, a::Vector)
-    mls.es.a[:] = a
-    mls.j[:] = es(mls.M.D², mls.maxwell.ky, mls.maxwell.kz)
-    return nothing
-end
-
-
-################################################################################
-# nonlinear scattering convenience wrappers
-
-scattering_nl(sim::Simulation{1},ω::Real,aL::Number,aR::Number=0; kwargs...) =
-    scattering_nl(sim,ω,[aL,aR];kwargs...)
-
-function scattering_nl(
-    sim::Simulation{1},
-    ω::Real,
-    a::AbstractVecOrMat;
-    start::Real = -Inf,
-    stop::Real = Inf,
-    ky::Number=0,
-    kz::Number=0,
-    init::ElectricField{1}=scattering(sim,ω,a;start=start,stop=stop,ky=ky,kz=kz).tot,
-    kwargs...)
-
-    sol = ScatteringSolution(sim,ω,a)
-    scattering_nl!(sol, sim; start=start, stop=stop, ky=ky, kz=kz, init=init, kwargs...)
-    return sol
-end
-
-
-function scattering_nl!(
-            sol::ScatteringSolution{1},
-            sim::Simulation{1};
-            start::Real=-Inf,
-            stop::Real=Inf,
-            ky::Number=0,
-            kz::Number=0,
-            init::ElectricField{1},
-            verbose::Bool=false,
-            show_trace::Bool=verbose,
-            lupack::AbstractLUPACK=DEFAULT_LUPACK,
-            kwargs...)
-
-    nls = maxwell_nls(sim, sol.ω, sol.a, lupack; start=start, stop=stop, ky=ky, kz=kz)
-    results = nlsolve(nls, init; show_trace=show_trace, kwargs...)
-    x_to_ψ!(nls,results.zero)
-    (results.f_converged || results.x_converged) || printstyled("beware: no convergence at ω=$(nls.ω), a=$(nls.a)\n", color=PRINTED_COLOR_BAD)
-    field = nls.equivalent_source.field
-    for i ∈ eachindex(nls.equivalent_source.field)
-        k = mod1(i,length(sim))
-        sol.total[i] = nls.ψ[i]
-        sol.incident[i] = field[i]*nls.equivalent_source.mask(field.pos[k])
-        sol.scattered[i] = sol.total[i] - sol.incident[i]
+Common.update!(mls::MaxwellLS{1}, aL::Number, aR::Number, args...) = update!(mls, [aL,aR], args...)
+function Common.update!(mls::MaxwellLS{1}, a::Vector, args...)
+    if !isempty(args)
+        mls.ω = args[1]
+        mls.maxwell(mls.ω)
     end
+    copyto!(mls.equivalent_source.a, a)
+    fill!(mls.equivalent_source.field,0)
+    mls.j[:] = mls.equivalent_source(mls.maxwell.D², mls.maxwell.ky, mls.maxwell.kz)
     return nothing
 end
 
 # constructors for DIM=1
 """
-    maxwell_nls(::Simulation{1}, ω, aL, [aR=0, lupack=$DEFAULT_LUPACK;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
-    maxwell_nls(::Simulation{1}, ω, [amplitudes::Vector, lupack=$DEFAULT_LUPACK;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
+    MaxwellNLS(::Simulation{1}, ω, aL, [aR=0, lupack=$DEFAULT_LUPACK;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
+
+    MaxwellNLS(::Simulation{1}, ω, [amplitudes::Vector, lupack=$DEFAULT_LUPACK;  start=-Inf, stop=Inf, ky=0, kz=0]) -> nls
 """
-maxwell_nls
-Maxwell_NLS(sim::Simulation{1},ω::Real,aL::Number,aR::Number=0, lupack::AbstractLUPACK=DEFAULT_LUPACK; kwargs...) =
-    Maxwell_NLS(sim,ω,[aL,aR]; kwargs...)
-function Maxwell_NLS(sim::Simulation{1},ω::Real,a::Vector,lupack::AbstractLUPACK=DEFAULT_LUPACK; start::Real=-Inf, stop::Real=Inf, ky::Number=0, kz::Number=0)
-    ls = Maxwell_LS(sim, ω, a; start=start, stop=stop, ky=ky, kz=kz)
+MaxwellNLS(sim::Simulation{1},ω::Real,aL::Number,aR::Number=0, lupack::AbstractLUPACK=DEFAULT_LUPACK; kwargs...) =
+    MaxwellNLS(sim,ω,[aL,aR]; kwargs...)
+function MaxwellNLS(sim::Simulation{1},ω::Real,a::Vector,lupack::AbstractLUPACK=DEFAULT_LUPACK; start::Real=-Inf, stop::Real=Inf, ky::Number=0, kz::Number=0)
+    ls = MaxwellLS(sim, ω, a; start=start, stop=stop, ky=ky, kz=kz)
     ψ = ElectricField(sim,1)
     res = similar(ψ)
     x = ψ_to_x(ψ)
     sol = ScatteringSolution(sim,ω,a)
-    return Maxwell_NLS{1,typeof(ls),typeof(lupack)}(ls,ψ,res,x,Ref(false),lupack)
+    return MaxwellNLS{1,typeof(ls),typeof(lupack)}(ls,ψ,res,x,Ref(false),lupack)
 end
 
 ################################################################################
 # EQUIVALENT SOURCE BLOCK FOR DIM=1
 
 # constructor
-function EquivalentSource(sim::Simulation{1}, ω::Number, a ;start::Number=-Inf,stop::Number=Inf,ky::Number=0,kz::Number=0)
-    mask = Interval(start,stop)
+function EquivalentSource(sim::Simulation{1}, ω::Number, a::Vector; start::Number=-Inf,stop::Number=Inf,ky::Number=0,kz::Number=0)
     field = ElectricField(sim,zeros(ComplexF64,3length(sim)))
-    return EquivalentSource(mask,field,sim,ω,a)
+    bc1, bc2 = sim.boundary.bcs
+    bl1, bl2 = sim.boundary.bls
+    if typeof(bl1)<:noBL{1} && typeof(bc1)<:Union{DirichletBC{1},NeumannBC{1}}
+        start_in = start
+        start_out = start
+    else
+        start_in  = max(start, field.start+3sim.dx)
+        start_out = max(start, field.start-3sim.dx)
+    end
+    if typeof(bl2)<:noBL{2} && typeof(bc2)<:Union{DirichletBC{2},NeumannBC{2}}
+        stop_in = stop
+        stop_out = stop
+    else
+        stop_in  = min(stop, field.stop-3sim.dx)
+        stop_out = min(stop, field.stop+3sim.dx)
+    end
+    incoming_mask = Interval(start_in,stop_in)
+    outgoing_mask = Interval(start_out,stop_out)
+    kx = 2asin(sqrt(ω^2 - ky^2 - kz^2)*sim.dx/2)/sim.dx
+    channelflux = fill(hypot(kx,ky,kz),2)
+    return EquivalentSource(incoming_mask,outgoing_mask,field,sim,ω,a,channelflux)
 end
 
 # generate source
@@ -136,26 +88,72 @@ end
     ω² = ω^2
     kx = 2asin(sqrt(ω² - ky^2 - kz^2)*es.sim.dx/2)/es.sim.dx
 
-    left = findmin(map(s->s.x,es.sim.x))[1]-es.sim.dx/2
-    right = findmax(map(s->s.x,es.sim.x))[1]+es.sim.dx/2
+    bl1, bl2 = es.sim.boundary.bls
+    bc1, bc2 = es.sim.boundary.bcs
+
+    # left  = es.sim.x[1] - es.sim.dx/2
+    # right = es.sim.x[end] + es.sim.dx/2
+    if typeof(bl1)<:AbstractComplexBL{1} || typeof(bc1)<:MatchedBC{1}
+        left  = es.field.start
+    else
+        left  = es.sim.x[1] - es.sim.dx/2
+    end
+    if typeof(bl2)<:AbstractComplexBL{2} || typeof(bc2)<:MatchedBC{2}
+        right = es.field.stop
+    else
+        right = es.sim.x[end] + es.sim.dx/2
+    end
 
     temp = Vector{ComplexF64}(undef,3n)
     rows = Vector{Int}(undef,3n)
     count = 0
-    @fastmath @inbounds for i ∈ eachindex(es.field)
+    # @fastmath @inbounds
+    for i ∈ eachindex(es.field)
         j = mod1(i,n)
-        if (i-1)÷n == 0 && es.mask(es.sim.x[j])
-            count += 1
-            es.field[i] = a[1]*(ky/ω)*cis(kx*(es.field.pos[j].x-left))/sqrt(ω)
-            es.field[i] += a[2]*(ky/ω)*cis(-kx*(es.field.pos[j].x-right))/sqrt(ω)
-            temp[count] = es.field[i]
-            rows[count] = i
-        elseif (i-1)÷n == 1 && es.mask(es.field.pos[j])
-            count += 1
-            es.field[i] = a[1]*cis(kx*(es.field.pos[j].x-left))/sqrt(ω)
-            es.field[i] += a[2]*cis(-kx*(es.field.pos[j].x-right))/sqrt(ω)
-            temp[count] = es.field[i]
-            rows[count] = i
+        if (i-1)÷n < 2
+            β = (i-1)÷n==0 ? (ky/ω) : 1.0
+            incoming = es.incoming_mask(es.sim.x[j])
+            outgoing = es.outgoing_mask(es.sim.x[j])
+            es.field[i] = 0
+            if incoming
+                if typeof(bl2)<:AbstractComplexBL{2} || typeof(bc2)<:MatchedBC{2}
+                    nothing
+                elseif typeof(bc2)<:Union{DirichletBC{2},NeumannBC{2}}
+                    es.field[i] += a[1]*β*cis(kx*(es.field.pos[j].x-right.x))/sqrt(es.channelflux[1])
+                    iszero(a[2]) || throw("cannot be incident from $(typeof(bc2))")
+                elseif typeof(bc2)<:FloquetBC{2}
+                    throw("Floquet{2} incompatible with scattering")
+                end
+                if typeof(bl1)<:AbstractComplexBL{1} || typeof(bc1)<:MatchedBC{1}
+                    nothing
+                elseif typeof(bc1)<:Union{DirichletBC{1},NeumannBC{1}}
+                    es.field[i] += a[2]*β*cis(-kx*(es.field.pos[j].x-left.x))/sqrt(es.channelflux[2])
+                    iszero(a[1]) || throw("cannot be incident from $(typeof(bc1))")
+                elseif typeof(bc1)<:FloquetBC{1}
+                    throw("Floquet{1} incompatible with scattering")
+                end
+            end
+            if outgoing
+                if typeof(bl2)<:AbstractComplexBL{2} || typeof(bc2)<:MatchedBC{2}
+                    es.field[i] = a[1]*β*cis(kx*(es.field.pos[j].x-left.x))/sqrt(es.channelflux[1])
+                elseif typeof(bc2)<:DirichletBC{2}
+                    es.field[i] += -a[1]*β*cis(-kx*(es.field.pos[j].x-right.x))/sqrt(es.channelflux[1])
+                elseif typeof(bc2)<:NeumannBC{2}
+                    es.field[i] += a[1]*β*cos(-kx*(es.field.pos[j].x-right.x))/sqrt(es.channelflux[1])
+                end
+                if typeof(bl1)<:AbstractComplexBL{1} || typeof(bc1)<:MatchedBC{1}
+                    es.field[i] += a[2]*β*cis(-kx*(es.field.pos[j].x-right.x))/sqrt(es.channelflux[2])
+                elseif typeof(bc1)<:DirichletBC{1}
+                    es.field[i] += -a[2]*β*cis(kx*(es.field.pos[j].x-left.x))/sqrt(es.channelflux[2])
+                elseif typeof(bc1)<:NeumannBC{1}
+                    es.field[i] += a[2]*β*cis(kx*(es.field.pos[j].x-left.x))/sqrt(es.channelflux[2])
+                end
+            end
+            if incoming || outgoing
+                count += 1
+                temp[count] = es.field[i]
+                rows[count] = i
+            end
         end
     end
 
@@ -166,7 +164,6 @@ end
     mx = maximum(abs,j)
     return droptol!(j,mx*EQUIVALENT_SOURCE_RELATIVE_CUTOFF)
 end
-
 
 ################################################################################
 

@@ -16,8 +16,10 @@ const EQUIVALENT_SOURCE_RELATIVE_CUTOFF = 1e-8 # relative tolerance condition fo
 
 const TIME_TO_SPACE_STEP_RATIO = 0.9
 
-const DEFAULT_LINEAR_EIGENSOLVER = :ArnoldiMethod
+const DEFAULT_LINEAR_EIGENSOLVER = :Arpack
 const DEFAULT_NONLINEAR_EIGENSOLVER = :NonlinearEigenproblems
+
+const NUM_SUBPIXELS = 5
 
 # Pretty Printing Colors
 const PRINTED_COLOR_NUMBER = :light_cyan # numbers

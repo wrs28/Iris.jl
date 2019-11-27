@@ -27,16 +27,16 @@ import ..DEFAULT_BL
 end
 const DEFAULT_BL_DEPTH = BL_DEPTH
 
-struct Boundary{TS,TBC,TBL}
+struct Boundary{N,TS,TBC,TBL}
     shape::TS
     bcs::TBC
     bls::TBL
 
     function Boundary(
-			shape::AbstractShape{NDIMS,NSIDES},
-	        bcs::NTuple{NSIDES,AbstractBC},
-	        bls::NTuple{NSIDES,AbstractBL}
-	        ) where {NDIMS,NSIDES}
+				shape::AbstractShape{NDIMS,NSIDES},
+		        bcs::NTuple{NSIDES,AbstractBC},
+		        bls::NTuple{NSIDES,AbstractBL}
+		        ) where {NDIMS,NSIDES}
 
 		length(bcs)==nsides(shape) || throw("incorrect number of boundary conditions $(length(bcs)), should match number of sides $(nsides(sh))")
 		length(bls)==nsides(shape) || throw("incorrect number of boundary layers $(length(bls)), should match number of sides $(nsides(sh))")
@@ -44,9 +44,11 @@ struct Boundary{TS,TBC,TBL}
 		bcs_sorted = map(i->bcs[i],TupleTools.sortperm(map(b->get_side(b),bcs)))
 		bls_sorted = map(i->bls[i],TupleTools.sortperm(map(b->get_side(b),bls)))
 		bls_sorted = map(x->_bls_by_shape(x,shape),bls_sorted)
-	    return new{typeof(shape),typeof(bcs_sorted),typeof(bls_sorted)}(shape,bcs_sorted,bls_sorted)
+	    return new{NDIMS,typeof(shape),typeof(bcs_sorted),typeof(bls_sorted)}(shape,bcs_sorted,bls_sorted)
     end
 end
+
+foreach(include,files)
 
 """
 	Boundary(shape, boundary_conditions..., boundary_layers...; depth=$DEFAULT_BL_DEPTH) -> bnd
@@ -68,10 +70,10 @@ The arguments can be entered in any order. For example, `Boundary(PML{2}(.2),sha
 all valid.
 """
 function Boundary(
-	shape::AbstractShape{NDIMS,NSIDES},
-	bcs::NTuple{MBC,AbstractBC},
-	bls::NTuple{MBL,AbstractBL}
-	) where {NDIMS,NSIDES,MBC,MBL}
+			shape::AbstractShape{NDIMS,NSIDES},
+			bcs::NTuple{MBC,AbstractBC},
+			bls::NTuple{MBL,AbstractBL}
+			) where {NDIMS,NSIDES,MBC,MBL}
 
 	MBC ≤ NSIDES || throw("more boundary conditions $MBC than sides $NSIDES")
 	MBL ≤ NSIDES || throw("more boundary layers $MBC than sides $NSIDES")
@@ -98,7 +100,6 @@ function Boundary(
 end
 
 Base.ndims(bnd::Boundary) = ndims(bnd.shape)
-
 Shapes.nsides(bnd::Boundary) = nsides(bnd.shape)
 
 function Boundary(args...;depth::Real=DEFAULT_BL_DEPTH)
@@ -140,15 +141,13 @@ function Base.show(io::IO,bnd::Boundary)
 end
 
 
-"""
-	conj(::Boundary) -> bnd
-
-Make a new `Boundary` object with conjugated boundary layers.
-"""
-Base.conj(bnd::Boundary) = Boundary(bnd.shape,conj.(bnd.bcs),conj.(bnd.bls))
+# """
+	# conj(::Boundary) -> bnd
+#
+# Make a new `Boundary` object with conjugated boundary layers.
+# """
+# Base.conj(bnd::Boundary) = Boundary(bnd.shape,conj.(bnd.bcs),conj.(bnd.bls))
 
 _bls_by_shape(bls,shape::AbstractShape) = bls
-
-foreach(include,files)
 
 end # module

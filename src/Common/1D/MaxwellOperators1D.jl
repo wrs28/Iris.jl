@@ -13,19 +13,16 @@ function Maxwell(
     D² = Σs[1]*f[1](0,ka,ky,kz) + Σs[2]*f[2](0,ka,ky,kz) + Σs[3] + curlcurl
 
     αε = _compute_αε(sim)
-    αεpχ = copy(αε)
-    αχ = copy(αε)
+    αεpFχ = copy(αε)
+    Fχ = spdiagm(0=>zeros(ComplexF64,size(αε,1)))
 
-    αχs = Vector{SparseMatrixCSC{ComplexF64,Int}}(undef,m)
-    αdχdψr = zeros(ComplexF64,3length(sim),m,m)
-    αdχdψi = copy(αdχdψr)
-    αdχdω = copy(αdχdψi)
-    αdχdϕ = copy(αdχdω)
-    for i ∈ eachindex(αχs)
-        αχs[i] = copy(αε)
-        @inbounds for j ∈ eachindex(αχs[i].nzval) αχs[i].nzval[j] = 0 end
-    end
-    Maxwell{1,typeof(Σs),TSIM}(D²+I,D²,αεpχ,curlcurl,Σs,αε,αχ,αχs,αdχdψr,αdχdψi,αdχdω,αdχdϕ,sim,kx,ky,kz,ka,kb,kc)
+    Fχs = Vector{SparseMatrixCSC{ComplexF64,Int}}(undef,m)
+    dFχdψr = zeros(ComplexF64,3length(sim),m,m)
+    dFχdψi = copy(dFχdψr)
+    dFχdω = copy(dFχdψi)
+    dFχdϕ = copy(dFχdω)
+    for μ ∈ eachindex(Fχs) Fχs[μ] = spdiagm(0=>zeros(ComplexF64,size(αε,1))) end
+    Maxwell{1,typeof(Σs),TSIM}(D²+I,D²,αεpFχ,curlcurl,Σs,αε,Fχ,Fχs,dFχdψr,dFχdψi,dFχdω,dFχdϕ,sim,kx,ky,kz,ka,kb,kc)
 end
 
 
@@ -55,7 +52,7 @@ end
     @inbounds for col ∈ 1:n
         @fastmath @inbounds @simd for j ∈ nzrange(m.A, col)
             row = rows[j]
-            vals[j] = m.D²[row,col] - ω²*m.αεpχ[row,col]
+            vals[j] = m.D²[row,col] - ω²*m.αεpFχ[row,col]
         end
     end
     return m.A
@@ -68,60 +65,37 @@ end
 # linear
 @inline function maxwell_susceptability!(m::Maxwell{1},ω::Number)
     sim = m.sim
-    n::Int = length(sim)
-    χs = map(d->d.χ,sim.domains)
-    Fs = map(d->d.pump,sim.domains)
-    χχ = map(x->susceptability(x,ω),χs)
-    foreach((χ,d)->begin
-                    @inbounds for i ∈ eachindex(m.αχ.nzval)
-                        j = mod1(i,n)
-                        if d==m.sim.domain_indices[j]
-                            m.αχ.nzval[i]=0
-                            # @fastmath @inbounds @simd for x ∈ χ m.αχ.nzval[i] += Fs[d](m.sim.x[j])*m.sim.α[1][j]*x end
-                            @fastmath @inbounds @simd for x ∈ χ m.αχ.nzval[i] += m.sim.F[j]*m.sim.α[1][j]*x end
-                        end
-                    end
-                end, χχ, eachindex(χχ))
-    @fastmath @inbounds @simd for i ∈ eachindex(m.αε.nzval) m.αεpχ.nzval[i] = m.αε.nzval[i] + m.αχ.nzval[i] end
+    @fastmath @inbounds @simd for i ∈ eachindex(m.Fχ.nzval)
+        j = mod1(i,length(sim))
+        χ = susceptability(sim.χ[j], ω)
+        m.Fχ.nzval[i] = sim.F[j]*χ
+    end
+    @fastmath @inbounds @simd for i ∈ eachindex(m.αε.nzval) m.αεpFχ.nzval[i] = m.αε.nzval[i] + m.Fχ.nzval[i] end
     return nothing
 end
 
 
 # nonlinear + local jacobian
-@inline function maxwell_susceptability!(m::Maxwell{1},ω,args...)
+@inline function maxwell_susceptability!(m::Maxwell{1},ω,ωs::Vector,ψs::ElectricField)
     sim = m.sim
-    n::Int = length(sim)
-    χs = map(d->d.χ,sim.domains)
-    Fs = map(d->d.pump,sim.domains)
-    foreach(x->susceptability(x,ω,args...),χs)
-    foreach((χ,d)->begin
-                    @inbounds for μ ∈ eachindex(m.αχs)
-                        @inbounds for i ∈ eachindex(m.αχs[μ].nzval)
-                            j = mod1(i,n)
-                            if d==m.sim.domain_indices[j]
-                                μ==1 ? m.αχ.nzval[i]=0 : nothing
-                                m.αχs[μ].nzval[i]=0
-                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdψr[i,μ,ν] = 0 end
-                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdψi[i,μ,ν] = 0 end
-                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdω[i,μ,ν] = 0 end
-                                @inbounds @simd for ν ∈ eachindex(m.αχs) m.αdχdϕ[i,μ,ν] = 0 end
-                                @inbounds for x ∈ χ
-                                    # Fα = Fs[d](m.sim.x[j])*m.sim.α[1][j]
-                                    Fα = m.sim.F[j]*m.sim.α[1][j]
-                                    μ==1 ? m.αχ.nzval[i] += Fα*x.chi[i] : nothing
-                                    m.αχs[μ].nzval[i] += Fα*x.chis[i,μ]
-                                    @inbounds @simd for ν ∈ eachindex(m.αχs)
-                                        m.αdχdψr[i,μ,ν] += Fα*x.dχdψr[i,μ,ν]
-                                        m.αdχdψi[i,μ,ν] += Fα*x.dχdψi[i,μ,ν]
-                                        m.αdχdω[i,μ,ν] += Fα*x.dχdω[i,μ,ν]
-                                        m.αdχdϕ[i,μ,ν] += Fα*x.dχdϕ[i,μ,ν]
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end, χs, eachindex(χs))
-    @fastmath @inbounds @simd for i ∈ eachindex(m.αε.nzval) m.αεpχ.nzval[i] = m.αε.nzval[i] + m.αχ.nzval[i] end
+    foreach(d->susceptability(d.χ,ω,ωs,ψs), sim.dispersive_domains)
+    @inbounds for μ ∈ eachindex(m.Fχs)
+        @inbounds for i ∈ eachindex(m.Fχ.nzval)
+            j = mod1(i,length(sim))
+            if typeof(sim.χ[j])<:TwoLevelSystem
+                χ::TwoLevelSystem = sim.χ[j]
+                μ==1 ? m.Fχ.nzval[i] = sim.F[j]*χ.chi[i] : nothing
+                m.Fχs[μ].nzval[i] = sim.F[j]*χ.chis[i,μ]
+                @inbounds @simd for ν ∈ eachindex(m.Fχs)
+                    m.dFχdψr[i,μ,ν] = sim.F[j]*χ.dχdψr[i,μ,ν]
+                    m.dFχdψi[i,μ,ν] = sim.F[j]*χ.dχdψi[i,μ,ν]
+                    m.dFχdω[i,μ,ν] = sim.F[j]*χ.dχdω[i,μ,ν]
+                    m.dFχdϕ[i,μ,ν] = sim.F[j]*χ.dχdϕ[i,μ,ν]
+                end
+            end
+        end
+    end
+    @fastmath @inbounds @simd for i ∈ eachindex(m.αε.nzval) m.αεpFχ.nzval[i] = m.αε.nzval[i] + m.Fχ.nzval[i] end
     return nothing
 end
 

@@ -8,6 +8,8 @@ export PML
 export cPML
 export noBL
 export AbstractBL
+export AbstractRealBL
+export AbstractComplexBL
 
 # PML params used in Boundaries
 import ..EXTINCTION

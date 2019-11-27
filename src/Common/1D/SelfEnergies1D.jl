@@ -1,70 +1,64 @@
-function SelfEnergy(domains::NTuple{L,Domain{1}},surface,domain_index,α_half,a,nnm,nnp,indices,interior,domain_wall) where L
-    li = findfirst(surface)
-    ri = findlast(surface)
-    # surface[1] || throw("first site should be an endpoint, something is amiss")
-    # surface[end] || throw("last site should be an endpoint, something is amiss")
-    sum(surface)>2 && throw("no point except first and last should be an endpoint, something is amiss")
+function SelfEnergy(domain::LatticeDomain{1},α_half)
 
-    N = length(surface)
+    N = length(α_half)-1
+    a = domain.shape.a
     α_half⁻¹ = 1 ./α_half
+    dx = domain.dx
 
-    dx1 = domains[domain_index[li]].lattice.dx
-    bc1 = domains[domain_index[li]].boundary.bcs[1]
-
+    bc1 = domain.boundary.bcs[1]
     if typeof(bc1)<:DirichletBC{1}
-        Σ0L = sparse([li],[li],[-α_half⁻¹[li]/dx1^2],N,N)
-        Σ1L = sparse([li],[li],[+1/dx1],N,N)
-        fL = FM(dx1,0)
+        Σ0L = sparse([1],[1],[-α_half⁻¹[1]/dx^2],N,N)
+        Σ1L = sparse([1],[1],[+1/dx],N,N)
+        fL = FM(dx,0)
     elseif typeof(bc1)<:NeumannBC{1}
-        Σ0L = sparse([li],[li],[+α_half⁻¹[li]/dx1^2],N,N)
-        Σ1L = sparse([li],[li],[-1/dx1],N,N)
-        fL = FM(dx1,0)
+        Σ0L = sparse([1],[1],[+α_half⁻¹[1]/dx^2],N,N)
+        Σ1L = sparse([1],[1],[-1/dx],N,N)
+        fL = FM(dx,0)
     elseif typeof(bc1)<:FloquetBC{1}
-        # Σ0L = sparse([li],[ri],[α_half⁻¹[ri+1]/dx1^2],N,N)
-        # Σ1L = sparse([li],[ri],[-1/dx1],N,N)
+        # Σ0L = sparse([li],[ri],[α_half⁻¹[ri+1]/dx^2],N,N)
+        # Σ1L = sparse([li],[ri],[-1/dx],N,N)
         # fL = (ω,ka,_...) -> ffl(ka,a)
         throw("not yet")
     elseif typeof(bc1)<:MatchedBC{1}
-        Σ0L = sparse([li],[li],[+α_half⁻¹[li]/dx1^2],N,N)
-        Σ1L = sparse([li],[li],[-1/dx1],N,N)
+        Σ0L = sparse([1],[1],[+α_half⁻¹[1]/dx^2],N,N)
+        Σ1L = sparse([1],[1],[-1/dx],N,N)
         if isempty(bc1.in)
-            fL = FM(dx1,+1)
+            fL = FM(dx,+1)
         else
-            fL = FM(dx1,-1)
+            fL = FM(dx,-1)
         end
     else
         Σ0L = spzeros(N,N)
         Σ1L = spzeros(N,N)
-        fL = FM(dx1,0)
+        fL = FM(dx,0)
     end
 
-    dx2 = domains[domain_index[ri]].lattice.dx
-    bc2 = domains[domain_index[ri]].boundary.bcs[2]
+    bc2 = domain.boundary.bcs[2]
     if typeof(bc2)<:DirichletBC{2}
-        Σ0R = sparse([ri],[ri],[-α_half⁻¹[ri+1]/dx2^2],N,N)
-        Σ1R = sparse([ri],[ri],[-1/dx2],N,N)
-        fR = FM(dx2,0)
+        Σ0R = sparse([N],[N],[-α_half⁻¹[N+1]/dx^2],N,N)
+        Σ1R = sparse([N],[N],[-1/dx],N,N)
+        fR = FM(dx,0)
     elseif typeof(bc2)<:NeumannBC{2}
-        Σ0R = sparse([ri],[ri],[+α_half⁻¹[ri+1]/dx2^2],N,N)
-        Σ1R = sparse([ri],[ri],[+1/dx2],N,N)
-        fR = FM(dx2,0)
+        Σ0R = sparse([N],[N],[+α_half⁻¹[N+1]/dx^2],N,N)
+        Σ1R = sparse([N],[N],[+1/dx],N,N)
+        fR = FM(dx,0)
     elseif typeof(bc2)<:FloquetBC{2}
-        # Σ0R = sparse([ri],[1],[-α_half⁻¹[li]/dx2^2],N,N)
-        # Σ1R = sparse([ri],[1],[+1/dx2],N,N)
+        # Σ0R = sparse([ri],[1],[-α_half⁻¹[li]/dx^2],N,N)
+        # Σ1R = sparse([ri],[1],[+1/dx],N,N)
         # fR = (ω,ka,_...) -> ffr(ka,a)
         throw("not yet")
     elseif typeof(bc2)<:MatchedBC{2}
-        Σ0R = sparse([ri],[ri],[+α_half⁻¹[ri+1]/dx2^2],N,N)
-        Σ1R = sparse([ri],[ri],[+1/dx2],N,N)
+        Σ0R = sparse([N],[N],[+α_half⁻¹[N+1]/dx^2],N,N)
+        Σ1R = sparse([N],[N],[+1/dx],N,N)
         if isempty(bc2.in)
-            fR = FM(dx2,+1)
+            fR = FM(dx,+1)
         else
-            fR = FM(dx2,-1)
+            fR = FM(dx,-1)
         end
     else
         Σ0R = spzeros(N,N)
         Σ1R = spzeros(N,N)
-        fR = FM(dx1,0)
+        fR = FM(dx,0)
     end
     Σ2 = spzeros(N,N)
 

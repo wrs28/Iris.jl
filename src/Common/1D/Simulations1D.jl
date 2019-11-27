@@ -1,164 +1,268 @@
-function Base.getproperty(sim::Simulation{1},sym::Symbol)
-	if sym == :dx
-		return getfield(sim,:domains)[1].lattice.dx
+# TODO: fix and test smoothing
+
+function Simulation(
+			ω₀::Real,
+			lattice_domains::NTuple{K,LatticeDomain{1}},
+			nondispersive_domains::NTuple{L,NondispersiveDomain{1}},
+			dispersive_domains::NTuple{M,DispersiveDomain{1}};
+			k₂₀::Real=0,
+			k₃₀::Real=0,
+			k₁₀::Real=sqrt(ω₀^2-k₂₀^2-k₃₀^2)
+			) where {K,L,M}
+
+	# simple checking for 1D symmetric
+	!isempty(lattice_domains) || throw("must provide at least one LatticeDomain")
+	length(lattice_domains) == 1 || throw("in 1D, can only provide one LatticeDomain")
+	lattice_domain = lattice_domains[1]
+
+	smoothed = Ref(false)
+	x = lattice_domain.x
+
+	lattice_domain_indices = fill(1,length(x))
+	nondispersive_domain_indices = which_domains(nondispersive_domains,x)
+	dispersive_domain_indices = which_domains(dispersive_domains,x)
+
+	ε = Vector{ComplexF64}(undef,length(x))
+	if isempty(nondispersive_domains)
+		for i ∈ eachindex(ε) ε[i] = lattice_domain.ε end
+	else
+		dielectrics = map(n -> getfield(n,:dielectric), nondispersive_domains)
+		for i ∈ eachindex(ε)
+			d = nondispersive_domain_indices[i]
+			if iszero(d)
+				ε[i] = lattice_domain.ε
+			else
+				ε[i] = dielectrics[d](x[i])
+			end
+		end
+	end
+
+	F = Vector{Float64}(undef,length(x))
+	χ = Vector{AbstractDispersion}(undef,length(x))
+	if isempty(dispersive_domains)
+		for i ∈ eachindex(F) F[i] = 0 end
+		for i ∈ eachindex(F) χ[i] = NoDispersion() end
+	else
+		pumps = map(n -> n.pump, dispersive_domains)
+		χs = map(n -> n.χ, dispersive_domains)
+		for i ∈ eachindex(F)
+			d = dispersive_domain_indices[i]
+			if iszero(d)
+				F[i] = 0
+				χ[i] = NoDispersion()
+			else
+				F[i] = pumps[d](x[i])
+				χ[i] = χs[d]
+			end
+		end
+	end
+
+	indices = lattice_domain.indices
+	nnm = lattice_domain.nnm
+	nnp = lattice_domain.nnp
+	interior = lattice_domain.interior
+	surface = lattice_domain.surface
+	bulk = lattice_domain.bulk
+	corner = lattice_domain.corner
+
+	# checking
+	surface[1] || throw("first site should be an endpoint, something is amiss")
+	surface[end] || throw("last site should be an endpoint, something is amiss")
+	sum(surface)>2 && throw("no point except first and last should be an endpoint, something is amiss")
+
+	x_half = generate_half_x(lattice_domain.lattice, x, indices)
+
+	σ = (Vector{ComplexF64}(undef,length(x)),)
+	σ_half = (Vector{ComplexF64}(undef,length(x)+1),)
+	boundary_layer!(σ, lattice_domains, x, lattice_domain_indices)
+	boundary_layer!(σ_half, lattice_domains, x_half[1], vcat(lattice_domain_indices, lattice_domain_indices[end]))
+	α = (1 .+ 1im*σ[1]/k₁₀,)
+	α_half = (1 .+ 1im*σ_half[1]/k₁₀,)
+
+	curlcurl = Curlcurl(lattice_domain.lattice,α[1],α_half[1],nnm,nnp,indices,interior,surface)
+
+	Σ = SelfEnergy(lattice_domain,α_half[1])
+
+	return Simulation{1,Symmetric,ComplexF64,typeof(lattice_domains),typeof(nondispersive_domains),typeof(dispersive_domains),typeof(Σ)}(
+		lattice_domains,
+		nondispersive_domains,
+		dispersive_domains,
+		x,
+		lattice_domain_indices,
+		nondispersive_domain_indices,
+		dispersive_domain_indices,
+		ε,
+		F,
+		χ,
+		curlcurl,
+		Σ,
+		α,
+		σ,
+		x_half,
+		σ_half,
+		ω₀,
+		k₁₀,
+		k₂₀,
+		k₃₀,
+		smoothed)
+end
+
+################################################################################
+# SIMULATION{1} building utilities
+
+# for arbitrary domain order
+function Simulation(
+			ω₀::Real,
+			domains::Vararg{AbstractDomain{1}};
+			kwargs...
+			)
+
+	lattice_domains = _get_lattice_domains(domains...)
+	nondispersive_domains = _get_nondispersive_domains(domains...)
+	dispersive_domains = _get_dispersive_domains(domains...)
+
+	return Simulation(ω₀, lattice_domains, nondispersive_domains, dispersive_domains; kwargs...)
+end
+
+# functions to extract lattice_domains, etc, from arbitrary list of domains
+fnames = (:_get_lattice_domains, :_get_nondispersive_domains, :_get_dispersive_domains)
+types = (LatticeDomain, NondispersiveDomain, DispersiveDomain)
+for i ∈ eachindex(types)
+	@eval begin
+		$(fnames[i])(ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
+		$(fnames[i])(arg, args...) = $(fnames[i])(args...)
+		$(fnames[i])(ldom1::$(types[i]), ldom2::$(types[i]), args...) = (ldom1,ldom2,$(fnames[i])(args...)...)
+		$(fnames[i])(arg, ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
+		$(fnames[i])(ldom::$(types[i]), arg, args...) = (ldom,$(fnames[i])(args...)...)
+		$(fnames[i])(arg1, arg2, args...) = $(fnames[i])(args...)
+		$(fnames[i])() = ()
+	end
+end
+
+# used in building Simulation{1}
+function generate_half_x(lattice::Lattice{1}, x::Vector{Point{1}}, indices)
+	half_x = (Vector{Point{1}}(undef,length(x)+1),)
+	for i ∈ eachindex(x) half_x[1][i] = lattice[indices[i][1]-.5] end
+	half_x[1][end] = lattice[indices[length(x)][1]+.5]
+	return half_x
+end
+
+# 1-D hook for boundary_layer found in Simulations.jl
+@inline function boundary_layer(domain::LatticeDomain, x::Point{1}, dim::Integer)
+	typeof(domain.boundary.shape)<:Interval || throw("1D only defined for shape=Interval, but shape=", domain.boundary.shape)
+	bl1 = domain.boundary.bls[1]
+	bl2 = domain.boundary.bls[2]
+	σx = bl1(x)+bl2(x)
+	return σx
+end
+
+
+################################################################################
+# 1-d smoothing functions
+
+function smooth_dielectric!(sim::Simulation{1}, num_sub_pixel::Integer = NUM_SUBPIXELS)
+    indices = sim.nondispersive_domain_indices
+    lattice = sim.lattice
+    X = Vector{Point{1}}(undef,num_sub_pixel)
+    E = Vector{ComplexF64}(undef,num_sub_pixel)
+	r = LinRange(-.5,.5,num_sub_pixel)
+    for i ∈ eachindex(indices)
+		if 1<i<length(indices)
+			idx, = Tuple(sim.lattice_domain.indices[i])
+			if !(indices[i] == indices[i-1] == indices[i+1])
+				for j ∈ eachindex(r) X[j] = lattice[idx+r[j]] end
+		        simulation_dielectric!(E,sim,X)
+				sim.ε[i] = mean(E)
+			end
+		else
+			# placeholder for periodic lattice domains
+		end
+    end
+    return nothing
+end
+
+function smooth_pump!(sim::Simulation{1}, num_sub_pixel::Integer = NUM_SUBPIXELS)
+	indices = sim.dispersive_domain_indices
+    lattice = sim.lattice
+    X = Vector{Point{1}}(undef,num_sub_pixel)
+    F = Vector{ComplexF64}(undef,num_sub_pixel)
+	r = LinRange(-.5,.5,num_sub_pixel)
+    for i ∈ eachindex(indices)
+		if 1<i<length(indices)
+			idx, = Tuple(sim.lattice_domain.indices[i])
+			if !(indices[i] == indices[i-1] == indices[i+1])
+				for j ∈ eachindex(r) X[j] = lattice[idx+r[j]] end
+		        simulation_pump!(F,sim,X)
+				sim.F[i] = mean(F)
+			end
+		end
+    end
+    return nothing
+end
+
+################################################################################
+# extras
+
+function Base.getproperty(sim::Simulation{1}, sym::Symbol)
+	if sym==:lattice_domain
+		return getfield(sim,:lattice_domains)[1]
+	elseif Base.sym_in(sym,(:k10,:k1₀))
+		return getfield(sim,:k₁₀)
+	elseif Base.sym_in(sym,(:k20,:k2₀))
+		return getfield(sim,:k₂₀)
+	elseif Base.sym_in(sym,(:k30,:k3₀))
+		return getfield(sim,:k₃₀)
+	elseif Base.sym_in(sym,(:shape,:boundary,:lattice))
+		return getproperty(getfield(sim,:lattice_domains)[1],sym)
+	elseif Base.sym_in(sym,propertynames(getproperty(getfield(sim,:lattice_domains)[1],:lattice)))
+		return getproperty(getfield(sim,:lattice_domains)[1],sym)
 	elseif Base.sym_in(sym,(:lat,:lattice,:Lat,:Lattice))
-		return getfield(sim,:domains)[1].lattice
+		return getfield(sim,:lattice_domains)[1].lattice
 	else
 		return getfield(sim,sym)
 	end
 end
 
-
-function Simulation(
-	ω₀::Real,
-	domains::Vararg{Domain{1},N};
-	k₂₀::Real=0,
-	k₃₀::Real=0,
-	k₁₀::Real=sqrt(ω₀^2-k₂₀^2-k₃₀^2)
-	) where N
-
-	lattices = map(z->z.lattice,domains)
-	all(isequal.(Ref(lattices[1]),lattices)) || throw("in 1D, lattice must be shared by all domains")
-
-	starts = map(d->d.boundary.shape.start,domains)
-	stops =  map(d->d.boundary.shape.stop ,domains)
-	start = min(starts...,stops...)
-	stop  = max(starts...,stops...)
-	a::Float64 = stop-start
-	nx = ceil(Int,a/domains[1].lattice.dx)
-	dx = a/nx
-
-	lat = Lattice(dx;origin=start+dx/2)
-
-	domains = map(d->Domain(d.boundary,lat,d.dielectric,d.pump,d.χ;type=d.type,name=d.name),domains)
-
-	smoothed = Ref(false)
-
-	domain_index = Int[]
-	indices = CartesianIndex{1}[]
-	nnm = (Int[],)
-	nnp = (Int[],)
-	name = Symbol[]
-	x = Point{1}[]
-	ε = ComplexF64[]
-	F = Float64[]
-	interior = BitArray([])
-	exterior = falses(length(x))
-	surface = BitArray([])
-	bulk = BitArray([])
-	corner = BitArray([])
-
-	append_domains!(domain_index,nnm,nnp,name,x,indices,ε,F,interior,bulk,surface,corner,domains)
-
-	removed = get_sites_to_remove(domains,domain_index,x)
-
-	trim_nn!(nnm,nnp,removed,bulk)
-
-	remove_sites!((domain_index,name,x,indices,ε,F,interior,bulk,surface,corner,nnm,nnp),removed)
-
-	x_half = generate_half_x(domains,domain_index,x,indices)
-
-	domain_wall = generate_and_domain_wall!(interior,bulk,surface,corner,domains,domain_index,x,indices)
-
-	σ = boundary_layer(domains,x,domain_index)
-	σ_half = boundary_layer(domains,x_half[1],vcat(domain_index,domain_index[end]))
-	α = 1 .+ 1im*σ[1]/k₁₀
-	α_half = 1 .+ 1im*σ_half[1]/k₁₀
-
-	curlcurl = Curlcurl(domains[1].lattice,α,α_half,nnm,nnp,indices,interior,surface,domain_wall)
-
-	Σ = SelfEnergy(domains,surface,domain_index,α_half,a,nnm,nnp,indices,interior,domain_wall)
-
-	return Simulation{1,Symmetric,ComplexF64,typeof(domains),2,typeof(Σ.f)}(
-		smoothed,
-		ε,
-		F,
-		curlcurl,
-		Σ,
-		domains,
-		domain_index,
-		x,
-		x_half,
-		(α,),
-		σ,
-		σ_half,
-		name,
-		ω₀,
-		k₁₀,
-		k₂₀,
-		k₃₀)
-end
-
-
-function generate_and_domain_wall!(interior,bulk,surface,corner,domains,domain_index,x::Array{Point{1}},indices)
-	lattices = map(z->z.lattice,domains)
-	shapes = map(z->z.boundary.shape,domains)
-	DX = map(z->z.dx,lattices)
-	domain_wall = falses(length(x))
-	lattice_wall = falses(length(x))
-	for i ∈ eachindex(x)
-		if interior[i]
-			ds = domain_index[i]
-			xt = lattices[ds][indices[i]-CartesianIndex(1,)]
-			dom1 = which_domain(domains,shapes,xt)
-			xt = lattices[ds][indices[i]+CartesianIndex(1,)]
-			dom2 = which_domain(domains,shapes,xt)
-
-			domain_wall[i] = !(domain_index[i]==dom1==dom2)
-			domain_wall[i] = domain_wall[i] && (dom1!==0 && dom2!==0)
-			if domain_wall[i]
-				corner[i] = false
-				surface[i] = false
-				bulk[i] = true
-			end
-		end
+function Base.propertynames(sim::Simulation{1}, private=false)
+	if private
+		return fieldnames(Simulation)
+	else
+		return (:shape, :boundary, :lattice, :lattice_domain, :lattice_domains, :nondispersive_domains, :dispersive_domains, :ε, :F, :x, :χ, :ω₀, :k1₀, :k2₀, :k3₀, :lattice, propertynames(sim.lattice)...)
 	end
-	return domain_wall
 end
 
-function generate_half_x(domains,domain_index,x::Array{Point{1}},indices)
-	half_x = (Array{Point{1},1}(undef,length(x)+1),)
-	lattices = map(z->z.lattice,domains)
-	for i ∈ 1:length(x)
-		ds = domain_index[i]
-		half_x[1][i] = lattices[ds][indices[i][1]-.5]
-		if i==length(x)
-			half_x[1][i+1] = lattices[ds][indices[i][1]+.5]
-		end
+# Pretty Printing
+function Base.show(io::IO,sim::Simulation{1,CLASS}) where CLASS
+	if sim.smoothed[]
+		printstyled(io,"Smoothed ",color=PRINTED_COLOR_GOOD)
+		print(io,"1D ", CLASS)
+		printstyled(io," Simulation\n",color=PRINTED_COLOR_DARK)
+	else
+		printstyled(io,"Unsmoothed ",color=PRINTED_COLOR_WARN)
+		print(io, 1, "D ", CLASS)
+		printstyled(io," Simulation\n",color=PRINTED_COLOR_DARK)
 	end
-	return half_x
-end
-
-function smooth!(sim::Simulation{1},num_sub_pixel::Int=NUM_SUB_PIXEL)
-    domains = sim.domains
-    domain_wall = sim.domain_wall
-	lattices = map(z->z.lattice,sim.domains)
-    X = Array{Point{1}}(undef,num_sub_pixel)
-    E = Array{ComplexF64}(undef,num_sub_pixel)
-    F = Array{Float64}(undef,num_sub_pixel)
-	dw_inds = findall(domain_wall)
-    for dw ∈ eachindex(dw_inds)
-		d = dw_inds[dw]
-		ds = sim.domain_index[d]
-	    I = Tuple(sim.indices[d])
-        is = LinRange(I-.5,I+.5,num_sub_pixel)
-        for i ∈ eachindex(is), j ∈ eachindex(js)
-            X[i] = lattices[ds][is[i]]
-        end
-        simulation_dielectric!(E,domains,X)
-        simulation_pump!(F,domains,X)
-        sim.ε[d] = mean(E)
-        sim.F[d] = mean(F)
-    end
-	sim.smoothed[] = true
-    return nothing
-end
-
-function boundary_layer(domain,x::Point{1},dim::Int)
-	typeof(domain.boundary.shape)<:Interval || throw("1D only defined for shape=Interval, but shape=",domain.boundary.shape)
-	N = 2
-	bl1 = domain.boundary.bls[1]
-	bl2 = domain.boundary.bls[2]
-	σx = bl1(x)+bl2(x)
-	return σx
+    print(io,"\tn sites: ")
+	printstyled(io,length(sim),"\n",color=:light_cyan)
+	println(io,"\t====================")
+	println(IOContext(io,:tabbed2=>true),sim.boundary)
+	println(io)
+	println(IOContext(io,:tabbed2=>true),sim.lattice)
+	println(io)
+	domains = (sim.nondispersive_domains...,sim.dispersive_domains...)
+	for d ∈ eachindex(domains)
+		print(io,"\t\tDomain ")
+		print(io,d)
+		if typeof(domains[d])<:NondispersiveDomain
+			printstyled(io," nondispersive ",color=PRINTED_COLOR_DARK)
+		elseif typeof(domains[d])<:DispersiveDomain
+			printstyled(io," dispersive    ",color=PRINTED_COLOR_DARK)
+		end
+		print(io, " (",domains[d].type,"): ")
+		print(io,domains[d].name)
+		if typeof(domains[d])<:DispersiveDomain
+			print(IOContext(io,:tabbed2=>true),"\n\t\t\t",domains[d].χ)
+		end
+		d < length(domains) ? println(io) : nothing
+	end
 end

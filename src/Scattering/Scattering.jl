@@ -3,13 +3,9 @@
 """
 module Scattering
 
-export maxwell_ls
-export maxwell_nls
-export scattering
+export MaxwellLS
+export MaxwellNLS
 export scattering!
-export scattering_nl
-
-# export scattering_spa
 
 files = (
     "1D/Scattering1D.jl",
@@ -17,26 +13,20 @@ files = (
     # "3D/Scattering3D.jl",
     )
 
+interfaces = (
+    # "Interfaces/IterativeSolvers.jl",
+    )
+
 using ..Common
+import ..Common.AbstractComplexBL
+
 using ..Spectral
-using IterativeSolvers
 using LinearAlgebra
 using NLsolve
 using SparseArrays
 
 # include("SPA_Scattering.jl")
 # using .SPA_Scattering
-
-const DEFAULT_LUPACK = Common.DEFAULT_LUPACK
-const EQUIVALENT_SOURCE_RELATIVE_CUTOFF = Common.EQUIVALENT_SOURCE_RELATIVE_CUTOFF
-const PRINTED_COLOR_LIGHT = Common.PRINTED_COLOR_LIGHT
-const PRINTED_COLOR_GOOD = Common.PRINTED_COLOR_GOOD
-const PRINTED_COLOR_NUMBER = Common.PRINTED_COLOR_NUMBER
-const PRINTED_COLOR_BAD = Common.PRINTED_COLOR_BAD
-const PRINTED_COLOR_WARN = Common.PRINTED_COLOR_WARN
-const PRINTED_COLOR_VARIABLE = Common.PRINTED_COLOR_VARIABLE
-const PRINTED_COLOR_INSTRUCTION = Common.PRINTED_COLOR_INSTRUCTION
-
 
 ################################################################################
 # DEFINE STRUCTURES
@@ -51,24 +41,38 @@ mutable struct ScatteringSolution{N} # general container for scattering solution
 end
 
 # convenience constructors
-ScatteringSolution(sim::Simulation, args...) = ScatteringSolution(sim.x, args...)
-ScatteringSolution(pos::Array{T,1},tot::Array,inc::Array,sct::Array,ω,a) where T<:Point =
-    ScatteringSolution(ElectricField(pos,tot),ElectricField(pos,inc),ElectricField(pos,sct),ω,a)
-ScatteringSolution(pos::Array{T,1},ω::Number,a) where T<:Point =
-    ScatteringSolution(ElectricField(pos),ElectricField(pos),ElectricField(pos),ω,a)
+ScatteringSolution(sim::Simulation{1},ω::Number,a) where T<:Point =
+    ScatteringSolution(ElectricField(sim,1),ElectricField(sim,1),ElectricField(sim,1),ω,a)
+# ScatteringSolution(pos::Array{T,1},tot::Array,inc::Array,sct::Array,ω,a) where T<:Point =
+    # ScatteringSolution(ElectricField(pos,tot),ElectricField(pos,inc),ElectricField(pos,sct),ω,a)
 
 
-mutable struct EquivalentSource{N,TW,TA,TS,TSIM} # container for source, see dimensional files for details
-    mask::TS
+
+import ..Common.EQUIVALENT_SOURCE_RELATIVE_CUTOFF
+
+mutable struct EquivalentSource{N,TW,TA,TSI,TSO,TSIM} # container for source, see dimensional files for details
+    incoming_mask::TSI
+    outgoing_mask::TSO
     field::ElectricField{N}
     simulation::TSIM
     ω::TW
     a::TA
-    EquivalentSource(mask::AbstractShape{N},field,sim::TSIM,ω::TW,a::TA) where {N,TSIM<:Simulation,TA,TW} = new{N,TW,TA,typeof(mask),TSIM}(mask,field,sim,ω,a)
+    channelflux::Vector{Float64}
+    function EquivalentSource(
+                incoming_mask::AbstractShape{N},
+                outgoing_mask::AbstractShape{N},
+                field,
+                sim::TSIM,
+                ω::TW,
+                a::TA,
+                channelflux::Vector) where {N,TSIM<:Simulation{N},TA,TW}
+        return new{N,TW,TA,typeof(incoming_mask),typeof(outgoing_mask),TSIM}(
+                                    incoming_mask, outgoing_mask,field,sim,ω,a,channelflux)
+    end
 end
 
 
-struct Maxwell_LS{N,TM,TS} # linear scattering problem container
+struct MaxwellLS{N,TM,TS} # linear scattering problem container
     maxwell::TM
     equivalent_source::TS
     j::SparseMatrixCSC{ComplexF64,Int}
@@ -76,10 +80,9 @@ struct Maxwell_LS{N,TM,TS} # linear scattering problem container
     converged::Ref{Bool}
     solution::ScatteringSolution{N}
 end
-maxwell_ls(args...; kwargs...) = Maxwell_LS(args...; kwargs...)
 
 
-struct Maxwell_NLS{N,TLS,TLU} # nonlinear scattering container
+struct MaxwellNLS{N,TLS,TLU} # nonlinear scattering container
     linearscatter::TLS
     ψ::ElectricField{N}
     residual::Matrix{ComplexF64}
@@ -87,20 +90,20 @@ struct Maxwell_NLS{N,TLS,TLU} # nonlinear scattering container
     fixedpoint::Ref{Bool}
     lupack::TLU
 end
-maxwell_nls(args...;kwargs...) = Maxwell_NLS(args...; kwargs...)
 
 
 ################################################################################
 # linear scattering
 
-LinearAlgebra.lu(mls::Maxwell_LS,lupack::AbstractLUPACK=DEFAULT_LUPACK) = lu(mls.maxwell.A,lupack)
+import ..Common.DEFAULT_LUPACK
 
+LinearAlgebra.lu(mls::MaxwellLS,lupack::AbstractLUPACK=DEFAULT_LUPACK) = lu(mls.maxwell.A,lupack)
 
 """
-    scattering!(::Maxwell_LS, [lupack=$(DEFAULT_LUPACK)])
+    scattering!(::MaxwellLS, [lupack=$(DEFAULT_LUPACK)])
 """
-scattering!(mls::Maxwell_LS, lupack::AbstractLUPACK=DEFAULT_LUPACK) = scattering!(mls,lu(mls,lupack))
-function scattering!(mls::Maxwell_LS, alu::Common.LUfact{TS}) where TS
+scattering!(mls::MaxwellLS, lupack::AbstractLUPACK=DEFAULT_LUPACK) = scattering!(mls,lu(mls,lupack))
+function scattering!(mls::MaxwellLS, alu::Common.LUfact{TS}) where TS
     if TS<:PSolver
         ldiv!(mls.solution.total.val, alu, Matrix(reshape(j,size(j,1),1)))
     else
@@ -108,7 +111,7 @@ function scattering!(mls::Maxwell_LS, alu::Common.LUfact{TS}) where TS
     end
     for i ∈ eachindex(mls.equivalent_source.field)
         k = mod1(i,length(mls.j)÷3)
-        mls.solution.incident[i] = mls.equivalent_source.field[i]*mls.equivalent_source.mask(mls.equivalent_source.field.pos[k])
+        mls.solution.incident[i] = mls.equivalent_source.field[i]#*mls.equivalent_source.incoming_mask(mls.equivalent_source.field.pos[k])
         mls.solution.scattered[i] = mls.solution.total[i] - mls.solution.incident[i]
     end
     mls.solved[] = true
@@ -116,44 +119,23 @@ function scattering!(mls::Maxwell_LS, alu::Common.LUfact{TS}) where TS
     return nothing
 end
 
-
-fnames = (:cg,:minres,:gmres,:idrs,:bicgstabl,:chebyshev,:jacobi,:gauss_seidel,:sor,:ssor,:lsmr,:lsqr)
-for fname ∈ fnames
-    @eval begin
-        function IterativeSolvers.$(fname)(mls::Maxwell_LS, args...; kwargs...)
-            $(Symbol(fname,"!"))(mls.solution.tot,mls.maxwell.A,mls.j, args...; kwargs...)
-            return mls.solution
-        end
-        function IterativeSolvers.$(Symbol(fname,"!"))(mls::Maxwell_LS, args...; kwargs...)
-            _, hist = $(Symbol(fname,"!"))(mls.solution.tot,mls.maxwell.A,mls.j, args...; kwargs..., log=true)
-            for i ∈ eachindex(mls.equivalent_source.field)
-                k = mod1(i,length(j)÷3)
-                mls.solution.incident[i] = mls.equivalent_source.field[i]*mls.equivalent_source.mask(mls.equivalent_source.field.pos[k])
-                mls.solution.scattered[i] = mls.solution.total[i] - mls.solution.incident[i]
-            end
-            mls.solved[] = true
-            mls.converged[] = hist.isconverged
-            return nothing
-        end
-    end
-end
-
+foreach(include,interfaces)
 
 ################################################################################
 # nonlinear scattering
 
-function NLsolve.fixedpoint(nls::Maxwell_NLS{N}, init::ElectricField{N}=nls.ψ; kwargs...) where N
+function NLsolve.fixedpoint(nls::MaxwellNLS{N}, init::ElectricField{N}=nls.ψ; kwargs...) where N
     nls.fixedpoint[] = true
-    return nlsolve(nls, init; method=:anderson, kwargs...)
+    return nlsolve(nls, init; kwargs..., method=:anderson)
 end
 
-function NLsolve.nlsolve(nls::Maxwell_NLS; kwargs...)
-    mls = Maxwell_LS(nls.sim,nls.ω,nls.a)
+function NLsolve.nlsolve(nls::MaxwellNLS; kwargs...)
+    mls = MaxwellLS(nls.sim,nls.ω,nls.a)
     scattering!(mls, nls.lupack)
-    return nlsolve(nls, mls.solution.tot; kwargs...)
+    return nlsolve(nls, mls.solution.total; kwargs...)
 end
 
-function NLsolve.nlsolve(nls::Maxwell_NLS{N}, ψ_init::ElectricField{N}; kwargs...) where N
+function NLsolve.nlsolve(nls::MaxwellNLS{N}, ψ_init::ElectricField{N}; kwargs...) where N
     nls.fixedpoint[] = (get(kwargs,:method,:trust_region)==:anderson) ? true : false
     x_init = ψ_to_x(ψ_init)
     F0 = similar(x_init)
@@ -161,10 +143,11 @@ function NLsolve.nlsolve(nls::Maxwell_NLS{N}, ψ_init::ElectricField{N}; kwargs.
     df = OnceDifferentiable(nls,nls,nls,x_init,F0,J0)
     results = nlsolve(df, x_init; kwargs...)
     x_to_ψ!(nls,results.zero)
-    @inbounds for i ∈ eachindex(nls.ψ)
+    # @inbounds
+    for i ∈ eachindex(nls.ψ)
         k = mod1(i,length(F0)÷6)
         nls.solution.total[i] = nls.ψ[i]
-        nls.solution.incident[i] = nls.equivalent_source.field[i]*nls.equivalent_source.mask(nls.equivalent_source.field.pos[k])
+        nls.solution.incident[i] = nls.equivalent_source.field[i]#*nls.equivalent_source.mask(nls.equivalent_source.field.pos[k])
         nls.solution.scattered[i] = nls.solution.total[i] - nls.solution.incident[i]
     end
     nls.solved[] = true
@@ -172,21 +155,23 @@ function NLsolve.nlsolve(nls::Maxwell_NLS{N}, ψ_init::ElectricField{N}; kwargs.
     return results
 end
 
-(nls::Maxwell_NLS)(F::Vector,x::Vector) = nls(F,nothing,x)
-(nls::Maxwell_NLS)(J::AbstractMatrix,x::Vector) = nls(nothing,J,x)
-@inline function (nls::Maxwell_NLS)(F,J,x::Vector)
+(nls::MaxwellNLS)(F::Vector,x::Vector) = nls(F,nothing,x)
+(nls::MaxwellNLS)(J::AbstractMatrix,x::Vector) = nls(nothing,J,x)
+@inline function (nls::MaxwellNLS)(F,J,x::Vector)
     x_to_ψ!(nls,x)
     if nls.fixedpoint[]
         if !isnothing(F)
             nls.maxwell(nls.ω,[nls.ω],nls.ψ)
             scattering!(nls.linearscatter,nls.lupack)
-            @fastmath @inbounds @simd for i ∈ eachindex(nls.linearscatter.solution.total) F[i], F[length(x)÷2 + i] = reim(nls.solution.total[i] - nls.ψ[i]) end
+            # @fastmath @inbounds @simd
+            for i ∈ eachindex(nls.linearscatter.solution.total) F[i], F[length(x)÷2 + i] = reim(nls.solution.total[i] - nls.ψ[i]) end
         end
     else
         A = nls.maxwell(nls.ω,[nls.ω],nls.ψ)
         if !isnothing(F)
             mul!(nls.residual, A, nls.ψ.val)
-            @fastmath @inbounds @simd for i ∈ eachindex(nls.residual) F[i], F[length(x)÷2 + i] = reim(nls.residual[i] - nls.j[i]) end
+            # @fastmath @inbounds @simd
+            for i ∈ eachindex(nls.residual) F[i], F[length(x)÷2 + i] = reim(nls.residual[i] - nls.j[i]) end
         end
 
         if !isnothing(J)
@@ -197,30 +182,31 @@ end
             ψx,ψy,ψz = nls.ψ.x,nls.ψ.y,nls.ψ.z
             ω² = nls.ω^2
             # @fastmath
-            @inbounds @simd for j ∈ 1:size(nls.ψ,1)
+            # @inbounds @simd
+            for j ∈ 1:size(nls.ψ,1)
                 k = mod1(j,size(nls.ψ,1)÷3)
 
-                rr,ir = ω².*reim(nls.M.αdχdψr[j,1,1]*ψx[k,1])
+                rr,ir = ω².*reim(nls.maxwell.dFχdψr[j,1,1]*ψx[k,1])
                 J[k+0n÷3    , j    ] = -rr
                 J[k+0n÷3 + N, j    ] = -ir
 
-                rr,ir = ω².*reim(nls.M.αdχdψr[j,1,1]*ψy[k,1])
+                rr,ir = ω².*reim(nls.maxwell.dFχdψr[j,1,1]*ψy[k,1])
                 J[k+1n÷3    , j    ] = -rr
                 J[k+1n÷3 + N, j    ] = -ir
 
-                rr,ir = ω².*reim(nls.M.αdχdψr[j,1,1]*ψz[k,1])
+                rr,ir = ω².*reim(nls.maxwell.dFχdψr[j,1,1]*ψz[k,1])
                 J[k+2n÷3    , j    ] = -rr
                 J[k+2n÷3 + N, j    ] = -ir
 
-                rr,ir = ω².*reim(nls.M.αdχdψi[j,1,1]*ψx[k,1])
+                rr,ir = ω².*reim(nls.maxwell.dFχdψi[j,1,1]*ψx[k,1])
                 J[k+0n÷3    , j + N] = -rr
                 J[k+0n÷3 + N, j + N] = -ir
 
-                rr,ir = ω².*reim(nls.M.αdχdψi[j,1,1]*ψy[k,1])
+                rr,ir = ω².*reim(nls.maxwell.dFχdψi[j,1,1]*ψy[k,1])
                 J[k+1n÷3    , j + N] = -rr
                 J[k+1n÷3 + N, j + N] = -ir
 
-                rr,ir = ω².*reim(nls.M.αdχdψi[j,1,1]*ψz[k,1])
+                rr,ir = ω².*reim(nls.maxwell.dFχdψi[j,1,1]*ψz[k,1])
                 J[k+2n÷3    , j + N] = -rr
                 J[k+2n÷3 + N, j + N] = -ir
             end
@@ -228,7 +214,8 @@ end
             rows = rowvals(A)
             vals = nonzeros(A)
             for col ∈ 1:n
-                @inbounds @simd for j ∈ nzrange(A, col)
+                # @inbounds @simd
+                for j ∈ nzrange(A, col)
                     row = rows[j]
                     Ar, Ai = reim(A.nzval[j])
                     J[row  , col  ] += Ar
@@ -242,7 +229,7 @@ end
     return nothing
 end
 
-function initialize_J(nls::Maxwell_NLS)
+function initialize_J(nls::MaxwellNLS)
     A = nls.maxwell(nls.ω,[nls.ω],nls.ψ)
     n = size(nls.ψ,1)
     max_count = 12n + 27n
@@ -355,7 +342,7 @@ function Base.propertynames(::EquivalentSource, private=false)
 end
 
 
-function Base.getproperty(ls::Maxwell_LS,sym::Symbol)
+function Base.getproperty(ls::MaxwellLS,sym::Symbol)
     if Base.sym_in(sym,(:sim,:simulation))
         return getfield(getfield(ls,:equivalent_source),:simulation)
     elseif sym==:ω
@@ -373,16 +360,26 @@ function Base.getproperty(ls::Maxwell_LS,sym::Symbol)
     end
 end
 
-function Base.propertynames(::Maxwell_LS, private=false)
+function Base.setproperty!(ls::MaxwellLS,sym::Symbol,x)
+    if sym==:a
+        return setfield!(ls.equivalent_source,:a,complex(x))
+    elseif sym==:ω
+        return setfield!(ls.equivalent_source,:ω,float(x))
+    else
+        return setfield!(ls,sym,x)
+    end
+end
+
+function Base.propertynames(::MaxwellLS, private=false)
     if private
-        return fieldnames(Maxwell_LS)
+        return fieldnames(MaxwellLS)
     else
         return (:simulation, :ω, :a, :equivalent_source, :maxwell, :solution, :j)
     end
 end
 
 
-function Base.getproperty(nls::Maxwell_NLS,sym::Symbol)
+function Base.getproperty(nls::MaxwellNLS,sym::Symbol)
     if sym==:res
         return getfield(nls,:residual)
     elseif Base.sym_in(sym,(:sim,:simulation))
@@ -408,9 +405,9 @@ function Base.getproperty(nls::Maxwell_NLS,sym::Symbol)
     end
 end
 
-function Base.propertynames(nls::Maxwell_NLS,private=false)
+function Base.propertynames(nls::MaxwellNLS,private=false)
     if private
-        return fieldnames(Maxwell_NLS)
+        return fieldnames(MaxwellNLS)
     else
         return propertynames(nls.linearscatter,false)
     end
@@ -427,12 +424,13 @@ function ψ_to_x(ψ::ElectricField)
     ψ_to_x!(x,ψ)
     return x
 end
-ψ_to_x!(nls::Maxwell_NLS,ψ::ElectricField) = ψ_to_x!(nls.x,ψ)
+ψ_to_x!(nls::MaxwellNLS,ψ::ElectricField) = ψ_to_x!(nls.x,ψ)
 @inline function ψ_to_x!(x,ψ::ElectricField)
     n,m = size(ψ)
     nm = n*m
     for μ ∈ 1:m
-        @inbounds @simd for i ∈ 1:n
+        # @inbounds @simd
+        for i ∈ 1:n
             x[(μ-1)n+i], x[nm+(μ-1)n+i] = reim(ψ[i,μ])
         end
     end
@@ -444,12 +442,13 @@ function x_to_ψ(sim::Simulation,x,m)
     x_to_ψ!(ψ,x)
     return ψ
 end
-x_to_ψ!(nls::Maxwell_NLS,x) = x_to_ψ!(nls.ψ,x)
+x_to_ψ!(nls::MaxwellNLS,x) = x_to_ψ!(nls.ψ,x)
 @inline function x_to_ψ!(ψ::ElectricField,x)
     n,m = size(ψ)
     nm = n*m
     for μ ∈ 1:m
-        @inbounds @simd for i ∈ 1:n
+        # @inbounds @simd
+        for i ∈ 1:n
             ψ[i,μ] = complex(x[(μ-1)n+i],x[nm+(μ-1)n+i])
         end
     end
@@ -458,6 +457,14 @@ end
 
 ################################################################################
 # Pretty Printing
+
+import ..Common.PRINTED_COLOR_LIGHT
+import ..Common.PRINTED_COLOR_GOOD
+import ..Common.PRINTED_COLOR_NUMBER
+import ..Common.PRINTED_COLOR_BAD
+import ..Common.PRINTED_COLOR_WARN
+import ..Common.PRINTED_COLOR_VARIABLE
+import ..Common.PRINTED_COLOR_INSTRUCTION
 
 function Base.show(io::IO,sc::EquivalentSource{N}) where N
     print(io,"$(N)D ")
@@ -478,8 +485,8 @@ function Base.show(io::IO,sc::ScatteringSolution{N}) where N
 end
 
 
-function Base.show(io::IO,nls::Maxwell_LS)
-    printstyled(io,"Maxwell_LS ",color = PRINTED_COLOR_LIGHT)
+function Base.show(io::IO,nls::MaxwellLS)
+    printstyled(io,"MaxwellLS ",color = PRINTED_COLOR_LIGHT)
     print(io,"linear scattering problem")
     print(io," @ frequency ")
     printstyled(io,"ω=",nls.ω,color=PRINTED_COLOR_NUMBER)
@@ -509,8 +516,8 @@ function Base.show(io::IO,nls::Maxwell_LS)
 end
 
 
-function Base.show(io::IO,nls::Maxwell_NLS)
-    printstyled(io,"Maxwell_NLS ",color = PRINTED_COLOR_LIGHT)
+function Base.show(io::IO,nls::MaxwellNLS)
+    printstyled(io,"MaxwellNLS ",color = PRINTED_COLOR_LIGHT)
     print(io,"nonlinear scattering problem")
     print(io," @ frequency ")
     printstyled(io,"ω=",nls.ω,color=PRINTED_COLOR_NUMBER)

@@ -1,7 +1,7 @@
 """
     module Domains
 
-for constructing domains to be fed to Simulation
+for constructing nondispersive domains to be fed to Simulation
 """
 module Domains
 
@@ -11,23 +11,29 @@ files = (
     # "3D/Domains3D.jl"
 )
 
-export Domain
+export AbstractDomain
+export LatticeDomain
+export NondispersiveDomain
+export DispersiveDomain
 
-import ..PRINTED_COLOR_NUMBER
-import ..PRINTED_COLOR_DARK
 using ..Boundaries
 using ..DielectricFunctions
+using ..PumpFunctions
 using ..Dispersions
 using ..Lattices
 using ..Points
 using ..Shapes
 
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
+
+abstract type AbstractDomain{N} end
 
 """
-    struct Domain
+    struct LatticeDomains
 
-    Domain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
-    Domain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
+    NondispersiveDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
+    NondispersiveDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
 
 combines `boundary` with `lattice` (in either order) to generate a list of sites.
 `T` just labels the kinds of domain (e.g. Cavity, or Waveguide)
@@ -35,7 +41,7 @@ each site is labeled by being in the interior, or containing the interior (`doma
 or being a corner.
 
 ----------------------
-    (::Domain)(args...;align=false) -> dom
+    (::NondispersiveDomain)(args...; align=false) -> dom
 
 construct a new domain with modified parameters in `args`
 This is for "updating" non-geometric fields of the immutable `domain`.
@@ -45,107 +51,149 @@ For example, to change the polarity of the boundary layers, do
 For geometric parameters it recomputes the whole domain, so this command is no
 more efficient than explicitly constructing a new domain. It might save some typing, however.
 """
-struct Domain{N,TBND,TLAT,TDF,TPF,TCHI}
-    type::Symbol
-    name::Symbol
+struct LatticeDomain{N,TBND,TLAT} <: AbstractDomain{N}
     boundary::TBND
     lattice::TLAT
-    dielectric::TDF
-    pump::TPF
-
-    x::Array{Point{N},1}
-    indices::Array{CartesianIndex{N},1}
-    ε::Array{ComplexF64,1}
-    F::Array{Float64,1}
-    χ::TCHI
-
+    n::ComplexF64
+    ε::ComplexF64
+    type::Symbol
+    name::Symbol
+    x::Vector{Point{N}}
+    indices::Vector{CartesianIndex{N}}
     interior::BitArray{1}
     bulk::BitArray{1}
     surface::BitArray{1}
     corner::BitArray{1}
+    nnm::NTuple{N,Vector{Int}}
+    nnp::NTuple{N,Vector{Int}}
 
-    nnm::NTuple{N,Array{Int,1}}
-    nnp::NTuple{N,Array{Int,1}}
+    function LatticeDomain(boundary::TBND, lattice::TLAT, n::Number, type::Symbol,
+        name::Symbol, x::Vector{Point{N}}, indices::Vector{CartesianIndex{N}},
+        interior::BitArray{1}, bulk::BitArray{1}, surface::BitArray{1}, corner::BitArray{1},
+        nnm::NTuple{N,Vector{Int}}, nnp::NTuple{N,Vector{Int}}
+        ) where {TBND<:Boundary{N},TLAT<:Lattice{N}} where N
 
-    function Domain(
-        type::Symbol,
-        name::Symbol,
-        boundary::TBND,
-        lattice::TLAT,
-        dielectric::TDF,
-        pump::TPF,
-        x::Array{Point{N},1},
-        indices::Array{CartesianIndex{N},1},
-        ε::Array{ComplexF64,1},
-        F::Array{Float64,1},
-        χ::TC,
-        interior::BitArray{1},
-        bulk::BitArray{1},
-        surface::BitArray{1},
-        corner::BitArray{1},
-        nnm::NTuple{N,Array{Int,1}},
-        nnp::NTuple{N,Array{Int,1}}
-        ) where {TBND<:Boundary,TLAT<:Lattice{N},TDF<:DielectricFunction,TPF<:PumpFunction,TC<:Tuple} where N
-
-        new{N,TBND,TLAT,TDF,TPF,TC}(type,name,boundary,lattice,dielectric,pump,x,indices,ε,F,χ,interior,bulk,surface,corner,nnm,nnp)
+        new{N,TBND,TLAT}(boundary,lattice,n,n^2,type,name,x,indices,interior,bulk,surface,corner,nnm,nnp)
     end
-
-    # function (dom::Domain{N})(dielectric::DielectricFunction) where N
-    #     return new{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
-    #     dom.name,dom.boundary,dom.lattice,dielectric,dom.pump,
-    #     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
-    #     dom.surface,dom.corner,dom.nnm,dom.nnp)
-    # end
-    # function (dom::Domain{N})(pump::PumpFunction) where N
-    #     return newnew{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
-    #     dom.name,dom.boundary,dom.lattice,dom.dielectric,pump,
-    #     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
-    #     dom.surface,dom.corner,dom.nnm,dom.nnp)
-    # end
-    # function (dom::Domain{N})(boundary::Boundary) where N
-    #     return newnew{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
-    #     dom.name,boundary,dom.lattice,dom.dielectric,dom.pump,
-    #     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
-    #     dom.surface,dom.corner,dom.nnm,dom.nnp)
-    # end
 end
 
-function Base.conj(d::Domain)
-    Domain(
-        d.type,
-        d.name,
-        conj(d.boundary),
-        d.lattice,
-        conj(d.dielectric),
-        d.pump,
-        d.x,
-        d.indices,
-        conj(d.ε),
-        d.F,
-        map(conj,d.χ),
-        d.interior,
-        d.bulk,
-        d.surface,
-        d.corner,
-        d.nnm,
-        d.nnp
-        )
+function Base.getproperty(ldom::LatticeDomain, sym::Symbol)
+    if sym == :shape
+        return getfield(getfield(ldom,:boundary),:shape)
+    elseif Base.sym_in(sym, propertynames(getfield(ldom,:lattice)))
+        return getproperty(getfield(ldom,:lattice),sym)
+    else
+        return getfield(ldom,sym)
+    end
 end
 
+function Base.propertynames(::LatticeDomain, private=false)
+    if private
+        return fieldnames(LatticeDomain)
+    else
+        return (:boundary, :lattice, :shape, :n, :ε, :type, :name, :x)
+    end
+end
 
-# # for modifying non-geometric parameters of an already existing domain
-# function (dom::Domain)(args...)
-#     for a ∈ args
-#         dom = dom(a)
-#     end
-#     return dom
-# end
+"""
+    struct NondispersiveDomain
 
+    NondispersiveDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
+    NondispersiveDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
+
+combines `boundary` with `lattice` (in either order) to generate a list of sites.
+`T` just labels the kinds of domain (e.g. Cavity, or Waveguide)
+each site is labeled by being in the interior, or containing the interior (`domain.surface`),
+or being a corner.
+
+----------------------
+    (::NondispersiveDomain)(args...; align=false) -> dom
+
+construct a new domain with modified parameters in `args`
+This is for "updating" non-geometric fields of the immutable `domain`.
+For example, to change the polarity of the boundary layers, do
+    `new_dom = old_dom(conj(old_dom.boundary))`
+
+For geometric parameters it recomputes the whole domain, so this command is no
+more efficient than explicitly constructing a new domain. It might save some typing, however.
+"""
+struct NondispersiveDomain{N,TSH,TDF} <: AbstractDomain{N}
+    shape::TSH
+    dielectric::TDF
+    type::Symbol
+    name::Symbol
+
+    function NondispersiveDomain(
+                shape::TSH,
+                dielectric::TDF,
+                type::Symbol = :generic,
+                name::Symbol = :anonymous
+                ) where {TSH<:AbstractShape{N}, TDF<:AbstractDielectricFunction} where N
+
+        new{N,TSH,TDF}(shape,dielectric,type,name)
+    end
+end
+NondispersiveDomain(shape::AbstractShape, n::Number=1, args...) =
+    NondispersiveDomain(shape,DielectricFunctions.PiecewiseConstant(n), args...)
+NondispersiveDomain(shape::AbstractShape, n1::Number, n2::Number, args...) =
+    NondispersiveDomain(shape,DielectricFunctions.PiecewiseConstant(n1,n2), args...)
+NondispersiveDomain(boundary::Boundary, args...) = NondispersiveDomain(boundary.shape, args...)
+
+
+"""
+    struct DispersiveDomain
+
+    DispersiveDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
+    DispersiveDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
+
+combines `boundary` with `lattice` (in either order) to generate a list of sites.
+`T` just labels the kinds of domain (e.g. Cavity, or Waveguide)
+each site is labeled by being in the interior, or containing the interior (`domain.surface`),
+or being a corner.
+
+----------------------
+    (::DispersiveDomain)(args...;align=false) -> dom
+
+construct a new domain with modified parameters in `args`
+This is for "updating" non-geometric fields of the immutable `domain`.
+For example, to change the polarity of the boundary layers, do
+    `new_dom = old_dom(conj(old_dom.boundary))`
+
+For geometric parameters it recomputes the whole domain, so this command is no
+more efficient than explicitly constructing a new domain. It might save some typing, however.
+"""
+struct DispersiveDomain{N,TSH,TCHI,TPF} <: AbstractDomain{N}
+    shape::TSH
+    χ::TCHI
+    pump::TPF
+    type::Symbol
+    name::Symbol
+
+    function DispersiveDomain(
+                shape::TSH,
+                χ::TCHI,
+                pump::TPF,
+                type::Symbol = :generic,
+                name::Symbol = :anonymous
+                ) where {TSH<:AbstractShape{N}, TPF<:AbstractPumpFunction, TCHI<:AbstractDispersion} where N
+
+        new{N,TSH,TCHI,TPF}(shape,χ,pump,type,name)
+    end
+end
+DispersiveDomain(shape::AbstractShape, χ::AbstractDispersion, F::Number=1, args...) =
+    DispersiveDomain(shape, χ, PumpFunctions.PiecewiseConstant(F), args...)
+DispersiveDomain(boundary::Boundary, args...) = DispersiveDomain(boundary.shape, args...)
+
+
+# load dimensional files
 foreach(include,files)
 
+
+################################################################################
 # Pretty Printing
-function Base.show(io::IO,dom::Domain)
-    printstyled(io,"Domain ",color=PRINTED_COLOR_DARK)
+
+function Base.show(io::IO,dom::LatticeDomain)
+    printstyled(io,"LatticeDomain ",color=PRINTED_COLOR_DARK)
     println(io,"(",dom.type,"): ",dom.name)
     print(io,"\tNumber of sites: ")
     printstyled(io,length(dom.x),"\n",color=PRINTED_COLOR_NUMBER)
@@ -159,15 +207,30 @@ function Base.show(io::IO,dom::Domain)
     println(io)
     println(IOContext(io,:tabbed2=>true),dom.lattice)
     println(io)
-    println(IOContext(io,:tabbed2=>true),dom.boundary)
-    println(io)
-    println(IOContext(io,:tabbed2=>true),dom.dielectric)
-    println(io)
-    println(IOContext(io,:tabbed2=>true),dom.pump)
-    println(io)
-    printstyled(io,"\t\tDispersions ", color=PRINTED_COLOR_DARK)
-    println(io,dom.χ)
+    print(IOContext(io,:tabbed2=>true),dom.boundary)
 end
+
+function Base.show(io::IO,ndom::NondispersiveDomain)
+    printstyled(io,"NondispersiveDomain ",color=PRINTED_COLOR_DARK)
+    println(io,"(",ndom.type,"): ",ndom.name)
+    println(io,"\t\t",ndom.shape)
+    show(IOContext(io,:tabbed2=>true), ndom.dielectric)
+end
+
+function Base.show(io::IO,ddom::DispersiveDomain)
+    printstyled(io,"DispersiveDomain ",color=PRINTED_COLOR_DARK)
+    println(io,"(",ddom.type,"): ",ddom.name)
+    println(io,"\t\t",ddom.shape)
+    show(IOContext(io,:tabbed2=>true),ddom.pump)
+    println(io)
+    println(io,"\t\t",ddom.χ)
+end
+
+
+end # module
+
+
+
 
 # @recipe function f(d::Domain)
 #     aspect_ratio --> 1
@@ -197,4 +260,41 @@ end
 # end
 #
 
-end # module
+
+
+
+
+
+
+
+# function (dom::Domain{N})(dielectric::DielectricFunction) where N
+#     return new{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
+#     dom.name,dom.boundary,dom.lattice,dielectric,dom.pump,
+#     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
+#     dom.surface,dom.corner,dom.nnm,dom.nnp)
+# end
+# function (dom::Domain{N})(pump::PumpFunction) where N
+#     return newnew{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
+#     dom.name,dom.boundary,dom.lattice,dom.dielectric,pump,
+#     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
+#     dom.surface,dom.corner,dom.nnm,dom.nnp)
+# end
+# function (dom::Domain{N})(boundary::Boundary) where N
+#     return newnew{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
+#     dom.name,boundary,dom.lattice,dom.dielectric,dom.pump,
+#     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
+#     dom.surface,dom.corner,dom.nnm,dom.nnp)
+# end
+
+
+
+
+
+
+# # for modifying non-geometric parameters of an already existing domain
+# function (dom::Domain)(args...)
+#     for a ∈ args
+#         dom = dom(a)
+#     end
+#     return dom
+# end

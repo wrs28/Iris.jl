@@ -3,47 +3,33 @@
     module SaturableCPA
 
 Convenience wrappers for solution of the nonlinear SatruableCPA equation.
-Exports `maxwell_scpa` constructor and extends methods of `NLsolve`, which must
-be separately imported. Also convenience wrapper `SCPA`.
+Exports `MaxwellSCPA` constructor and extends methods of `NLsolve`, which must
+be separately imported. Also convenience nonlinear solver wrapper `SCPA`.
 """
 module SaturableCPA
 
 export SCPA
-export maxwell_scpa
+export MaxwellSCPA
 
 using ..Common
 using ..Lasing
 using NLsolve
 using RecipesBase
 
-import ..Common.PRINTED_COLOR_LIGHT
-import ..Common.PRINTED_COLOR_WARN
-import ..Common.PRINTED_COLOR_VARIABLE
-import ..Common.PRINTED_COLOR_GOOD
-import ..Common.PRINTED_COLOR_BAD
-import ..Common.PRINTED_COLOR_INSTRUCTION
-
-struct Maxwell_SCPA{TMS} SALT::TMS end
-
-maxwell_scpa(args...; kwargs...) = Maxwell_SCPA(maxwell_salt(args...; kwargs...))
-
+struct MaxwellSCPA{TMS} SALT::TMS end
 
 fnames = (:nlsolve,:fixedpoint)
 for fn ∈ fnames
+    @eval NLsolve.$(fn)(ms::MaxwellSCPA; kwargs...) = $(fn)(ms, ms.ωs, ms.ψs; kwargs...)
 
-    @eval NLsolve.$(fn)(ms::Maxwell_SCPA; kwargs...) = $(fn)(ms, ms.ωs, ms.ψs; kwargs...)
-
-    @eval begin function NLsolve.$(fn)(ms::Maxwell_SCPA, ωs_init::Union{Real,Vector}, ψs_init::ElectricField; kwargs...)
-            N = ms.m
-            n,m = size(ψs_init)
-            N==m || throw("number of modes in ψs_init ($m) must be the same as given in Maxwell_SCPA ($N)")
+    @eval begin function NLsolve.$(fn)(ms::MaxwellSCPA, ωs_init, ψs_init::ElectricField; kwargs...)
+            ms.m==size(ψs_init,2) || throw("number of modes in ψs_init ($(size(ψs_init,2))) must be the same as given in MaxwellSCPA ($(ms.m))")
             return $(fn)(ms.SALT,ωs_init,ψs_init; kwargs...)
         end
     end
-
 end
 
-function Base.getproperty(mcpa::Maxwell_SCPA,sym::Symbol)
+function Base.getproperty(mcpa::MaxwellSCPA,sym::Symbol)
     if sym == :SALT
         getfield(mcpa,:SALT)
     else
@@ -51,7 +37,7 @@ function Base.getproperty(mcpa::Maxwell_SCPA,sym::Symbol)
     end
 end
 
-Base.propertynames(::Maxwell_SCPA,private=false) = propertynames(Maxwell_SALT,private)
+Base.propertynames(::MaxwellSCPA,private=false) = propertynames(MaxwellSALT,private)
 
 """
     SCPA(simulation, ωs_init, ψs_init; kwargs...) -> ωs, ψs
@@ -65,18 +51,27 @@ function SCPA(
             ψs_init::ElectricField;
             kwargs...)
 
-    ms = maxwell_scpa(sim,length(ωs_init))
+    ms = MaxwellSCPA(sim,length(ωs_init))
     results = nlsolve(ms, ωs_init, ψs_init; kwargs...)
     ωs,ψs = x_to_ωψ(sim,results.zero,length(ωs_init))
     (results.f_converged || results.x_converged) || printstyled("beware: no convergence",color=PRINTED_COLOR_BAD)
     return ωs, ψs
 end
 
+################################################################################
 # Pretty Printing
-function Base.show(io::IO,ms::Maxwell_SCPA)
+
+import ..Common.PRINTED_COLOR_LIGHT
+import ..Common.PRINTED_COLOR_WARN
+import ..Common.PRINTED_COLOR_VARIABLE
+import ..Common.PRINTED_COLOR_GOOD
+import ..Common.PRINTED_COLOR_BAD
+import ..Common.PRINTED_COLOR_INSTRUCTION
+
+function Base.show(io::IO,ms::MaxwellSCPA)
     print(io,ms.m, " mode")
     ms.m>1 ? print(io,"s") : nothing
-    printstyled(io," Maxwell_SCPA",color = PRINTED_COLOR_LIGHT)
+    printstyled(io," MaxwellSCPA",color = PRINTED_COLOR_LIGHT)
     if !ms.solved[]
         printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"unsolved",color=PRINTED_COLOR_WARN)
@@ -101,10 +96,10 @@ function Base.show(io::IO,ms::Maxwell_SCPA)
 end
 
 # Plotting
-@recipe f(ms::Maxwell_SCPA;by=abs2) = ms,by
-@recipe f(by::Function,ms::Maxwell_SCPA) = ms,by
-@recipe f(ms::Maxwell_SCPA,by::Function) = ms.SALT,by
-@recipe f(sim::Simulation,ms::Maxwell_SCPA;by=abs2) = sim,ms.SALT,by
-@recipe f(ms::Maxwell_SCPA,sim::Simulation;by=abs2) = sim,ms.SALT,by
+@recipe f(ms::MaxwellSCPA;by=abs2) = ms,by
+@recipe f(by::Function,ms::MaxwellSCPA) = ms,by
+@recipe f(ms::MaxwellSCPA,by::Function) = ms.SALT,by
+@recipe f(sim::Simulation,ms::MaxwellSCPA;by=abs2) = sim,ms.SALT,by
+@recipe f(ms::MaxwellSCPA,sim::Simulation;by=abs2) = sim,ms.SALT,by
 
 end # module

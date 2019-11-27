@@ -3,9 +3,6 @@ using LinearAlgebra
 
 export IrisLinSolverCreator
 
-using Pardiso
-using ArnoldiMethodTransformations: PSolver, initialize_according_to_package
-
 # overload all the NonlinearEigenproblems solvers
 fnames = names(NonlinearEigenproblems.NEPSolver)
 for fn ∈ fnames
@@ -36,8 +33,8 @@ end
 
 function NonlinearEigenproblems.create_linsolver(ILS::IrisLinSolverCreator{S}, nep, λ) where S
     LU = lu(compute_Mder(nep,λ),S)
-    x = Vector{type}(undef,size(M,1))
-    return IrisLinSolver{S,typeof(LU),eltype(x)}(LU,x,spzeros(type,length(x),length(x)))
+    x = Vector{ComplexF64}(undef,size(nep,1))
+    return IrisLinSolver{S,typeof(LU),eltype(x)}(LU,x,spzeros(eltype(x),length(x),length(x)))
 end
 
 function NonlinearEigenproblems.lin_solve(solver::IrisLinSolver{S}, b::Vector; tol=eps()) where S
@@ -48,21 +45,45 @@ end
 ################################################################################
 # maxwelleigen
 
-"""
-	maxwelleigen_nonlineareigenproblems(nep::MaxwellNEP, ω; [nev=1, verbose=false, lupack=$DEFAULT_LUPACK, linsolvercreator=IrisLinSolverCreator(lupack)]) -> ωs, ψs::ElectricField
-"""
 function maxwelleigen_nonlineareigenproblems(
             nep::MaxwellNEP,
-            ω::Number;
-            nev::Int=1,
+            ω::Number,
+            args...;
             verbose::Bool = false,
             lupack::AbstractLUPACK = DEFAULT_LUPACK,
-            logger::Integer = Int(verbose),
             linsolvercreator::LinSolverCreator = IrisLinSolverCreator(lupack),
             kwargs...
             ) where S<:AbstractLUPACK
 
-    neigs = get(kwargs,:neigs,nev)
-    λ::Vector{ComplexF64}, v::Matrix{ComplexF64} = iar_chebyshev(nep; neigs=neigs, σ=ω,logger=logger, linsolvercreator=linsolvercreator, kwargs...)
-    return λ, ElectricField(nep.simulation,v)
+    isempty(args) ? nothing : nep(ω,args...)
+    λ::Vector{ComplexF64}, v::Matrix{ComplexF64} = iar_chebyshev(nep; σ=ω,logger=Int(verbose), linsolvercreator=linsolvercreator, kwargs...)
+	ψ = ElectricField(nep.simulation,v)
+    normalize!(nep.simulation, ψ, nep.nep.A[end-1], size(ψ,1)÷2+INDEX_OFFSET) # Normalize according to (ψ₁,ψ₂)=δ₁₂
+	orthogonalize!(ψ,nep.simulation, λ, nep.nep.A[end-1], nep.ky, nep.kz)
+	if all(iszero,(nep.ky,nep.kz)) normalize!(nep.simulation, ψ, nep.nep.A[end-1], size(ψ,1)÷2+INDEX_OFFSET) end
+    return λ,ψ
+end
+
+if DEFAULT_NONLINEAR_EIGENSOLVER == :NonlinearEigenproblems
+@doc """
+$doc_nep
+`neigs` Number of eigenpairs (`6`);
+`maxit` Maximum iterations (`30`);
+`verbose` (`false`);
+`v` Initial eigenvector approximation (`rand(size(nep,1),1)`)
+
+Advanced keywords:
+`logger` Integer print level (`verbose`);
+`tolerance` Convergence tolerance (`eps()*10000`);
+`lupack` LU solver (`$DEFAULT_LUPACK`);
+`linsolvercreator` Define linear solver (`IrisLinSolverCreator(lupack)`);
+`check_error_every` Check for convergence every this number of iterations (`1`);
+`γ` Eigenvalue scaling in `λ=γs+Ω` (`1`);
+`orthmethod` Orthogonalization method, see `IterativeSolvers` (`DGKS`);
+`errmeasure` See `NonlinearEigenproblems` documentation;
+`compute_y0_method` How to find next vector in Krylov space, see `NonlinearEigenproblems` docs (`ComputeY0ChebAuto`)
+a (`-1`);
+b (`1`);
+""" ->
+maxwelleigen(nep::MaxwellNEP,args...;kwargs...) = maxwelleigen_nonlineareigenproblems(nep,args...;kwargs...)
 end

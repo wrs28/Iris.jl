@@ -4,7 +4,6 @@
 module MaxwellOperators
 
 export Maxwell
-export maxwell
 
 files = (
     "1D/MaxwellOperators1D.jl",
@@ -24,19 +23,22 @@ using SparseArrays
 
 const I3 = sparse(I,3,3)
 
+"""
+    maxwell(simulation{1}; ky=0, kz=0) -> m
+"""
 struct Maxwell{N,TΣ,TSIM}
     A::SparseMatrixCSC{ComplexF64,Int}
     D²::SparseMatrixCSC{ComplexF64,Int}
-    αεpχ::SparseMatrixCSC{Complex{Float64},Int}
+    αεpFχ::SparseMatrixCSC{Complex{Float64},Int}
     curlcurl::SparseMatrixCSC{ComplexF64,Int}
     Σs::TΣ
     αε::SparseMatrixCSC{ComplexF64,Int}
-    αχ::SparseMatrixCSC{ComplexF64,Int}
-    αχs::Vector{SparseMatrixCSC{ComplexF64,Int}}
-    αdχdψr::Array{ComplexF64,3}
-    αdχdψi::Array{ComplexF64,3}
-    αdχdω::Array{ComplexF64,3}
-    αdχdϕ::Array{ComplexF64,3}
+    Fχ::SparseMatrixCSC{ComplexF64,Int}
+    Fχs::Vector{SparseMatrixCSC{ComplexF64,Int}}
+    dFχdψr::Array{ComplexF64,3}
+    dFχdψi::Array{ComplexF64,3}
+    dFχdω::Array{ComplexF64,3}
+    dFχdϕ::Array{ComplexF64,3}
     simulation::TSIM
     kx::Float64
     ky::Float64
@@ -46,15 +48,9 @@ struct Maxwell{N,TΣ,TSIM}
     kc::Float64
 end
 
-
 # load 1D, 2D, 3D
 foreach(include,files)
 
-
-"""
-    maxwell(simulation{1}; ky=0, kz=0)
-"""
-maxwell(args...;kwargs...) = Maxwell(args...;kwargs...)
 
 # Pretty Printing
 function Base.show(io::IO,::Maxwell{N}) where N
@@ -86,6 +82,5 @@ function Base.propertynames(::Maxwell{1},private=false)
         (:simulation,:ky,:kz)
     end
 end
-
 
 end #module

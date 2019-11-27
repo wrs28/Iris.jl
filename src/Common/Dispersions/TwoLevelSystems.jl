@@ -19,6 +19,13 @@ import ...INDEX_OFFSET
 import ..AbstractDispersion
 import ..susceptability
 
+"""
+    TwoLevelSystem(; [ωa=0, D0=0, γperp=1e8]) -> tls
+
+The content is mutable, and can be modified, as in `tls.D0=.1`
+
+Note `\\perp` is reserved, use `\\bigbot` instead
+"""
 mutable struct TwoLevelSystem <: AbstractDispersion
     ωₐ::Float64
     D₀::Float64
@@ -42,7 +49,9 @@ function TwoLevelSystem(;ωₐ=0, D₀=0, γ⟘=1e8, kwargs...)
     ω = get(kwargs,:ω,omega)
 
     γ_perp = get(kwargs,:γ_perp,γ⟘)
-    γperp = get(kwargs,:γperp,γ_perp)
+    g = get(kwargs,:g,γ_perp)
+    gamma = get(kwargs,:gamma,g)
+    γperp = get(kwargs,:γperp,gamma)
     γp = get(kwargs,:γp,γperp)
     gamma_perp = get(kwargs,:gamma_perp,γp)
     γ = get(kwargs,:γ,gamma_perp)
@@ -52,13 +61,22 @@ function TwoLevelSystem(;ωₐ=0, D₀=0, γ⟘=1e8, kwargs...)
     return TwoLevelSystem(ω, D, γ)
 end
 
+
+"""
+    susceptability(::TwoLevelSystem,ω) -> χ::ComplexF64
+
+    susceptability(::TwoLevelSystem, ω, ωs, ψs)
+
+The second computes in-place (stored in TwoLevelSystem).
+`ψs` is an ElectricField"
+"""
 susceptability(tls::TwoLevelSystem,ω) = χ(tls,ω)
 susceptability(tls::TwoLevelSystem,args...) = χ!(tls,args...)
 
-Base.conj(tls::TwoLevelSystem) = TwoLevelSystem(tls.ωa,tls.D0,-tls.γp)
+# Base.conj(tls::TwoLevelSystem) = TwoLevelSystem(tls.ωa,tls.D0,-tls.γp)
 
 function Base.getproperty(tls::TwoLevelSystem,sym::Symbol)
-    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp,:γperp))
+    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp,:γperp,:gamma,:g))
         return getfield(tls,:γ⟘)
     elseif Base.sym_in(sym,(:ω,:omega_a,:ωa,:omega))
         return getfield(tls,:ωₐ)
@@ -69,10 +87,16 @@ function Base.getproperty(tls::TwoLevelSystem,sym::Symbol)
     end
 end
 
-Base.propertynames(::TwoLevelSystem) = (:γ⟘,:ωₐ,:D₀)
+function Base.propertynames(::TwoLevelSystem, private=false)
+    if private
+        return fieldnames(TwoLevelSystem)
+    else
+        return (:γ⟘,:ωₐ,:D₀)
+    end
+end
 
-function Base.setproperty!(tls::TwoLevelSystem,sym::Symbol,val::Real)
-    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp,:γperp))
+function Base.setproperty!(tls::TwoLevelSystem, sym::Symbol, val::Real)
+    if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp,:γperp,:gamma,:g))
         return setfield!(tls,:γ⟘,float(val))
     elseif Base.sym_in(sym,(:ω,:omega_a,:ωa,:omega))
         return setfield!(tls,:ωₐ,float(val))
@@ -106,7 +130,7 @@ H!(tls::TwoLevelSystem) = nothing
     isdefined(tls,:h) ? nothing : tls.h = zeros(Float64,N)
     isdefined(tls,:hp1⁻¹) ? nothing : tls.hp1⁻¹ = similar(tls.h)
     isdefined(tls,:chi) ? nothing : tls.chi = Vector{ComplexF64}(undef,N)
-    isdefined(tls,:chis) ? nothing : tls.chis = Array{ComplexF64,2}(undef,N,M)
+    isdefined(tls,:chis) ? nothing : tls.chis = Matrix{ComplexF64}(undef,N,M)
     isdefined(tls,:dχdψr) ? nothing : tls.dχdψr = Array{ComplexF64,3}(undef,N,M,M)
     isdefined(tls,:dχdψi) ? nothing : tls.dχdψi = Array{ComplexF64,3}(undef,N,M,M)
     isdefined(tls,:dχdω) ? nothing : tls.dχdω = Array{ComplexF64,3}(undef,N,M,M)
@@ -114,13 +138,13 @@ H!(tls::TwoLevelSystem) = nothing
     size(tls.h)==(N,1) ? nothing : tls.h = Vector{Float64}(undef,N)
     size(tls.hp1⁻¹)==(N,1) ? nothing : tls.hp1⁻¹ = Vector{Float64}(undef,N)
     size(tls.chi)==(N,1) ? nothing : tls.chi = Vector{ComplexF64}(undef,N)
-    size(tls.chis)==(N,M) ? nothing : tls.chis = Array{ComplexF64,2}(undef,N,M)
+    size(tls.chis)==(N,M) ? nothing : tls.chis = Matrix{ComplexF64}(undef,N,M)
     size(tls.dχdψr)==(N,M) ? nothing : tls.dχdψr = Array{ComplexF64,3}(undef,N,M,M)
     size(tls.dχdψi)==(N,M) ? nothing : tls.dχdψi = Array{ComplexF64,3}(undef,N,M,M)
     size(tls.dχdω)==(N,M) ? nothing : tls.dχdω = Array{ComplexF64,3}(undef,N,M,M)
     size(tls.dχdϕ)==(N,M) ? nothing : tls.dχdϕ = Array{ComplexF64,3}(undef,N,M,M)
     ψx,ψy,ψz = ψs.x,ψs.y,ψs.z
-    for i ∈ 1:N tls.h[i] = 0 end
+    @inbounds @simd for i ∈ 1:N tls.h[i] = 0 end
     @inbounds for μ ∈ eachindex(ωs)
         G = Γ(tls,ωs[μ])
         @inbounds for i ∈ 1:N
@@ -131,6 +155,7 @@ H!(tls::TwoLevelSystem) = nothing
     @fastmath @inbounds @simd for i ∈ 1:N tls.hp1⁻¹[i] = 1/(1+tls.h[i]) end
     return nothing
 end
+
 
 χ(tls::TwoLevelSystem,ω) = tls.D₀*γ(tls,ω)
 
@@ -166,21 +191,5 @@ end
     end
     return nothing
 end
-
-
-"""
-    mutable struct TwoLevelSystem
-
-    TwoLevelSystem(; [ωa=0][D0=0][γperp=1e8]) -> tls
-"""
-TwoLevelSystem
-
-"""
-    susceptability(::TwoLevelSystem,ω) -> χ::ComplexF64
-    susceptability(::TwoLevelSystem,ω,ωs,ψs)
-
-The second computes in-place (stored in TwoLevelSystem).
-"""
-susceptability
 
 end # module

@@ -7,6 +7,7 @@ export Point
 
 import ..PRINTED_COLOR_NUMBER
 import ..PRINTED_COLOR_DARK
+using LinearAlgebra
 using StaticArrays
 
 struct Point{N}
@@ -32,12 +33,18 @@ Point
 
 Base.:*(p::Point,a::Number) = a*p
 Base.:*(a::Number,p::Point) = Point(a*p.vec)
+Base.:/(p::Point,a::Number) = Point(p.vec/a)
+Base.:\(a::Number,p::Point) = p/a
 Base.:+(p1::Point,p2::Point) = Point(p1.vec+p2.vec)
 Base.:-(p1::Point,p2::Point) = Point(p1.vec-p2.vec)
 Base.:+(p1::Point{1},p2::Number) = Point(p1.vec .+ p2)
 Base.:+(p2::Number,p1::Point{1}) = Point(p1,p2)
 Base.:-(p1::Point{1},p2::Number) = Point(p1.vec .- p2)
-Base.:-(p2::Number,p1::Point{1}) = Point(p1,p2)
+Base.:-(p2::Number,p1::Point{1}) = Point(p2 .- p1.vec)
+
+LinearAlgebra.norm(p::Point) = norm(p.vec)
+
+Base.convert(::Type{Float64}, p::Point{1}) = convert(Float64, p.x)
 
 Base.ndims(::Point{N}) where N = N
 Base.getindex(p::Point,index::Integer) = getfield(p,:vector)[index]
@@ -46,6 +53,9 @@ for fname ∈ fnames @eval Base.$fname(p::Point) = $fname(p.vec) end
 Base.iterate(p::Point,state) = iterate(p.vec,state)
 Base.IndexStyle(::Point) = IndexStyle(p.vec)
 
+Base.isless(p1::Point{1},p2::Point{1}) = isless(p1.x,p2.x)
+Base.isless(p::Point{1},x::Real) = isless(p.x,x)
+Base.isless(x::Real,p::Point{1}) = isless(x,p.x)
 
 function Base.getproperty(p::Point{N},sym::Symbol) where N
 	if sym == :vec
