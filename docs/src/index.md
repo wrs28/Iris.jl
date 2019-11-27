@@ -1,5 +1,8 @@
-# Example.jl Documentation
+# Home
 
-```@docs
-Point
+```@contents
+```
+
+## Index
+```@index
 ```

@@ -1,6 +1,5 @@
 """
-    module ElectricFields
-
+Utilities for storing and manipulating electric fields
 """
 module ElectricFields
 
@@ -14,11 +13,9 @@ using ..Points
 using Interpolations
 
 """
-    ElectricField(::Vector{Point},::Matrix) -> E
+    ElectricField{N} <: AbstractMatrix{ComplexF64}
 
-    ElectricField(::Vector{Point}, m) -> E
-
-Stores `m` electric fields. `E.x`, `E.y`, `E.z` create views into components of electric fields.
+`E.x`, `E.y`, `E.z` create views into components of electric fields.
 
 Access a given field (mode) `i` with `E(i)`.
 """
@@ -36,10 +33,21 @@ struct ElectricField{N} <: AbstractMatrix{ComplexF64}
     end
 end
 
-foreach(include,dimensional_files)
+"""
+    ElectricField(::Vector{Point},vals::Matrix) -> E
 
+Store `vals` as electric field (`size(vals,1)` = number of points, `size(vals,2)` = number of fields)
+"""
 ElectricField(pos::Vector{T},val::AbstractVector,args...) where T<:Point = ElectricField(pos,reshape(val,length(val),1),args...)
-# ElectricField(pos::Vector{T},m::Integer=1) where T<:Point = ElectricField(pos,zeros(ComplexF64,3length(pos),m))
+
+"""
+    ElectricField(::Vector{Point}, m::Integer) -> E
+
+Stores `m` blank electric fields.
+"""
+ElectricField(arg,m::Integer) where T<:Point = ElectricField(arg,zeros(ComplexF64,3length(arg),m))
+
+foreach(include,dimensional_files)
 
 (e::ElectricField)(i) = ElectricField(e.pos,view(e.values,:,i),e.start,e.stop,e.start_inds,e.stop_inds)
 
@@ -55,7 +63,9 @@ for fname ∈ fnames
     end
 end
 Base.:*(a::Number,e::ElectricField) = ElectricField(e.pos,a*e.values)
+Base.:*(e::ElectricField,a::Number) = a*e
 Base.:\(a::Number,e::ElectricField) = ElectricField(e.pos,a\e.values)
+Base.:/(e::ElectricField,a::Number) = a\e
 
 Base.getindex(e::ElectricField,inds...) = e.values[inds...]
 Base.setindex!(e::ElectricField,v,inds...) = setindex!(e.values,v,inds...)
@@ -100,6 +110,12 @@ end
 # extending INTERPOLATIONS
 
 const AbInt = AbstractInterpolation
+
+"""
+Interpolated electric field.
+
+Access interpolations through `E.x`, `E.y`, `E.z`. Evaluate with `E.x(::Real)`, etc.
+"""
 struct InterpolatedElectricField{N,TIX,TIY,TIZ}
     positions::Vector{Point{N}}
     x_interpolation::TIX
@@ -128,26 +144,6 @@ function Base.propertynames(::InterpolatedElectricField{N},private=false) where 
         return fieldnames(InterpolatedElectricField{N})
     else
         return propertynames(ElectricField{N})
-    end
-end
-
-Interpolations.interpolate(e::ElectricField{1}, interpmode, gridstyle) =
-    map(i->map(s->interpolate(getproperty(e(i),s), interpmode, gridstyle),(:x,:y,:z)),1:size(e,2))
-
-fnames = (:LinearInterpolation,:CubicSplineInterpolation)
-for fn ∈ fnames
-    @eval begin
-        function Interpolations.$fn(e::ElectricField{1}; kwargs...)
-            x = map(p->p.x,e.pos)
-            perm = sortperm(x)
-            xs = LinRange(e.starts[1],e.stops[1],length(e.pos))
-            itps = map(i->InterpolatedElectricField(e.pos,map(s->$fn(xs,getproperty(e(i),s)[perm]; kwargs...), (:x,:y,:z))...), ntuple(identity,size(e,2)))
-            if length(itps)==1
-                return itps[1]
-            else
-                return itps
-            end
-        end
     end
 end
 

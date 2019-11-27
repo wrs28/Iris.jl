@@ -1,7 +1,7 @@
-function ElectricField(sim::Simulation{1},m::Integer=1)
-    val = zeros(ComplexF64,3length(sim),m)
-    return ElectricField(sim,val)
-end
+# function ElectricField(sim::Simulation{1},m::Integer=1)
+    # val = zeros(ComplexF64,3length(sim),m)
+    # return ElectricField(sim,val)
+# end
 
 function ElectricField(sim::Simulation{1},val::AbstractVecOrMat)
     bl1, bl2 = sim.boundary.bls

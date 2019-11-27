@@ -3,14 +3,9 @@ export Interval
 using LinearAlgebra
 
 """
-    struct Interval(start, stop; [ref=:center]) -> I
+    Interval <: AbstractShape{1,2}
 
-1-Dimensional Interval shape.
-
-`(::Interval)(::Point)` evaluates to true if the point is between `start` and `stop`.
-Alternately, `(::Interval)(x,y,z...)`
-
-`ref` determines where `origin` of the interval is relative to `start` & `stop`
+Fields: `start`, `stop`, `origin`, `a` (length of interval)
 """
 struct Interval <: AbstractShape{1,2}
     start::Point{1}
@@ -18,9 +13,24 @@ struct Interval <: AbstractShape{1,2}
     origin::Point{1}
     a::Float64
 end
+
+"""
+    (::Interval)(::Point{1}) -> ::Bool
+
+evaluates to true if the point is between `start` and `stop`.
+
+Alternately, `(::Interval)(x,y,z...)`
+"""
 (i::Interval)(p::Point) = i.start ≤ p.x ≤ i.stop
 (i::Interval)(x::Real,y...) = i(Point(x,y...))
 
+"""
+    Interval(start, stop; [ref=:center]) -> interval
+
+1-Dimensional Interval.
+
+`ref` determines where `origin` of the interval is relative to `start` & `stop`
+"""
 function Interval(start,stop;ref::Symbol=:center)
     p1, p2 = Point(start), Point(stop)
     return Interval(p1,p2,generate_origin(p1,p2,ref),norm(stop-start))

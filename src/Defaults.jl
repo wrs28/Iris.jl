@@ -4,22 +4,73 @@
 const EXTINCTION = 1e-10 # extinction in PML layer
 const SCALING_ANGLE = .15 # phase in conductivity to accelerate evanscent decay
 const BL_DEPTH = .1 # default depth of cPML or PML layer
+"""
+PML extinction factor: `$EXTINCTION`
+"""
+EXTINCTION
+"""
+PML scaling angle: `$SCALING_ANGLE`
+"""
+SCALING_ANGLE
+"""
+default PML depth: `$BL_DEPTH`
+"""
+BL_DEPTH
 
 const DEFAULT_BC = :noBC # default boundary condition (be specified as symbol or string)
 const DEFAULT_BL = :noBL # default boundary layer (specified as symbol or string)
+"""
+default boundary condition: `$DEFAULT_BC`
+"""
+DEFAULT_BC
+"""
+default boundary layer: `$DEFAULT_BL`
+"""
+DEFAULT_BL
+
 
 const LUPACK = :USolver # default LU package, must be one of USolver, MSolver, PSolver (specified as symbol or string)
+"""
+default LU package (one of `USolver`, `PSolver`, `MSolver` for UMFPACK, Pardiso, MUMPS): `$LUPACK`
+"""
+LUPACK
 
 const INDEX_OFFSET = 7 # position index offset from midpoint where field is real (SPECTRAL), or real and non-vanishing (LASING/SCPA)
+"""
+index offset from midpoint where field is real (SPECTRAL), or real and nonzero (LASING/SaturableCPA): `$INDEX_OFFSET`
+"""
+INDEX_OFFSET
 
 const EQUIVALENT_SOURCE_RELATIVE_CUTOFF = 1e-8 # relative tolerance condition for dropping components of equivalent current
+"""
+relative tolerance condition for dropping components of equivalent current: `$EQUIVALENT_SOURCE_RELATIVE_CUTOFF`
+"""
+EQUIVALENT_SOURCE_RELATIVE_CUTOFF
 
 const TIME_TO_SPACE_STEP_RATIO = 0.9
+"""
+space-to-time step ratio in time domain simulations: `$TIME_TO_SPACE_STEP_RATIO`
+"""
+TIME_TO_SPACE_STEP_RATIO
 
 const DEFAULT_LINEAR_EIGENSOLVER = :Arpack
+"""
+`$DEFAULT_LINEAR_EIGENSOLVER`
+"""
+DEFAULT_LINEAR_EIGENSOLVER
+
 const DEFAULT_NONLINEAR_EIGENSOLVER = :NonlinearEigenproblems
+"""
+`$DEFAULT_NONLINEAR_EIGENSOLVER`
+"""
+DEFAULT_NONLINEAR_EIGENSOLVER
 
 const NUM_SUBPIXELS = 5
+"""
+subsampling rate for simulation smoothing: `$NUM_SUBPIXELS`
+"""
+NUM_SUBPIXELS
+
 
 # Pretty Printing Colors
 const PRINTED_COLOR_NUMBER = :light_cyan # numbers

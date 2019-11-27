@@ -27,6 +27,12 @@ import ..DEFAULT_BL
 end
 const DEFAULT_BL_DEPTH = BL_DEPTH
 
+"""
+	Boundary{N}
+
+`N`-dimensional boundary
+Field: `shape`, `bcs`, `bls`
+"""
 struct Boundary{N,TS,TBC,TBL}
     shape::TS
     bcs::TBC
@@ -41,8 +47,8 @@ struct Boundary{N,TS,TBC,TBL}
 		length(bcs)==nsides(shape) || throw("incorrect number of boundary conditions $(length(bcs)), should match number of sides $(nsides(sh))")
 		length(bls)==nsides(shape) || throw("incorrect number of boundary layers $(length(bls)), should match number of sides $(nsides(sh))")
 
-		bcs_sorted = map(i->bcs[i],TupleTools.sortperm(map(b->get_side(b),bcs)))
-		bls_sorted = map(i->bls[i],TupleTools.sortperm(map(b->get_side(b),bls)))
+		bcs_sorted = map(i->bcs[i],TupleTools.sortperm(map(b->getside(b),bcs)))
+		bls_sorted = map(i->bls[i],TupleTools.sortperm(map(b->getside(b),bls)))
 		bls_sorted = map(x->_bls_by_shape(x,shape),bls_sorted)
 	    return new{NDIMS,typeof(shape),typeof(bcs_sorted),typeof(bls_sorted)}(shape,bcs_sorted,bls_sorted)
     end
@@ -80,7 +86,7 @@ function Boundary(
 
 	all_sides = ntuple(identity,NSIDES)
 
-	sides_bcs = map(b->get_side(b),bcs)
+	sides_bcs = map(b->getside(b),bcs)
 	if isempty(sides_bcs)
 		missing_sides_bcs = all_sides
 	else
@@ -88,7 +94,7 @@ function Boundary(
 	end
 	new_bcs = map(s->DEFAULT_BCS{s}(),missing_sides_bcs)
 
-	sides_bls = map(b->get_side(b),bls)
+	sides_bls = map(b->getside(b),bls)
 	if isempty(sides_bls)
 		missing_sides_bls = all_sides
 	else
@@ -99,32 +105,39 @@ function Boundary(
 	return Boundary(shape,(bcs...,new_bcs...), (bls...,new_bls...))
 end
 
+"""
+	ndims(::Boundary) -> n
+"""
 Base.ndims(bnd::Boundary) = ndims(bnd.shape)
+
+"""
+	nsides(::Boundary) -> n
+"""
 Shapes.nsides(bnd::Boundary) = nsides(bnd.shape)
 
 function Boundary(args...;depth::Real=DEFAULT_BL_DEPTH)
-	sh = _get_shape(args...)
-	bcs = _get_bcs(sh,args...)
-	bls = _get_bls(sh,args...)
+	sh = _getshape(args...)
+	bcs = _getbcs(sh,args...)
+	bls = _getbls(sh,args...)
 	for bl ∈ bls
 		bl ∈ args ? nothing : bl.depth=depth
 	end
 	return Boundary(sh,bcs,bls)
 end
 
-_get_shape(sh::AbstractShape,args...) = sh
-_get_shape(arg,args...) = _get_shape(args...)
-_get_shape() = throw("no shape given")
+_getshape(sh::AbstractShape,args...) = sh
+_getshape(arg,args...) = _getshape(args...)
+_getshape() = throw("no shape given")
 
-_get_bcs(sh::AbstractShape,bc::AbstractBC,args...) = (bc,_get_bcs(sh::AbstractShape,args...)...)
-_get_bcs(sh::AbstractShape,::Type{BC},args...) where BC<:AbstractBC = ntuple(i->BC{i}(),nsides(sh))
-_get_bcs(sh::AbstractShape,arg,args...) = _get_bcs(sh::AbstractShape,args...)
-_get_bcs(sh::AbstractShape) = ()
+_getbcs(sh::AbstractShape,bc::AbstractBC,args...) = (bc,_getbcs(sh::AbstractShape,args...)...)
+_getbcs(sh::AbstractShape,::Type{BC},args...) where BC<:AbstractBC = ntuple(i->BC{i}(),nsides(sh))
+_getbcs(sh::AbstractShape,arg,args...) = _getbcs(sh::AbstractShape,args...)
+_getbcs(sh::AbstractShape) = ()
 
-_get_bls(sh::AbstractShape,bl::AbstractBL,args...) = (bl,_get_bls(sh,args...)...)
-_get_bls(sh::AbstractShape,::Type{BL},args...) where BL<:AbstractBL = ntuple(i->BL{i}(DEFAULT_BL_DEPTH),nsides(sh))
-_get_bls(sh::AbstractShape,arg,args...) = _get_bls(sh,args...)
-_get_bls(sh::AbstractShape) = ()
+_getbls(sh::AbstractShape,bl::AbstractBL,args...) = (bl,_getbls(sh,args...)...)
+_getbls(sh::AbstractShape,::Type{BL},args...) where BL<:AbstractBL = ntuple(i->BL{i}(DEFAULT_BL_DEPTH),nsides(sh))
+_getbls(sh::AbstractShape,arg,args...) = _getbls(sh,args...)
+_getbls(sh::AbstractShape) = ()
 
 
 function Base.show(io::IO,bnd::Boundary)

@@ -1,9 +1,9 @@
 """
-	module BoundaryLayers
+for constructing boundary layers and evaluating PML conductivity
 """
 module BoundaryLayers
 
-export get_side
+export getside
 export PML
 export cPML
 export noBL
@@ -21,15 +21,32 @@ import ..PRINTED_COLOR_DARK
 using ..Points
 using Formatting
 
+"""
+	AbstractBL{SIDE}
+"""
 abstract type AbstractBL{SIDE} end
+"""
+	AbstractRealBL{SIDE} <: AbstractBL{SIDE}
+"""
 abstract type AbstractRealBL{SIDE} <: AbstractBL{SIDE} end
+"""
+	AbstractComplexBL{SIDE} <: AbstractBL{SIDE}
+"""
 abstract type AbstractComplexBL{SIDE} <: AbstractBL{SIDE} end
 
-get_side(::AbstractBL{SIDE}) where SIDE = SIDE
+"""
+	getside(::AbstractBL) = side
+"""
+getside(::AbstractBL{SIDE}) where SIDE = SIDE
 
 for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 					 (:AbstractComplexBL,:AbstractComplexBL,:AbstractRealBL))
 	@eval begin
+		"""
+			$($TBL){SIDE}
+
+		Fields: `depth`, `start`, `stop`
+		"""
 		mutable struct $TBL{SIDE} <: $ATBL{SIDE}
 			depth::Float64
 		    start::Float64
@@ -43,6 +60,14 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 			end
 		end
 
+		"""
+			$($TBL){SIDE}(depth) -> bl
+
+		$($TBL) along dimension `SIDE` with `depth`. The location of the layer determined
+		later by associating it with a shape in a call to `Boundary`.
+
+		see also: [`Boundary`](@ref), [`PML`](@ref), [`cPML`](@ref), [`noBL`](@ref)
+		"""
 		$TBL{SIDE}(depth) where SIDE = $TBL{SIDE}(depth,NaN,NaN)
 
 		function Base.show(io::IO,tbl::$TBL{SIDE}) where SIDE
@@ -61,74 +86,44 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 end
 noBL{SIDE}() where SIDE = noBL{SIDE}(0,NaN,NaN)
 
-(bl::PML{SIDE})(p::Point) where {SIDE} = conductivity_profile(p[ceil(Int,SIDE/2)],bl.start,bl.stop)
-(bl::cPML{SIDE})(p::Point) where {SIDE} = conj_conductivity_profile(p[ceil(Int,SIDE/2)],bl.start,bl.stop)
-(bl::noBL)(p::Point) = 0.0
+"""
+	(::PML)(p::Point) -> σ
 
+evaluate the PML conductivity `σ` at the point `p`.
+"""
+(pml::PML)(p::Point) = conductivity_profile(p[ceil(Int,getside(pml)/2)],pml.start,pml.stop)
 
 """
-	PML{SIDE}(depth) -> pml
+	(::cPML)(p::Point) -> σ
 
-absorbing PML along dimension `SIDE` with `depth`. The location of the PML is later determined
-by associating it with a shape in a call to `Boundary`.
-
-see also: [`Boundary`](@ref), [`cPML`](@ref), [`noBL`](@ref)
-
----
-
-	(::PML)(x,y...) -> σ
-
-evaluate the PML conductivity `σ` at the point `x,y...` in local frame.
+evaluate the cPML conductivity `σ` at the point `p`.
 """
-PML
+(cpml::cPML)(p::Point) = conj_conductivity_profile(p[ceil(Int,getside(cpml)/2)],cpml.start,cpml.stop)
 
 """
-	cPML{SIDE}(depth) -> pml
-
-amplifying conjugate PML along dimension `SIDE` with `depth`. The location of the cPML is later determined
-by associating it with a shape in a call to `Boundary`.
-
-see also: [`Boundary`](@ref), [`PML`](@ref), [`noBL`](@ref)
-
----
-
-	(::cPML)(x,y...) -> σ
-
-evaluate the PML conductivity `σ` at the point `x,y...` in local frame
+	(::noBL)(p::Point) -> 0.0
 """
-cPML
+(nbl::noBL)(p::Point) = 0.0
 
-"""
-	noBL{SIDE}(depth) -> nobl
-
-lack of boundary layer along dimension `SIDE`. `depth` is not used, but it there for consistency.
-The location is later determined by associating it with a shape in a call to `Boundary`.
-
-see also: [`Boundary`](@ref), [`PML`](@ref), [`cPML`](@ref)
-
----
-
-	(::noBL)(x,y...) -> σ
-
-returns `σ` = 0. This is here for consistency.
-"""
-noBL
-
-
-Base.conj(pml::PML{SIDE}) where SIDE = cPML{SIDE}(pml.depth,pml.start,pml.stop)
-Base.conj(cpml::cPML{SIDE}) where SIDE = PML{SIDE}(cpml.depth,cpml.start,cpml.stop)
-Base.conj(nbl::noBL) = nbl
 """
 	conj(pml) -> cpml
-	conj(cpml) -> pml
-	conj(nobl) -> nobl
-
-conjugate a boundary layer
 """
-conj
-
+Base.conj(pml::PML{SIDE}) where SIDE = cPML{SIDE}(pml.depth,pml.start,pml.stop)
+"""
+	conj(cpml) -> pml
+"""
+Base.conj(cpml::cPML{SIDE}) where SIDE = PML{SIDE}(cpml.depth,cpml.start,cpml.stop)
+"""
+	conj(nobl) -> nobl
+"""
+Base.conj(nbl::noBL) = nbl
 
 # used inside PML. This is the place to modify the PML profile
+"""
+	conductivity_profile(z,start,stop) -> σ
+
+PML conductivity `σ` at point `z`
+"""
 function conductivity_profile(z::Real,start::Real,stop::Real)
 	if (start≤stop && start≤z) || (start≥stop && start≥z)
 		depth = abs(stop-start)
@@ -140,6 +135,12 @@ function conductivity_profile(z::Real,start::Real,stop::Real)
         return complex(0.0)
     end
 end
+
+"""
+	integrated_conductivity_profile(z,start,stop) -> σ
+
+integrated PML conductivity `σ` at point `z`
+"""
 function integrated_conductivity_profile(z::Real,start::Real,stop::Real)
 	if (start≤stop && start≤z) || (start≥stop && start≥z)
 		depth = abs(stop-start)
@@ -154,7 +155,18 @@ end
 
 
 # used inside cPML
+"""
+	conj_conductivity_profile(z,start,stop) -> σ
+
+conjugate PML conductivity `σ` at point `z`
+"""
 conj_conductivity_profile(z,start,stop) = -conj(conductivity_profile(z,start,stop))
+
+"""
+	conj_integrated_conductivity_profile(z,start,stop) -> σ
+
+integrated conjugate PML conductivity `σ` at point `z`
+"""
 conj_integrated_conductivity_profile(z,start,stop) = -conj(integrated_conductivity_profile(z,start,stop))
 
 end # module

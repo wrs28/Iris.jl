@@ -1,9 +1,7 @@
 """
-    module Shapes
-
 Definitions of various shapes in 1D, 2D, 3D.
 
-All shapes have the signature: `shape(parameters::Tuple, x0, y0, θ=0)`, and some
+All shapes have the signature: `shape(params::Tuple, x0, y0, θ=0)`, and some
 have keyword argument `reference` which determines which point `(x0,y0)` is referring to.
 
 The length of `parameters` depends on the shape. For example, `Circle` has just one
@@ -25,8 +23,19 @@ import ..PRINTED_COLOR_DARK
 
 using ..Points
 
+"""
+    AbstractShape{NDIMS,NSIDES}
+"""
 abstract type AbstractShape{NDIMS,NSIDES} end
+
+"""
+    ndims(shape) = d
+"""
 Base.ndims(::AbstractShape{NDIMS,NSIDES}) where {NDIMS,NSIDES} = NDIMS
+
+"""
+    nsides(shape) = n
+"""
 nsides(::AbstractShape{NDIMS,NSIDES}) where {NDIMS,NSIDES} = NSIDES
 
 foreach(include,files)

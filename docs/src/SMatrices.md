@@ -1,0 +1,5 @@
+# SMatrices
+
+```@docs
+SMatrices
+```

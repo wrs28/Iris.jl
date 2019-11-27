@@ -1,44 +1,39 @@
 """
-	module Points
+N-dimensional Point containers
 """
 module Points
 
 export Point
 
-import ..PRINTED_COLOR_NUMBER
-import ..PRINTED_COLOR_DARK
 using LinearAlgebra
 using StaticArrays
 
+"""
+	Point{N}
+
+`N`-Dimensional point.
+Can be accessed with fields `:x`, `:y`, `:z`, `:r`, `:ϕ`, `:θ` and their variants.
+"""
 struct Point{N}
 	vector::SVector{N,Float64}
 	Point(vec::SVector{N,T}) where {N,T<:Real} = new{N}(vec)
 end
 
+"""
+	Point(x,y...) -> point::Point
+"""
 Point(x::Real,y...) = Point((x,y...))
 Point(vec::NTuple{N}) where N = Point(SVector{N,Float64}(vec))
 Point(p::Point) = p
 
-"""
-	struct Point{N}
-
-`N`-Dimensional point.
-Can be accessed with fields `:x`, `:y`, `:z`, `:r`, `:ϕ`, `:θ` and their variants.
-
-------------
-	Point(x,y...) -> point
-
-"""
-Point
-
 Base.:*(p::Point,a::Number) = a*p
 Base.:*(a::Number,p::Point) = Point(a*p.vec)
-Base.:/(p::Point,a::Number) = Point(p.vec/a)
 Base.:\(a::Number,p::Point) = p/a
+Base.:/(p::Point,a::Number) = Point(p.vec/a)
 Base.:+(p1::Point,p2::Point) = Point(p1.vec+p2.vec)
 Base.:-(p1::Point,p2::Point) = Point(p1.vec-p2.vec)
 Base.:+(p1::Point{1},p2::Number) = Point(p1.vec .+ p2)
-Base.:+(p2::Number,p1::Point{1}) = Point(p1,p2)
+Base.:+(p2::Number,p1::Point{1}) = p1+p2
 Base.:-(p1::Point{1},p2::Number) = Point(p1.vec .- p2)
 Base.:-(p2::Number,p1::Point{1}) = Point(p2 .- p1.vec)
 
@@ -92,6 +87,9 @@ end
 
 ################################################################################
 # Pretty Printing
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
 
 function Base.show(io::IO,p::Point{1})
 	print(io,"1D ")

@@ -1,28 +1,44 @@
 """
-    module Common
+Essential tools used throughout Iris.
 
-Essential tools used in the rest of Iris.
+Submodules:
+  * [`Points`](@ref)
+  * [`ElectricFields`](@ref)
+  * [`Shapes`](@ref)
+  * [`BoundaryLayers`](@ref)
+  * [`BoundaryConditions`](@ref)
+  * [`Boundaries`](@ref)
+  * [`DielectricFunctions`](@ref)
+  * [`PumpFunctions`](@ref)
+  * [`Dispersions`](@ref)
+  * [`Lattices`](@ref)
+  * [`Domains`](@ref)
+  * [`Curlcurls`](@ref)
+  * [`SelfEnergies`](@ref)
+  * [`Simulations`](@ref)
+  * [`LU_Factorizations`](@ref)
+  * [`Plotting`](@ref)
 """
 module Common
 
 dimensional_files = (
     "1D/Common1D.jl",
-    )
+)
 
 # `Defaults`: contains all default parameters in one location for uniformity and easy alteration.
 include("../Defaults.jl")
 
-Base.conj(::Tuple{}) = ()
+# Base.conj(::Tuple{}) = ()
 
-include("Points.jl") # ✅
+include("Points.jl")
 using .Points
 export Point
 
-include("ElectricFields.jl") # ✅
+include("ElectricFields.jl")
 using .ElectricFields
 export ElectricField
 
-include("Shapes.jl") # ✅
+include("Shapes.jl")
 using .Shapes
 export AbstractShape
 export Interval
@@ -33,7 +49,7 @@ export Annulus
 export Square
 export Rectangle
 
-include("BoundaryLayers.jl") # ✅
+include("BoundaryLayers.jl")
 using .BoundaryLayers
 export PML
 export cPML

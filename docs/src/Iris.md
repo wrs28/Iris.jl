@@ -1,0 +1,5 @@
+# Iris
+
+```@autodocs
+Modules = [Iris]
+```
