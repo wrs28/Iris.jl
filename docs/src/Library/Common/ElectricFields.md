@@ -1,5 +1,10 @@
 # ElectricFields
 
+Exported methods:
+  * [`ElectricField`](@ref)
+
+---
+
 ```@docs
 Common.ElectricFields
 ```

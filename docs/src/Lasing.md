@@ -1,5 +1,0 @@
-# Lasing
-
-```@docs
-Lasing
-```

@@ -1,6 +1,0 @@
-# SaturableCPA
-
-
-```@docs
-SaturableCPA
-```

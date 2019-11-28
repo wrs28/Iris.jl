@@ -8,6 +8,7 @@ Divided across seven submodules:
   * [`Spectral`](@ref): linear and non-linear eigenvalue problems for resonance, anti-resonance, and RSM problems, for closed systems, or for open systems via boundary matching or PMLs.
   * [`Floquet`](@ref): for finding the band structures and dispersion curves of crystal structures
   * [`Scattering`](@ref): for solving inhomogeneous scattering problems, linear and nonlinear
+  * [`SMatrices`](@ref): for S-matrix computations (works in parallel)
   * [`Lasing`](@ref): the SALT algorithm for lasing
   * [`SaturableCPA`](@ref): the SALT algorithm for CPA
   * [`TimeDomain`](@ref): time evolution of Maxwell and Maxwell-Bloch field equations

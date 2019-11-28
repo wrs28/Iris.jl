@@ -1,7 +1,5 @@
 """
-    module Domains
-
-for constructing nondispersive domains to be fed to Simulation
+for defining Lattice, Nondispersive, and Dispersive Domains
 """
 module Domains
 
@@ -27,13 +25,15 @@ using ..Shapes
 import ..PRINTED_COLOR_NUMBER
 import ..PRINTED_COLOR_DARK
 
+"""
+    AbstractDomain{N}
+"""
 abstract type AbstractDomain{N} end
 
 """
-    struct LatticeDomains
 
-    NondispersiveDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
-    NondispersiveDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
+    LatticeDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
+    LatticeDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
 
 combines `boundary` with `lattice` (in either order) to generate a list of sites.
 `T` just labels the kinds of domain (e.g. Cavity, or Waveguide)
@@ -41,7 +41,7 @@ each site is labeled by being in the interior, or containing the interior (`doma
 or being a corner.
 
 ----------------------
-    (::NondispersiveDomain)(args...; align=false) -> dom
+    (::LatticeDomain)(args...; align=false) -> dom
 
 construct a new domain with modified parameters in `args`
 This is for "updating" non-geometric fields of the immutable `domain`.

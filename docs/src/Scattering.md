@@ -1,5 +1,1 @@
-# Scattering
-
-```@docs
-Scattering
-```
+# Spectral

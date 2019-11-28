@@ -1,5 +1,0 @@
-# SMatrices
-
-```@docs
-SMatrices
-```

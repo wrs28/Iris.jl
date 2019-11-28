@@ -1,5 +1,3 @@
 # Floquet
 
-```@docs
-Floquet
-```
+NOT IMPLEMENTED YET.

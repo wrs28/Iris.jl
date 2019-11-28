@@ -3,17 +3,13 @@
 
 For the computation of various linear and nonlinear eigenvalue problems.
 
-	*LEP: *L*inear *E*igenvalue *P*roblem, i.e. no bulk dispersion, fixed boundary conditions
-		(can use with PMLs/cPMLs for resonance or RSM calculations)
-	*CF: *C*onstant *F*lux states, i.e. at a given frequency, find eigen-susceptibilities and
-		associated eigenfunctions. Can use either matched boundaries or PMLs. The CF problem
-		is a particular kind of linear eigenvalue problem, though here it is treated separately.
-	*NEP: *N*onlinear *E*igenvalue *P*roblem, i.e. with bulk dispersion, open boundary conditions,
-		or both. Used to compute resonances/RSMs, no need for PMLs.
+  * LEP: *L*inear *E*igenvalue *P*roblem, i.e. no bulk dispersion, fixed boundary conditions (can use with PMLs/cPMLs for resonance or RSM calculations)
+  * CF: *C*onstant *F*lux states, i.e. at a given frequency, find eigen-susceptibilities and associated eigenfunctions. Can use either matched boundaries or PMLs. The CF problem is a particular kind of linear eigenvalue problem, though here it is treated separately.
+  * NEP: *N*onlinear *E*igenvalue *P*roblem, i.e. with bulk dispersion, open boundary conditions, or both. Used to compute resonances/RSMs, no need for PMLs.
 
-	API: `MaxwellLEP`, `MaxwellCF`, `MaxwellNEP`, for use with `maxwelleigen` (high-level),
-		or directly with `ArnoldiMethod.jl`, `Arpack.jl`, `IterativeSolvers.jl`,
-		`KrylovKit.jl`, `LinearAlgebra`, `NonlinearEigenproblems.jl` (low-level).
+API: `MaxwellLEP`, `MaxwellCF`, `MaxwellNEP`, for use with `maxwelleigen` (high-level),
+or directly with `ArnoldiMethod.jl`, `Arpack.jl`, `IterativeSolvers.jl`,
+`KrylovKit.jl`, `LinearAlgebra`, `NonlinearEigenproblems.jl` (low-level).
 """
 module Spectral
 
@@ -45,6 +41,11 @@ abstract type AbstractMaxwellLinearEigenproblem{N} <: AbstractMaxwellEigenproble
 abstract type AbstractMaxwellNonlinearEigenproblem{N} <: AbstractMaxwellEigenproblem{N} end
 
 # Linear Eigenvalue Problem
+"""
+	MaxwellLEP{N}
+
+`N`-dimensional Maxwell Linear Eigenvalue Problem
+"""
 struct MaxwellLEP{N,TM} <: AbstractMaxwellLinearEigenproblem{N}
     maxwell::TM
 	αεpFχ::SparseMatrixCSC{ComplexF64,Int}

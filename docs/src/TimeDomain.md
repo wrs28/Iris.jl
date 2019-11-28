@@ -1,5 +1,0 @@
-# TimeDomains
-
-```@docs
-TimeDomain
-```

@@ -5,6 +5,9 @@ for defining discrete Cartesian and Polar lattice grids used in Iris.
 """
 module Lattices
 
+export Lattice
+export latticeindex
+
 files = (
     "1D/Lattices1D.jl",
     # "2D/Lattices2D.jl",
@@ -17,9 +20,6 @@ import ..PRINTED_COLOR_DARK
 using ..Points
 using Formatting
 using StaticArrays
-
-export Lattice
-export latticeindex
 
 struct Lattice{N,M,P}
     constants::NTuple{N,Float64}
@@ -109,6 +109,9 @@ function Base.getproperty(lat::Lattice,sym::Symbol)
     end
 end
 
+"""
+    latticeindex(lattice, point) -> ind::Float64
+"""
 latticeindex(lat::Lattice,x...) = latticeindex(lat,Point(x...))
 
 end # module

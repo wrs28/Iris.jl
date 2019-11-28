@@ -42,12 +42,6 @@ include("Shapes.jl")
 using .Shapes
 export AbstractShape
 export Interval
-export Circle
-export Ellipse
-export DeformedDisk
-export Annulus
-export Square
-export Rectangle
 
 include("BoundaryLayers.jl")
 using .BoundaryLayers
@@ -125,7 +119,6 @@ export Hermitian
 include("MaxwellOperators.jl")
 using .MaxwellOperators
 export Maxwell
-export maxwell
 
 include("LU_Factorizations.jl")
 using .LU_Factorizations
