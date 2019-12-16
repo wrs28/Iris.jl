@@ -18,6 +18,9 @@ using ..Points
 import ..PRINTED_COLOR_NUMBER
 import ..PRINTED_COLOR_DARK
 
+"""
+    AbstractDielectricFunction <: Function
+"""
 abstract type AbstractDielectricFunction <: Function end
 
 """

@@ -1,3 +1,8 @@
+"""
+Computation of Scattering Matrices
+
+Accelerated if `nprocs()>1`.
+"""
 module SMatrices
 
 export smatrix
@@ -21,11 +26,21 @@ using Statistics
 import ..Scattering.ScatteringSolution
 import ..Scattering.EquivalentSource
 
+"""
+    ScatteringMatrix{N}
+
+`N`×`N` Scattering Matrix container with fields `S` (scattering matrix), `ω` (frequencies)
+"""
 struct ScatteringMatrix{N,TW}
     S::Array{ComplexF64,3}
     ω::TW
 end
 
+"""
+    SMatrixContainer{N}
+
+Auxilliary for computation of `N`×`N` scattering matrix.
+"""
 struct SMatrixContainer{N,TSIM,TW,TLU} <: Function
     sim::TSIM
     ω::TW
@@ -42,7 +57,7 @@ Base.ndims(smc::SMatrixContainer{N}) where N = N
     smatrix(::Simulation, ω; [kx, ky, kz, lupack=$(DEFAULT_LUPACK)]) -> S
 
 Frequency `ω` is a (real) number, vector, or range.
-Scattering matrix `S` is `N`-by-`N`-by-`M`, where `M=length(ω)` and `N` is the number
+Scattering matrix `S` is N-by-N-by-M, where M=`length(ω)` and N is the number
 of channels.
 
 Automatically parallelizes over frequency `ω` if `nprocs()>1`.

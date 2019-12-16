@@ -9,7 +9,6 @@ module Simulations
 
 export Simulation
 export smooth!
-export update!
 export update_dielectric!
 export update_pump!
 export Unsymmetric
@@ -25,21 +24,32 @@ files = (
 using ..Curlcurls
 using ..Dispersions
 using ..Domains
+using ..Laplacians
 using ..Lattices
 using ..Points
 using ..SelfEnergies
 using ..Shapes
+using ..VectorFields
 using LinearAlgebra
 using SparseArrays
 using Statistics
 
-import ..PRINTED_COLOR_GOOD
-import ..PRINTED_COLOR_WARN
-import ..PRINTED_COLOR_DARK
 import ..AbstractDomain
-import ..NUM_SUBPIXELS
 
+"""
+	Unsymmetric
+"""
 struct Unsymmetric end
+
+"""
+	Symmetric
+"""
+LinearAlgebra.Symmetric
+
+"""
+	Hermitian
+"""
+LinearAlgebra.Hermitian
 
 """
 	Simulation(ω₀, domains...; [k₂₀, k₃₀, k₁₀]) -> simulation
@@ -51,7 +61,6 @@ There are three types of `domains`: `LatticeDomain`, `NondispersiveDomain`,
 `DispersiveDomain`, which can be provided in any order, though at least one
 `LatticeDomain` must be provided.
 Where domains of the same type overlap, the one that appears first takes priority.
-
 """
 struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	lattice_domains::TLDOM
@@ -66,6 +75,7 @@ struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	F::Vector{Float64}
 	χ::Vector{AbstractDispersion}
 
+	laplacian::Laplacian{N}
 	curlcurl::Curlcurl{N}
 	self_energy::TSE
 	α::NTuple{N,Vector{ComplexF64}}
@@ -86,6 +96,8 @@ Base.ndims(sim::Simulation{N}) where N = N
 
 # Base.conj(sim::Simulation) = Simulation(sim.ω₀,map(conj,sim.domains)...)
 
+import ..NUM_SUBPIXELS
+
 """
 	smooth!(sim,[num_sub_pixel])
 
@@ -105,7 +117,7 @@ end
 
 update simulation `sim` by recomputing the dielectric and pump functions
 """
-function update!(sim::Simulation)
+function VectorFields.update!(sim::Simulation)
 	update_dielectric!(sim)
 	update_pump!(sim)
 	return nothing
@@ -276,6 +288,10 @@ remove_sites!(site,removed) = deleteat!(site,findall(removed))
 
 ################################################################################
 #Pretty Printing
+
+import ..PRINTED_COLOR_GOOD
+import ..PRINTED_COLOR_WARN
+import ..PRINTED_COLOR_DARK
 
 function Base.show(io::IO,sim::Simulation{N,CLASS}) where {N,CLASS}
 	suffix = length(sim.domains)>1 ? "s" : ""

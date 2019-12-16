@@ -1,5 +1,11 @@
 using LinearAlgebra
 
+"""
+    normalize!(simulation, ψ, B, [index])
+
+normalize electric field `ψ` with respect to inner product `B`. If `index` is provided,[]
+fixes `ψ[index,:]` to be real.
+"""
 function LinearAlgebra.normalize!(sim::Simulation{1},ψ,B)
     @inbounds for j ∈ 1:size(ψ,2)
         𝒩² = zero(eltype(ψ))
@@ -18,5 +24,15 @@ function LinearAlgebra.normalize!(sim::Simulation{1},ψ,B,ind::Int)
     return nothing
 end
 
-LinearAlgebra.eigen(prob::AbstractMaxwellEigenproblem, args...; kwargs...) =
-    maxwelleigen(prob, args...; kwargs...)
+"""
+    eigen(::AbstractEigenproblem, args...; kwargs...)
+
+See [`helmholtzeigen`](@ref), [`maxwelleigen`](@ref)
+"""
+function LinearAlgebra.eigen(prob::AbstractEigenproblem, args...; kwargs...)
+    if problemtype(prob) <: HelmholtzProblem
+        return helmholtzeigen(prob, args...; kwargs...)
+    elseif problemtype(prob) <: MaxwellProblem
+        return maxwelleigen(prob, args...; kwargs...)
+    end
+end

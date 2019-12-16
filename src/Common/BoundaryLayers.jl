@@ -1,5 +1,5 @@
 """
-for constructing boundary layers and evaluating PML conductivity
+for constructing boundary layers and evaluating [`PML`](@ref)/[`cPML`](@ref) conductivity
 """
 module BoundaryLayers
 
@@ -66,7 +66,7 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 		$($TBL) along dimension `SIDE` with `depth`. The location of the layer determined
 		later by associating it with a shape in a call to `Boundary`.
 
-		see also: [`Boundary`](@ref Common.Boundaries.Boundary), [`PML`](@ref), [`cPML`](@ref), [`noBL`](@ref)
+		see also: [`Boundary`](@ref), [`PML`](@ref), [`cPML`](@ref), [`noBL`](@ref)
 		"""
 		$TBL{SIDE}(depth) where SIDE = $TBL{SIDE}(depth,NaN,NaN)
 

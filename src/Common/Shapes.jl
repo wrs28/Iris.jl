@@ -11,7 +11,7 @@ module Shapes
 
 files = (
     "1D/Shapes1D.jl",
-    # "2D/Shapes2D.jl",
+    "2D/Shapes2D.jl",
     # "3D/Shapes3D.jl",
     )
 

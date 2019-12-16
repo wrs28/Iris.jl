@@ -1,7 +1,7 @@
 ## Simulation
 using Iris
 using Plots
-lat = Lattice(.005)
+lat = Lattice(.0025)
 bnd = Boundary(Interval(-1,1.1),PML)
 dom = LatticeDomain(bnd,lat)
 dom1 = NondispersiveDomain(Interval(-.5,.5),3)
@@ -12,9 +12,9 @@ smooth!(sim)
 plot(sim)
 
 ## LEP
-lep = MaxwellLEP(sim)
-ωl, ψl = maxwelleigen(lep,30;nev=2)
-display(ωl); plot(ψl)
+lep = HelmholtzLEP(sim)
+ωl, ψl = helmholtzeigen(lep,30;nev=2)
+display(ωl); plot(ψl(1))
 
 ## CF
 cf = MaxwellCF(sim)

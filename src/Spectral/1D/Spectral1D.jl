@@ -1,6 +1,25 @@
 using SparseArrays
 
 """
+    HelmholtzNEP(::Simulation{1}) -> nep
+"""
+function HelmholtzNEP(
+            sim::Simulation{1,C,T};
+            kwargs...
+            ) where {C,T}
+
+    ka = 0
+    M = Helmholtz(sim)
+    f = map(f->(ω->f(ω)),M.sim.self_energy.f)
+    Σ1,Σ2,Σ3 = M.Σs
+    Fs, fχs = _compute_Fsfχs(sim,1)
+    As = vcat([Σ1,Σ2,Σ3,sim.laplacian,M.αε],Fs)
+    fs = [f[1],f[2],one,one,ω->ω^2,map(ϝ->(ω->ω^2*ϝ(ω)),fχs)...]
+    nep = SPMF_NEP(As,fs;kwargs...)
+    return HelmholtzNEP(M,nep,6:length(As))
+end
+
+"""
     MaxwellNEP(::Simulation{1}; ky=0, kz=0) -> nep
 """
 function MaxwellNEP(
@@ -14,7 +33,7 @@ function MaxwellNEP(
     M = Maxwell(sim; ky=ky, kz=kz)
     f = map(f->(ω->f(ω,ka,ky,kz)),M.sim.self_energy.f)
     Σ1,Σ2,Σ3 = M.Σs
-    Fs, fχs = _compute_Fsfχs(sim)
+    Fs, fχs = _compute_Fsfχs(sim,3)
     As = vcat([Σ1,Σ2,Σ3,sim.curlcurl(ky,kz),M.αε],Fs)
     fs = [f[1],f[2],one,one,ω->-ω^2,map(ϝ->(ω->-ω^2*ϝ(ω)),fχs)...]
     nep = SPMF_NEP(As,fs;kwargs...)
@@ -23,13 +42,18 @@ end
 
 
 ################################################################################
-function _compute_Fsfχs(sim::Simulation{1})
+function _compute_Fsfχs(sim::Simulation{1},m::Integer)
     χs = map(d->d.χ,sim.dispersive_domains)
     fχs = map(x->(ω->susceptability(x,ω)),χs)
     Fs = Vector{SparseMatrixCSC{ComplexF64,Int}}(undef,length(sim.nondispersive_domains))
-    for d ∈ eachindex(Fs) Fs[d] = spdiagm(0=>repeat(sim.F,3)) end
+    for d ∈ eachindex(Fs) Fs[d] = spdiagm(0=>repeat(sim.F,m)) end
     return Fs,fχs
 end
+
+
+
+
+
 
 
 

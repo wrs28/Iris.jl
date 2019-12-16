@@ -1,3 +1,6 @@
+"""
+Utility for defining self-energies
+"""
 module SelfEnergies
 
 export SelfEnergy
@@ -8,7 +11,6 @@ files = (
     # "3D/SelfEnergies3D.jl"
     )
 
-import ..PRINTED_COLOR_DARK
 using ..BoundaryConditions
 using ..Domains
 using SparseArrays
@@ -21,6 +23,10 @@ struct SelfEnergy{N,M,TF}
 end
 
 foreach(include,files)
+
+################################################################################
+# Pretty Printing
+import ..PRINTED_COLOR_DARK
 
 function Base.show(io::IO,Σ::SelfEnergy{N,M}) where {N,M}
     print(io,"$(N)D ")

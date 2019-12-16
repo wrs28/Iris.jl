@@ -5,10 +5,6 @@ Exported methods:
 
 ---
 
-```@docs
-Common.ElectricFields
-```
-
 ```@autodocs
 Modules = [Common.ElectricFields]
 ```

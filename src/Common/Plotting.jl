@@ -1,3 +1,6 @@
+"""
+Plot reciepes for ElectricFields, Simulations, etc.
+"""
 module Plotting
 
 using ..Common

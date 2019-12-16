@@ -11,10 +11,8 @@ export TwoLevelSystem
 using Formatting
 using LinearAlgebra
 using SparseArrays
-using ...ElectricFields
+using ...VectorFields
 
-import ...PRINTED_COLOR_NUMBER
-import ...PRINTED_COLOR_DARK
 import ...INDEX_OFFSET
 import ..AbstractDispersion
 import ..susceptability
@@ -73,7 +71,7 @@ The second computes in-place (stored in TwoLevelSystem).
 susceptability(tls::TwoLevelSystem,ω) = χ(tls,ω)
 susceptability(tls::TwoLevelSystem,args...) = χ!(tls,args...)
 
-# Base.conj(tls::TwoLevelSystem) = TwoLevelSystem(tls.ωa,tls.D0,-tls.γp)
+Base.conj(tls::TwoLevelSystem) = TwoLevelSystem(tls.ωa,tls.D0,-tls.γp)
 
 function Base.getproperty(tls::TwoLevelSystem,sym::Symbol)
     if Base.sym_in(sym,(:γ,:γ_perp,:gamma_perp,:γp,:γperp,:gamma,:g))
@@ -107,6 +105,12 @@ function Base.setproperty!(tls::TwoLevelSystem, sym::Symbol, val::Real)
     end
 end
 
+################################################################################
+# Pretty Printing
+
+import ...PRINTED_COLOR_NUMBER
+import ...PRINTED_COLOR_DARK
+
 function Base.show(io::IO, tls::TwoLevelSystem)
     printstyled(io, "Two Level System",color=PRINTED_COLOR_DARK)
     print(io," (ωₐ=")
@@ -125,6 +129,35 @@ end
 Γ(tls::TwoLevelSystem,ω) = abs2(γ(tls,ω))
 
 H!(tls::TwoLevelSystem) = nothing
+@inline function H!(tls::TwoLevelSystem,ωs::Vector,ψs::ScalarField)
+    N,M = size(ψs)
+    isdefined(tls,:h) ? nothing : tls.h = zeros(Float64,N)
+    isdefined(tls,:hp1⁻¹) ? nothing : tls.hp1⁻¹ = similar(tls.h)
+    isdefined(tls,:chi) ? nothing : tls.chi = Vector{ComplexF64}(undef,N)
+    isdefined(tls,:chis) ? nothing : tls.chis = Matrix{ComplexF64}(undef,N,M)
+    isdefined(tls,:dχdψr) ? nothing : tls.dχdψr = Array{ComplexF64,3}(undef,N,M,M)
+    isdefined(tls,:dχdψi) ? nothing : tls.dχdψi = Array{ComplexF64,3}(undef,N,M,M)
+    isdefined(tls,:dχdω) ? nothing : tls.dχdω = Array{ComplexF64,3}(undef,N,M,M)
+    isdefined(tls,:dχdϕ) ? nothing : tls.dχdϕ = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.h)==(N,1) ? nothing : tls.h = Vector{Float64}(undef,N)
+    size(tls.hp1⁻¹)==(N,1) ? nothing : tls.hp1⁻¹ = Vector{Float64}(undef,N)
+    size(tls.chi)==(N,1) ? nothing : tls.chi = Vector{ComplexF64}(undef,N)
+    size(tls.chis)==(N,M) ? nothing : tls.chis = Matrix{ComplexF64}(undef,N,M)
+    size(tls.dχdψr)==(N,M) ? nothing : tls.dχdψr = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.dχdψi)==(N,M) ? nothing : tls.dχdψi = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.dχdω)==(N,M) ? nothing : tls.dχdω = Array{ComplexF64,3}(undef,N,M,M)
+    size(tls.dχdϕ)==(N,M) ? nothing : tls.dχdϕ = Array{ComplexF64,3}(undef,N,M,M)
+    @inbounds @simd for i ∈ 1:N tls.h[i] = 0 end
+    @inbounds for μ ∈ eachindex(ωs)
+        G = Γ(tls,ωs[μ])
+        @inbounds for i ∈ 1:N
+            j = mod1(i,N)
+            tls.h[i] += G*abs2(ψs[j,μ])
+        end
+    end
+    @fastmath @inbounds @simd for i ∈ 1:N tls.hp1⁻¹[i] = 1/(1+tls.h[i]) end
+    return nothing
+end
 @inline function H!(tls::TwoLevelSystem,ωs::Vector,ψs::ElectricField)
     N,M = size(ψs)
     isdefined(tls,:h) ? nothing : tls.h = zeros(Float64,N)
@@ -160,6 +193,36 @@ end
 χ(tls::TwoLevelSystem,ω) = tls.D₀*γ(tls,ω)
 
 
+@inline function χ!(tls::TwoLevelSystem,ω,ωs::Vector,ψs::ScalarField)
+    index = size(ψs,1)÷2+INDEX_OFFSET
+    H!(tls,ωs,ψs)
+    Dg = tls.D₀*γ(tls,ω)
+    gp² = tls.γp^2
+    @fastmath @inbounds @simd for i ∈ eachindex(tls.chi) tls.chi[i] = Dg*tls.hp1⁻¹[i] end
+    @inbounds for μ ∈ eachindex(ωs)
+        Dg = tls.D₀*γ(tls,ωs[μ])
+        @fastmath @inbounds @simd for i ∈ eachindex(tls.chi) tls.chis[i,μ] = Dg*tls.hp1⁻¹[i] end
+    end
+    @inbounds for ν ∈ eachindex(ωs) # derivative wrt ν
+        Gν = Γ(tls,ωs[ν])
+        ων = ωs[ν]
+        @inbounds for μ ∈ eachindex(ωs) # field μ
+            Dgμ = tls.D₀*γ(tls,ωs[μ])
+            Dgμ² = tls.D₀*γ(tls,ωs[μ])^2
+            Dgμ2Gν = Dgμ*2Gν
+            Dgμ2Gν² = Dgμ2Gν*Gν
+            @inbounds @simd ivdep for i ∈ eachindex(tls.chi)
+                k = mod1(i,length(tls.chi))
+                hp1⁻² = tls.hp1⁻¹[i]^2
+                tls.dχdψr[i,μ,ν], tls.dχdψi[i,μ,ν] = -Dgμ2Gν*hp1⁻².*reim(ψs[i,ν])
+                tls.dχdω[i,μ,ν] = -(μ==ν)*Dgμ²*tls.hp1⁻¹[i]/tls.γp +
+                    Dgμ2Gν²*hp1⁻²*(ων-tls.ωa)*abs2(ψs[k,ν])/gp²
+                tls.dχdϕ[i,μ,ν] = -Dgμ2Gν*hp1⁻²*abs2(ψs[k,ν])/real(ψs[index,ν])
+            end
+        end
+    end
+    return nothing
+end
 @inline function χ!(tls::TwoLevelSystem,ω,ωs::Vector,ψs::ElectricField)
     index = size(ψs,1)÷2+INDEX_OFFSET
     H!(tls,ωs,ψs)

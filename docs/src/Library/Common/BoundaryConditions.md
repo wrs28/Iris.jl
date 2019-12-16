@@ -1,21 +1,21 @@
 # BoundaryConditions
 
 Exported methods:
-  * [`getside`](@ref Common.BoundaryConditions.getside)
-  * [`noBC`](@ref)
-  * [`DirichletBC`](@ref)
-  * [`NeumannBC`](@ref)
-  * [`FloquetBC`](@ref)
-  * [`MatchedBC`](@ref)
   * [`AbstractBC`](@ref Common.BoundaryConditions.AbstractBC)
-  * [`AbstractRealBC`](@ref Common.BoundaryConditions.AbstractRealBC)
   * [`AbstractComplexBC`](@ref Common.BoundaryConditions.AbstractComplexBC)
-  * [`LocalBC`](@ref Common.BoundaryConditions.LocalBC)
-  * [`NonLocalBC`](@ref Common.BoundaryConditions.NonLocalBC)
-  * [`BCLocality`](@ref Common.BoundaryConditions.BCLocality)
+  * [`AbstractRealBC`](@ref Common.BoundaryConditions.AbstractRealBC)
   * [`BCHermiticity`](@ref)
+  * [`BCLocality`](@ref Common.BoundaryConditions.BCLocality)
+  * [`DirichletBC`](@ref)
+  * [`FloquetBC`](@ref)
+  * [`getside`](@ref Common.BoundaryConditions.getside)
   * [`HermitianBC`](@ref)
+  * [`LocalBC`](@ref Common.BoundaryConditions.LocalBC)
+  * [`MatchedBC`](@ref)
+  * [`NeumannBC`](@ref)
+  * [`noBC`](@ref)
   * [`NonHermitianBC`](@ref)
+  * [`NonLocalBC`](@ref Common.BoundaryConditions.NonLocalBC)
 
 ---
 

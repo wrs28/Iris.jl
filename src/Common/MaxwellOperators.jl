@@ -15,7 +15,7 @@ import ..PRINTED_COLOR_DARK
 import ..PRINTED_COLOR_VARIABLE
 import ..PRINTED_COLOR_INSTRUCTION
 
-using ..ElectricFields
+using ..VectorFields
 using ..Simulations
 using ..Dispersions
 using LinearAlgebra

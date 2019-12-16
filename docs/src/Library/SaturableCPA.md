@@ -1,4 +1,4 @@
-# SaturableCPA
+# [Saturable CPA](@id saturablecpa_header)
 
 
 ```@docs

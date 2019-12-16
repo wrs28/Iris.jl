@@ -1,5 +1,5 @@
 """
-	module Boundaries
+For defining boundary conditions, used in building LatticeDomains.
 """
 module Boundaries
 
@@ -16,7 +16,6 @@ using ..BoundaryLayers
 using ..Shapes
 using TupleTools
 
-import ..PRINTED_COLOR_DARK
 import ..BL_DEPTH
 import ..DEFAULT_BC
 import ..DEFAULT_BL
@@ -31,7 +30,7 @@ const DEFAULT_BL_DEPTH = BL_DEPTH
 	Boundary{N}
 
 `N`-dimensional boundary
-Field: `shape`, `bcs`, `bls`
+Fields: `shape`, `bcs`, `bls`
 """
 struct Boundary{N,TS,TBC,TBL}
     shape::TS
@@ -61,13 +60,13 @@ foreach(include,files)
 
 `boundary_conditions` can be given as a tuple, individual conditions (such as
 `DirichletBC{2}()` for Dirichlet on side 2), or a type to be applied to all sides,
-such as `NeumannBC`. Any side left otherwise unspecified is assumed to be `noBC`.
-The boundary condition types are `DirichletBC`, `NeumannBC`, `MatchedBC`, `FloquetBC`,
-`noBC` (the default).
+such as [`NeumannBC`](@ref). Any side left otherwise unspecified is assumed to be `$DEFAULT_BCS`.
+The boundary condition types are [`DirichletBC`](@ref), [`NeumannBC`](@ref), [`MatchedBC`](@ref), [`FloquetBC`](@ref),
+`noBC`.
 
 `boundary_layers` is specified similarly to `boundary_conditions`. The types are
-`PML`, `cPML`, `noBL` (the default). The optional argument `depth` sets the depth
-of any unspecified layer.
+[`PML`](@ref), [`cPML`](@ref), [`noBL`](@ref) (defaults to [`$DEFAULT_BLS`](@ref)). The optional argument `depth` sets the depth
+of any unspecified layer (defaults to `$DEFAULT_BL_DEPTH`).
 
 No default `shape` is assumed.
 
@@ -139,6 +138,10 @@ _getbls(sh::AbstractShape,::Type{BL},args...) where BL<:AbstractBL = ntuple(i->B
 _getbls(sh::AbstractShape,arg,args...) = _getbls(sh,args...)
 _getbls(sh::AbstractShape) = ()
 
+################################################################################
+# PRETTY PRINTING
+
+import ..PRINTED_COLOR_DARK
 
 function Base.show(io::IO,bnd::Boundary)
 	get(io,:tabbed2,false) ? print(io,"\t\t") : nothing

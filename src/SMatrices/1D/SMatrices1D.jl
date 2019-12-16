@@ -1,7 +1,4 @@
 #TODO: Fix SMatrix for nonnormal incidence
-"""
-    smatrix(::Simulation{1}, ω; [ky=0, kz=0, lupack=$DEFAULT_LUPACK]) -> S
-"""
 function smatrix(sim::Simulation{1},
             ω::AbstractVector;
             ky::Real=0,
@@ -14,12 +11,17 @@ function smatrix(sim::Simulation{1},
 end
 
 function SMatrixContainer(sim::Simulation{1},ω,lupack,ky,kz)
-    N = sum(which_channels(sim))
+    N = sum(_which_channels(sim))
     N>0 || throw("no scattering for closed system")
     return SMatrixContainer{N,typeof(sim),typeof(ω),typeof(lupack)}(sim,ω,lupack,ky,kz)
 end
 
-function which_channels(sim::Simulation{1})
+"""
+    _which_channels(simulation)
+
+Boolean vector indicating which channels are available for scattering.
+"""
+function _which_channels(sim::Simulation{1})
     bc1,bc2 = sim.boundary.bcs
     bl1,bl2 = sim.boundary.bls
     bch1, bch2 = BCHermiticity(bc1), BCHermiticity(bc2)
@@ -36,7 +38,7 @@ end
 # One-sided, one-dimensional s-matrix core
 @inline function dimensional_smatrix!(S::SharedArray, spc::SMatrixContainer{1,TSIM}, indices) where TSIM<:Simulation{1}
     ls = MaxwellLS(spc.sim, mean(spc.ω[indices]), 1, 0)
-    a = which_channels(spc.sim)
+    a = _which_channels(spc.sim)
 
     # @fastmath @inbounds @simd
     for i ∈ indices
@@ -58,7 +60,7 @@ end
 # Two-sided, one-dimensional smatrix core
 @inline function dimensional_smatrix!(S::SharedArray, spc::SMatrixContainer{2,TSIM}, indices) where TSIM<:Simulation{1}
     ls = MaxwellLS(spc.sim, mean(spc.ω[indices]), 1, 0)
-    a = which_channels(spc.sim)
+    a = _which_channels(spc.sim)
 
     # @fastmath @inbounds @simd
     for i ∈ indices

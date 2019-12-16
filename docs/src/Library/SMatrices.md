@@ -1,5 +1,5 @@
-# SMatrices
+# [Scattering Matrices](@id smatrices_header)
 
-```@docs
-SMatrices
+```@autodocs
+Modules = [SMatrices]
 ```

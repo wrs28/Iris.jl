@@ -2,22 +2,22 @@
 Essential tools used throughout Iris.
 
 Submodules:
-  * [`Points`](@ref)
-  * [`ElectricFields`](@ref)
-  * [`Shapes`](@ref)
+  * [`Boundaries`](@ref)
   * [`BoundaryLayers`](@ref)
   * [`BoundaryConditions`](@ref)
-  * [`Boundaries`](@ref)
-  * [`DielectricFunctions`](@ref)
-  * [`PumpFunctions`](@ref)
-  * [`Dispersions`](@ref)
-  * [`Lattices`](@ref)
-  * [`Domains`](@ref)
   * [`Curlcurls`](@ref)
-  * [`SelfEnergies`](@ref)
-  * [`Simulations`](@ref)
+  * [`DielectricFunctions`](@ref)
+  * [`Dispersions`](@ref)
+  * [`Domains`](@ref)
+  * [`ElectricFields`](@ref)
+  * [`Lattices`](@ref)
   * [`LU_Factorizations`](@ref)
   * [`Plotting`](@ref)
+  * [`Points`](@ref)
+  * [`PumpFunctions`](@ref)
+  * [`SelfEnergies`](@ref)
+  * [`Shapes`](@ref)
+  * [`Simulations`](@ref)
 """
 module Common
 
@@ -33,15 +33,23 @@ include("../Defaults.jl")
 include("Points.jl")
 using .Points
 export Point
+export Cartesian
+export Polar
+export Spherical
 
-include("ElectricFields.jl")
-using .ElectricFields
+include("VectorFields.jl")
+using .VectorFields
+export ScalarField
 export ElectricField
+export VectorField
 
 include("Shapes.jl")
 using .Shapes
 export AbstractShape
 export Interval
+export Circle
+export Square
+export Rectangle
 
 include("BoundaryLayers.jl")
 using .BoundaryLayers
@@ -81,56 +89,65 @@ include("Lattices.jl")
 using .Lattices
 export Lattices
 export Lattice
+export latticeindex
 
-include("Domains.jl")
-using .Domains
-export LatticeDomain
-export NondispersiveDomain
-export DispersiveDomain
-# export Cavity
-# export Resonator
-# export Void
-# export Dielectric
-# export Waveguide
-# export Lead
+# include("Domains.jl")
+# using .Domains
+# export LatticeDomain
+# export NondispersiveDomain
+# export DispersiveDomain
+# # export Cavity
+# # export Resonator
+# # export Void
+# # export Dielectric
+# # export Waveguide
+# # export Lead
 
-include("Curlcurls.jl")
-using .Curlcurls
-export Curlcurl
-#
-# include("Curls.jl")
-# using .Curls
-# export Curl
+# include("Laplacians.jl")
+# using .Laplacians
+# export Laplacian
 
-include("SelfEnergies.jl")
-using .SelfEnergies
+# include("Curlcurls.jl")
+# using .Curlcurls
+# export Curlcurl
 
-include("Simulations.jl")
-using .Simulations
-export Simulation
-export smooth!
-export update!
-export update_dielectric!
-export update_pump!
-export Unsymmetric
-export Symmetric
-export Hermitian
+# # include("Curls.jl")
+# # using .Curls
+# # export Curl
 
-include("MaxwellOperators.jl")
-using .MaxwellOperators
-export Maxwell
+# include("SelfEnergies.jl")
+# using .SelfEnergies
 
-include("LU_Factorizations.jl")
-using .LU_Factorizations
-export DEFAULT_LUPACK
-export MSolver
-export PSolver
-export USolver
-export AbstractLUPACK
+# include("Simulations.jl")
+# using .Simulations
+# export Simulation
+# export smooth!
+# export update!
+# export update_dielectric!
+# export update_pump!
+# export Unsymmetric
+# export Symmetric
+# export Hermitian
 
-include("Plotting.jl")
-using .Plotting
+# include("HelmholtzOperators.jl")
+# using .HelmholtzOperators
+# export Helmholtz
 
-foreach(include,dimensional_files)
+# include("MaxwellOperators.jl")
+# using .MaxwellOperators
+# export Maxwell
+
+# include("LU_Factorizations.jl")
+# using .LU_Factorizations
+# export DEFAULT_LUPACK
+# export MSolver
+# export PSolver
+# export USolver
+# export AbstractLUPACK
+
+# include("Plotting.jl")
+# using .Plotting
+
+# foreach(include,dimensional_files)
 
 end # module

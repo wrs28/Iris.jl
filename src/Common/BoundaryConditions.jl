@@ -1,17 +1,17 @@
 """
-for constructing boundary conditions
+for constructing boundary conditions used in the definition of a Boundary
 """
 module BoundaryConditions
 
+export AbstractBC
+export AbstractComplexBC
+export AbstractRealBC
 export getside
 export noBC
 export DirichletBC
 export NeumannBC
 export FloquetBC
 export MatchedBC
-export AbstractBC
-export AbstractRealBC
-export AbstractComplexBC
 export LocalBC
 export NonLocalBC
 export BCLocality

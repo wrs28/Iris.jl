@@ -1,117 +1,117 @@
 """
-    module Lattice
-
 for defining discrete Cartesian and Polar lattice grids used in Iris.
 """
 module Lattices
 
 export Lattice
+export Bravais
 export latticeindex
 
 files = (
     "1D/Lattices1D.jl",
-    # "2D/Lattices2D.jl",
+    "2D/Lattices2D.jl",
     # "3D/Lattices3D.jl"
 )
 
-import ..PRINTED_COLOR_NUMBER
-import ..PRINTED_COLOR_WARN
-import ..PRINTED_COLOR_DARK
 using ..Points
 using Formatting
+using LinearAlgebra
+using RecipesBase
 using StaticArrays
+using Statistics
 
-struct Lattice{N,M,P}
-    constants::NTuple{N,Float64}
-    e::NTuple{N,Point{N}}
-    type::Symbol
-    origin::Point{N}
-    angles::SVector{M,Float64}
-    r0::Float64 # radius of first lattice point for Polar/Spherical
-    R::SMatrix{N,N,Float64,P}
+import ..Points.Cartesian
+import ..Points.Polar
+import ..Points.Spherical
+AbstractLatticeType = Points.AbstractCoordinateType
+struct Bravais <: AbstractLatticeType end
 
-    function Lattice(constants::NTuple{N,Float64},
-                type::Symbol,
-                origin::Point{N},
-                angles::SVector{M,Float64},
-                r0::Float64) where {N,M}
+struct Lattice{N,TYPE,CE,CO}
+    constants::NTuple{N,Float64} # lattice spacings
+    e::NTuple{N,Point{N,CE}} # unit vectors
+    origin::Point{N,CO}
+
+    function Lattice(::TYPE,
+                primitives::NTuple{N,Point{N,CE}},
+                origin::Point{N,CO},
+                ) where {N,CE,CO} where TYPE<:AbstractLatticeType
 
         1≤N≤3 || throw(ErrorException("lattice only defined for dimensions ≤ 3, d=$N"))
-        M==(N-1)N÷2 || throw(ErrorException("incorrect number of angles for dimension, should be $((N-1)N÷2), but is $M"))
-        e,R = lattice_primitives(angles...,constants)
-        return new{N,M,N*N}(constants,e,type,origin,angles,r0,R)
+        if TYPE<:Polar
+            2≤N≤3 || throw(ErrorException("lattice type $TYPE not consistent with dimension $N, which must be ≥2"))
+        end
+        if TYPE<:Spherical
+            3≤N≤3 || throw(ErrorException("lattice type $TYPE not consistent with dimension $N, which must be 3"))
+        end
+        constants = _lattice_constants(primitives)
+        vectors = _lattice_vectors(primitives)
+        return new{N,TYPE,CE,CO}(constants, vectors, origin)
     end
 end
-Lattice(dx::Tuple; kwargs...) = Lattice(dx...; kwargs...)
-Lattice(dx...; kwargs...) = Lattice(float.(dx); kwargs...)
-function Lattice(constants::NTuple{N,Float64};
-            type::Symbol = :Cartesian,
+
+_lattice_constants(primitives::Tuple) = map(p->norm(p),primitives)
+_lattice_vectors(primitives::Tuple) = map(p->p/norm(p),primitives)
+
+"""
+    Bravais(primitives...; [origin]) -> bravaislattice
+"""
+Bravais(args...; kwargs...) = Lattice(Bravais(), args...; kwargs...)
+
+"""
+    Cartesian(dx,...; kwargs) -> clat
+
+    Cartesian((dx,...); kwargs...) -> clat
+"""
+Cartesian(args...; kwargs...) = Lattice(Cartesian(), args...; kwargs...)
+
+"""
+    Polar(dx,...; [origin]) -> polarlat
+"""
+Polar(args...; kwargs...) = Lattice(Polar(),args...; kwargs...)
+
+"""
+    Spherical(dx,...; [origin]) -> sphlat
+"""
+Spherical(dx...; kwargs...) = Lattice(Spherical(), dx...; kwargs...)
+
+Lattice(t,dx::Tuple; kwargs...) = Lattice(t,dx...; kwargs...)
+Lattice(t,dx::Number,dy...; kwargs...) = Lattice(t,(float(dx),float.(dy)...); kwargs...)
+
+"""
+    Lattice(::Bravais, primitives...; [origin]) -> bravaislattice
+"""
+Lattice(::Bravais, primitive::Point,primitives...; kwargs... ) = Lattice(Bravais(),(primitive,primitives...);kwargs...)
+function Lattice(::Bravais,
+            primitives::NTuple{N,Point};
             origin = Point(ntuple(i->0.0,N)),
-            angles = SVector{(N-1)N÷2,Float64}(ntuple(i->0.0,(N-1)N÷2)),
-            r0::Real = constants[1]/2
+            ) where N
+    constants = _lattice_constants(primitives)
+    return Lattice(Bravais(), Cartesian.(primitives), _lattice_origin(origin,constants))
+end
+"""
+    Lattice(::Union{Cartesian,Polar,Spherical}, dx...; [origin]) -> lattice
+"""
+function Lattice(type::Union{Cartesian,Polar,Spherical},
+            constants::NTuple{N,Float64};
+            origin = Point(ntuple(i->0.0,N)),
+            angles = zeros(Float64,(N-1)N÷2),#SVector{M,Float64}(ntuple(i->0.0,(N-1)N÷2)),
             ) where N
 
-    type = _lattice_type(type)
-    origin = _lattice_origin(origin,constants)
-    n = length(origin)
-    (n-1)n÷2 == length(angles) || throw(ErrorException("incorrect number of angles for dimension, should be $((n-1)n÷2), but is $(length(angles))"))
-    angles = _lattice_angles(angles,constants)
-    return Lattice(constants,type,Point(origin),angles,r0)
+    M = length(angles)
+    M==(N-1)N÷2 || throw(ErrorException("incorrect number of angles for dimension, should be $((N-1)N÷2), but is $M"))
+    return Lattice(type, _lattice_primitives(type,angles,constants), _lattice_origin(origin,constants))
 end
 
-function _lattice_type(type::Symbol)
-    if Base.sym_in(type,(:r,:R,:rectangular, :Rectangular, :rect, :Rect, :rectilinear, :Rectilinear, :cart, :Cart, :cartesian, :Cartesian))
-        return :Cartesian
-    elseif Base.sym_in(type,(:p,:P,:polar, :Polar, :cyl, :Cyl, :cylindrical, :Cylindrical,:pol,:Pol))
-        return :Polar
-    elseif Base.sym_in(type,(:s,:S,:spherical, :Spherical, :sph, :Sph))
-        return :Spherical
-    else
-        throw("unrecognized coordinate type $type")
-    end
-end
-_lattice_origin(origin,constants::NTuple{N}) where N = Point(origin)
-_lattice_angles(angles,constants::NTuple{N}) where N = SVector{(N-1)N÷2,Float64}(angles)
+
+_lattice_origin(origin::Point{N},constants::NTuple{N}) where N = origin
+_lattice_origin(origin,constants::NTuple{N}) where N = Point(origin...)
+
 
 foreach(include,files)
-
-function Base.getproperty(lat::Lattice,sym::Symbol)
-    if sym == :dx
-        return getfield(lat,:constants)[1]
-    elseif sym == :dy
-        return getfield(lat,:constants)[2]
-    elseif sym == :dz
-        return getfield(lat,:constants)[3]
-    elseif sym == :dr
-        return getfield(lat,:constants)[1]
-    elseif sym == :x0
-        return getfield(lat,:origin)[1]
-    elseif sym == :y0
-        return getfield(lat,:origin)[2]
-    elseif sym == :z0
-        return getfield(lat,:origin)[3]
-    elseif sym == :e1
-        return getfield(lat,:e)[1]
-    elseif sym == :e2
-        return getfield(lat,:e)[2]
-    elseif sym == :e3
-        return getfield(lat,:e)[3]
-    elseif Base.sym_in(sym,(:dϕ,:dφ,:dphi))
-        return getfield(lat,:constants)[2]
-    elseif Base.sym_in(sym,(:dθ,:dϑ,:dtheta))
-        return getfield(lat,:constants)[3]
-    elseif Base.sym_in(sym,(:ϕ,:φ,:phi))
-        return getfield(lat,:angles)[1]
-    elseif Base.sym_in(sym,(:θ,:ϑ,:theta))
-        return getfield(lat,:angles)[1]
-    else
-        return getfield(lat,sym)
-    end
-end
 
 """
     latticeindex(lattice, point) -> ind::Float64
 """
-latticeindex(lat::Lattice,x...) = latticeindex(lat,Point(x...))
+latticeindex(lat::Lattice,x::Real,y...) = latticeindex(lat,Point(x,y...))
 
 end # module

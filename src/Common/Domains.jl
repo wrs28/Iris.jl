@@ -31,25 +31,10 @@ import ..PRINTED_COLOR_DARK
 abstract type AbstractDomain{N} end
 
 """
+    LatticeDomain(::[`Boundary`](@ref), ::[`Lattice`](@ref), [n=1; type=:generic, name=:anonymous, fit=true) -> domain
 
-    LatticeDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
-    LatticeDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
-
-combines `boundary` with `lattice` (in either order) to generate a list of sites.
-`T` just labels the kinds of domain (e.g. Cavity, or Waveguide)
-each site is labeled by being in the interior, or containing the interior (`domain.surface`),
-or being a corner.
-
-----------------------
-    (::LatticeDomain)(args...; align=false) -> dom
-
-construct a new domain with modified parameters in `args`
-This is for "updating" non-geometric fields of the immutable `domain`.
-For example, to change the polarity of the boundary layers, do
-    `new_dom = old_dom(conj(old_dom.boundary))`
-
-For geometric parameters it recomputes the whole domain, so this command is no
-more efficient than explicitly constructing a new domain. It might save some typing, however.
+combines `boundary` with `lattice` (in either order) to generate a lattice domain.
+Symbol `type` labels the kinds of domain (e.g. :Cavity, or :Waveguide).
 """
 struct LatticeDomain{N,TBND,TLAT} <: AbstractDomain{N}
     boundary::TBND
@@ -67,10 +52,20 @@ struct LatticeDomain{N,TBND,TLAT} <: AbstractDomain{N}
     nnm::NTuple{N,Vector{Int}}
     nnp::NTuple{N,Vector{Int}}
 
-    function LatticeDomain(boundary::TBND, lattice::TLAT, n::Number, type::Symbol,
-        name::Symbol, x::Vector{Point{N}}, indices::Vector{CartesianIndex{N}},
-        interior::BitArray{1}, bulk::BitArray{1}, surface::BitArray{1}, corner::BitArray{1},
-        nnm::NTuple{N,Vector{Int}}, nnp::NTuple{N,Vector{Int}}
+    function LatticeDomain(
+        boundary::TBND,
+        lattice::TLAT,
+        n::Number,
+        type::Symbol,
+        name::Symbol,
+        x::Vector{Point{N}},
+        indices::Vector{CartesianIndex{N}},
+        interior::BitArray{1},
+        bulk::BitArray{1},
+        surface::BitArray{1},
+        corner::BitArray{1},
+        nnm::NTuple{N,Vector{Int}},
+        nnp::NTuple{N,Vector{Int}}
         ) where {TBND<:Boundary{N},TLAT<:Lattice{N}} where N
 
         new{N,TBND,TLAT}(boundary,lattice,n,n^2,type,name,x,indices,interior,bulk,surface,corner,nnm,nnp)
@@ -96,26 +91,13 @@ function Base.propertynames(::LatticeDomain, private=false)
 end
 
 """
-    struct NondispersiveDomain
+    NondispersiveDomain(shape, [dielectric, type, name]) -> domain
 
-    NondispersiveDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
-    NondispersiveDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
+    NondispersiveDomain(shape, n, [type, name]) -> domain
 
-combines `boundary` with `lattice` (in either order) to generate a list of sites.
-`T` just labels the kinds of domain (e.g. Cavity, or Waveguide)
-each site is labeled by being in the interior, or containing the interior (`domain.surface`),
-or being a corner.
+    NondispersiveDomain(shape, n1, n2, [type, name]) -> domain
 
-----------------------
-    (::NondispersiveDomain)(args...; align=false) -> dom
-
-construct a new domain with modified parameters in `args`
-This is for "updating" non-geometric fields of the immutable `domain`.
-For example, to change the polarity of the boundary layers, do
-    `new_dom = old_dom(conj(old_dom.boundary))`
-
-For geometric parameters it recomputes the whole domain, so this command is no
-more efficient than explicitly constructing a new domain. It might save some typing, however.
+`dielectric<:`[`AbstractDielectricFunction`](@ref)
 """
 struct NondispersiveDomain{N,TSH,TDF} <: AbstractDomain{N}
     shape::TSH

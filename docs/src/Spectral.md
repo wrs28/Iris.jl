@@ -1,1 +1,1 @@
-# Spectral
+# [Spectral](@id spectral_manual)

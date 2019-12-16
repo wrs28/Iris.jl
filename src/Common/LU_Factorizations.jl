@@ -1,3 +1,6 @@
+"""
+Utility for performing LU factorizations with UMFPACK, Pardiso, or MUMPS
+"""
 module LU_Factorizations
 
 export LUfact
@@ -17,6 +20,29 @@ using SparseArrays
 
 import ..LUPACK
 @eval const DEFAULT_LUPACK = $(LUPACK)()
+"""
+    DEFAULT_LUPACK = $DEFAULT_LUPACK
+"""
+DEFAULT_LUPACK
+
+"""
+    MSolver
+"""
+MSolver
+
+"""
+    PSolver
+"""
+PSolver
+
+"""
+    USolver
+"""
+USolver
+
+"""
+    AbstractLUPACK
+"""
 AbstractLUPACK = AbstractSolver
 
 # colors for pretty printing

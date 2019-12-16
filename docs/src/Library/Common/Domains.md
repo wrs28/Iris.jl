@@ -1,8 +1,4 @@
-# Domains
-
-```@docs
-Common.Domains
-```
+# Domains1
 
 ```@autodocs
 Modules = [Common.Domains]

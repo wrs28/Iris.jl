@@ -1,5 +1,5 @@
-# Floquet
+# [Floquet](@id floquet_header)
 
-```@docs
-Floquet
+```@autodocs
+Modules = [Floquet]
 ```
