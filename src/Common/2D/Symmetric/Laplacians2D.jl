@@ -31,7 +31,7 @@ function Laplacian(
 	rowsp = 1:Ny-1	; colsp = 2:Ny	; valsp = α_halfy⁻¹[colsp]
 	∂ᵤα⁻¹∂ᵤ = sparse(vcat(rowsm,rows0,rowsp),vcat(colsm,cols0,colsp),vcat(valsm,vals0,valsp)/lattice.dy^2,N,N)
 
-	return Laplacian{2}(kron(sparse(I,Ny,Ny),∂ₓα⁻¹∂ₓ)+kron(∂ᵤα⁻¹∂ᵤ,sparse(I,Nx,Nx)))
+	return Laplacian{2,Symmetric}(kron(sparse(I,Ny,Ny),∂ₓα⁻¹∂ₓ)+kron(∂ᵤα⁻¹∂ᵤ,sparse(I,Nx,Nx)))
 end
 
 ################################################################################

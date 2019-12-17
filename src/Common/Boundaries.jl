@@ -7,13 +7,14 @@ export Boundary
 
 files = (
 	"1D/Boundaries1D.jl",
-	# "2D/Boundaries2D.jl",
+	"2D/Boundaries2D.jl",
 	# "3D/Boundaries3D.jl"
 	)
 
 using ..BoundaryConditions
 using ..BoundaryLayers
 using ..Shapes
+using RecipesBase
 using TupleTools
 
 import ..BL_DEPTH
@@ -52,6 +53,8 @@ struct Boundary{N,TS,TBC,TBL}
 	    return new{NDIMS,typeof(shape),typeof(bcs_sorted),typeof(bls_sorted)}(shape,bcs_sorted,bls_sorted)
     end
 end
+
+_bls_by_shape(bls::AbstractBL,shape::AbstractShape) = bls
 
 foreach(include,files)
 
@@ -155,15 +158,5 @@ function Base.show(io::IO,bnd::Boundary)
 		print(IOContext(io,:compact=>true),"\t", bnd.bcs[i],"  &  ",bnd.bls[i])
 	end
 end
-
-
-# """
-	# conj(::Boundary) -> bnd
-#
-# Make a new `Boundary` object with conjugated boundary layers.
-# """
-# Base.conj(bnd::Boundary) = Boundary(bnd.shape,conj.(bnd.bcs),conj.(bnd.bls))
-
-_bls_by_shape(bls,shape::AbstractShape) = bls
 
 end # module

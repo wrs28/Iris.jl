@@ -15,7 +15,8 @@ using ..Lattices
 using LinearAlgebra
 using SparseArrays
 
-struct Laplacian{N} l0::SparseMatrixCSC{ComplexF64,Int} end
+
+struct Laplacian{N,CLASS} l0::SparseMatrixCSC{ComplexF64,Int} end
 
 foreach(include,files)
 
@@ -23,7 +24,7 @@ function Base.conj!(lap::Laplacian{N}) where N
     conj!(lap.l0)
     return lap
 end
-Base.conj(lap::Laplacian{N}) where N = Laplacian{N}(conj(lap.l0))
+Base.conj(lap::Laplacian{N,CLASS}) where {N,CLASS} = Laplacian{N,CLASS}(conj(lap.l0))
 
 ################################################################################
 # PRETTY PRINTING
@@ -31,8 +32,8 @@ Base.conj(lap::Laplacian{N}) where N = Laplacian{N}(conj(lap.l0))
 import ..PRINTED_COLOR_DARK
 import ..PRINTED_COLOR_VARIABLE
 
-function Base.show(io::IO,::Laplacian{N}) where N
-    print(io,"$(N)D ")
+function Base.show(io::IO,::Laplacian{N,CLASS}) where {N,CLASS}
+    print(io,"$(N)D $CLASS ")
     printstyled(io,"Laplacian",color=PRINTED_COLOR_DARK)
 end
 

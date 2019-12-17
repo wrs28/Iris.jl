@@ -14,7 +14,7 @@ function Laplacian(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_hal
 	rowsm = 2:N; colsm = 1:N-1; valsm = α_half⁻¹[1 .+ colsm]
 	rowsp = 1:N-1; colsp = 2:N; valsp = α_half⁻¹[colsp]
 	∂ₓα⁻¹∂ₓ = sparse(vcat(rowsm,rows0,rowsp),vcat(colsm,cols0,colsp),vcat(valsm,vals0,valsp)/lattice.dx^2,N,N)
-	return Laplacian{1}(∂ₓα⁻¹∂ₓ)
+	return Laplacian{1,Symmetric}(∂ₓα⁻¹∂ₓ)
 end
 
 ################################################################################

@@ -24,7 +24,11 @@ function latticeindex(lat::Lattice{2,C}, p::Point{2}) where C<:Union{Bravais,Car
     x = lat.e1[1]*lat.e2[1] + lat.e1[2]*lat.e2[2]
     u1 = (lat.e1 - x*lat.e2)/(1-x^2)
     u2 = (lat.e2 - x*lat.e1)/(1-x^2)
-    return (u1[1]*p.x+u1[2]*p.y)/lat.a, (u2[1]*p.x+u2[2]*p.y)/lat.b
+    if C<:Bravais
+        return (u1[1]*p.x+u1[2]*p.y)/lat.a, (u2[1]*p.x+u2[2]*p.y)/lat.b
+    else
+        return (u1[1]*p.x+u1[2]*p.y)/lat.dx, (u2[1]*p.x+u2[2]*p.y)/lat.dy
+    end
 end
 
 function latticeindex(lat::Lattice{2,Polar}, p::Point{2})

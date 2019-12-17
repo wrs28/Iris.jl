@@ -85,6 +85,8 @@ function Spherical(p::Point{N,C}) where {N,C}
 	end
 end
 
+Base.convert(::Type{Point{N,C}}, p::Point) where {N,C} = C(p)
+
 Base.:*(p::Point,a::Number) = *(a,p)
 Base.:*(a::Number,p::Point{N,Cartesian}) where N = Point{Cartesian}(a*p.vector)
 Base.:*(a::Number,p::Point{N,Polar}) where N = Point{Polar}((a*p.vec[1],Base.tail(p.vector.data)...))

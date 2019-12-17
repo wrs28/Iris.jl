@@ -91,17 +91,13 @@ export Lattices
 export Lattice
 export latticeindex
 
-# include("Domains.jl")
-# using .Domains
-# export LatticeDomain
-# export NondispersiveDomain
-# export DispersiveDomain
-# # export Cavity
-# # export Resonator
-# # export Void
-# # export Dielectric
-# # export Waveguide
-# # export Lead
+include("Domains.jl")
+using .Domains
+export LatticeDomain
+export NondispersiveDomain
+export DispersiveDomain
+export Symmetric
+export Unsymmetric
 
 # include("Laplacians.jl")
 # using .Laplacians

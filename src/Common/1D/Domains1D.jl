@@ -30,9 +30,18 @@ function LatticeDomain(
     nnm = (vcat(0,1:length(x)-1),)
     nnp = (vcat(2:length(x),0),)
 
-    return LatticeDomain(boundary, lat, n, type, name, x, indices, interior,
+    return LatticeDomain{Symmetric}(boundary, lat, n, type, name, x, indices, interior,
                             bulk, surface, corner, nnm, nnp)
 end
 
 LatticeDomain(lattice::Lattice{1}, boundary::Boundary{1}, args...; kwargs...) =
     Lattice(boundary, lattice, args...; kwargs...)
+
+
+function Base.propertynames(::LatticeDomain{1}, private=false)
+    if private
+        return fieldnames(LatticeDomain)
+    else
+        return (:boundary, :lattice, :shape, :n, :ε, :type, :name, :x)
+    end
+end

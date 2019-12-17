@@ -18,9 +18,6 @@ files = (
 export AbstractShape
 export nsides
 
-import ..PRINTED_COLOR_NUMBER
-import ..PRINTED_COLOR_DARK
-
 using ..Points
 
 """

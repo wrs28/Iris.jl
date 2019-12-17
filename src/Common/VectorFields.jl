@@ -22,17 +22,17 @@ using Interpolations
 
 `N`is the dimension, `M` is the number of field components
 """
-struct VectorField{N,M,TP} <: AbstractMatrix{ComplexF64} # N = Dimension, M = number of field components, C = coordinate type
-    positions::Vector{TP}
+struct VectorField{N,M} <: AbstractMatrix{ComplexF64} # N = Dimension, M = number of field components, C = coordinate type
+    positions::Vector{Point{N,Cartesian}}
     values::Matrix{ComplexF64}
-    start::TP
-    stop::TP
+    start::Point{N,Cartesian}
+    stop::Point{N,Cartesian}
     start_inds::Vector{Int}
     stop_inds::Vector{Int}
 
     function VectorField{M}(pos::Vector{Point{N}}, val::AbstractMatrix, start::Point{N}, stop::Point{N}, start_inds::Vector, stop_inds::Vector) where {N,M}
         size(val,1)==M*length(pos) || throw("provided matrix has size(matrix,1)=$(size(val,1))≠$M*length(pos)=$(M*length(pos))")
-        return new{N,M,eltype(pos)}(pos,val,start,stop,start_inds,stop_inds)
+        return new{N,M}(Cartesian.(pos),val,Cartesian(start),Cartesian(stop),start_inds,stop_inds)
     end
 end
 

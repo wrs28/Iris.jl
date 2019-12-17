@@ -26,14 +26,14 @@ import ..Points.Spherical
 AbstractLatticeType = Points.AbstractCoordinateType
 struct Bravais <: AbstractLatticeType end
 
-struct Lattice{N,TYPE,CE,CO}
+struct Lattice{N,TYPE}
     constants::NTuple{N,Float64} # lattice spacings
-    e::NTuple{N,Point{N,CE}} # unit vectors
-    origin::Point{N,CO}
+    e::NTuple{N,Point{N,Cartesian}} # unit vectors
+    origin::Point{N,Cartesian}
 
     function Lattice(::TYPE,
-                primitives::NTuple{N,Point{N,CE}},
-                origin::Point{N,CO},
+                primitives::NTuple{N,Point{N}},
+                origin::Point{N},
                 ) where {N,CE,CO} where TYPE<:AbstractLatticeType
 
         1≤N≤3 || throw(ErrorException("lattice only defined for dimensions ≤ 3, d=$N"))
@@ -45,7 +45,7 @@ struct Lattice{N,TYPE,CE,CO}
         end
         constants = _lattice_constants(primitives)
         vectors = _lattice_vectors(primitives)
-        return new{N,TYPE,CE,CO}(constants, vectors, origin)
+        return new{N,TYPE}(constants, vectors, origin)
     end
 end
 
@@ -74,13 +74,13 @@ Polar(args...; kwargs...) = Lattice(Polar(),args...; kwargs...)
 """
 Spherical(dx...; kwargs...) = Lattice(Spherical(), dx...; kwargs...)
 
-Lattice(t,dx::Tuple; kwargs...) = Lattice(t,dx...; kwargs...)
-Lattice(t,dx::Number,dy...; kwargs...) = Lattice(t,(float(dx),float.(dy)...); kwargs...)
+Lattice(t::AbstractLatticeType, dx::Tuple; kwargs...) = Lattice(t,dx...; kwargs...)
+Lattice(t::AbstractLatticeType, dx::Number, dy...; kwargs...) = Lattice(t,(float(dx),float.(dy)...); kwargs...)
 
 """
     Lattice(::Bravais, primitives...; [origin]) -> bravaislattice
 """
-Lattice(::Bravais, primitive::Point,primitives...; kwargs... ) = Lattice(Bravais(),(primitive,primitives...);kwargs...)
+Lattice(::Bravais, primitive::Point, primitives...; kwargs... ) = Lattice(Bravais(),(primitive, primitives...); kwargs...)
 function Lattice(::Bravais,
             primitives::NTuple{N,Point};
             origin = Point(ntuple(i->0.0,N)),

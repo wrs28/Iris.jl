@@ -1,6 +1,7 @@
 export Interval
 
 using LinearAlgebra
+using RecipesBase
 
 """
     Interval <: AbstractShape{1,2}
@@ -8,9 +9,9 @@ using LinearAlgebra
 Fields: `start`, `stop`, `origin`, `a` (length of interval)
 """
 struct Interval <: AbstractShape{1,2}
-    start::Point{1}
-    stop::Point{1}
-    origin::Point{1}
+    start::Point{1,Cartesian}
+    stop::Point{1,Cartesian}
+    origin::Point{1,Cartesian}
     a::Float64
 end
 
@@ -48,6 +49,10 @@ function generate_origin(start::Point{1},stop::Point{1},ref::Symbol)
     return origin
 end
 
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
+
 function Base.show(io::IO,i::Interval)
     printstyled(io, "Interval",color=PRINTED_COLOR_DARK)
     print(io," (")
@@ -55,4 +60,13 @@ function Base.show(io::IO,i::Interval)
     print(io,",")
     printstyled(io,i.stop,color=PRINTED_COLOR_NUMBER)
     print(io,")")
+end
+
+################################################################################
+# Plotting
+
+@recipe function f(i::Interval)
+    ylims --> (-1,1)
+    legend --> false
+    [i.start.x,i.stop.x],[0,0]
 end

@@ -3,6 +3,8 @@ export Square
 export Rectangle
 export AbstractDisk
 export AbstractQuadrilateral
+export AbstractRectangle
+export AbstractUniformDisk
 
 using Formatting
 using LinearAlgebra
@@ -11,58 +13,59 @@ using RecipesBase
 using StaticArrays
 
 abstract type AbstractDisk <: AbstractShape{2,1} end
+abstract type AbstractUniformDisk <: AbstractDisk end
 abstract type AbstractQuadrilateral <: AbstractShape{2,4} end
+abstract type AbstractRectangle <: AbstractQuadrilateral end
 
 ################################################################################
 # CIRCLE
 """
     Circle <: AbstractDisk
 
-Fields: `radius`, `origin`, `θ`, `sinθ`, `cosθ`, `corners`, `models`
+Fields: `radius`, `origin`, `ϕ`, `sinϕ`, `cosϕ`, `corners`, `models`
 """
-struct Circle <: AbstractDisk
+struct Circle <: AbstractUniformDisk
     radius::Float64
-    origin::Point{2}
-    θ::Float64
-    sinθ::Float64
-    cosθ::Float64
+    origin::Point{2,Cartesian}
+    ϕ::Float64
+    sinϕ::Float64
+    cosϕ::Float64
     corners::Tuple{}
     models::Array{Opt,1}
 
-    function Circle(radius::Real, origin::Point{2}, θ::Real)
-        snθ, csθ = sincos(θ)
-        c = new(radius,origin,θ,snθ,csθ)
+    function Circle(radius::Real, origin::Point{2}, ϕ::Real)
+        snϕ, csϕ = sincos(ϕ)
+        c = new(radius,origin,ϕ,snϕ,csϕ)
         models = build_models(c)
-        return new(radius,origin,θ,snθ,csθ,(),models)
+        return new(radius,origin,ϕ,snϕ,csϕ,(),models)
     end
 end
 
 """
-    Circle(radius, origin::Point{2}; θ=0, reference=:center) -> circle
+    Circle(radius, origin::Point{2}; ϕ=0, reference=:center) -> circle
 """
-function Circle(radius::Real, origin::Point{2}; θ::Real=0, reference::Symbol=:center)
+function Circle(radius::Real, origin::Point{2}; ϕ::Real=0, reference::Symbol=:center)
     if Base.sym_in(reference, (:bottom, :Bottom, :b, :B))
-        origin = origin + rotate( Point( 0, radius), cos(θ), sin(θ))
+        origin = origin + rotate( Point( 0, radius), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:top, :Top, :T, :t))
-        origin = origin + rotate( Point( 0,-radius), cos(θ), sin(θ))
+        origin = origin + rotate( Point( 0,-radius), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:left, :Left, :L, :l))
-        origin = origin + rotate( Point( radius, 0), cos(θ), sin(θ))
+        origin = origin + rotate( Point( radius, 0), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:right, :Right, :R, :r))
-        origin = origin + rotate( Point(-radius, 0), cos(θ), sin(θ))
+        origin = origin + rotate( Point(-radius, 0), cos(ϕ), sin(ϕ))
     end
-    return Circle(radius,origin,θ)
+    return Circle(radius,origin,ϕ)
 end
 
 """
     (::Circle)(p::Point{2}) --> is_in_circle::Bool
 """
 (c::Circle)(p::Point{2}) = norm(p-c.origin) < c.radius-eps(c.radius)
-(c::Circle)(x::Real,y::Real,z...) = c(Point(x,y,z...))
 
 """
-    Circle(radius, x0, y0; θ=0, reference=:center) -> circle
+    Circle(radius, x0, y0; ϕ=0, reference=:center) -> circle
 """
-Circle(radius::Real,x0::Real,y0::Real;kwargs...) = Circle(radius,Point(x0,y0);kwargs...)
+Circle(radius::Real, x0::Real, y0::Real; kwargs...) = Circle(radius, Point(x0,y0); kwargs...)
 
 """
     perimeter(t,shape,side) -> x,y,dx/dt,dy/dt
@@ -92,6 +95,10 @@ function Base.propertynames(::Circle,private=false)
     end
 end
 
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
+
 function Base.show(io::IO, circle::Circle)
     printstyled(io, "Circle", color=PRINTED_COLOR_DARK)
     print(io, "(radius: ")
@@ -104,63 +111,63 @@ end
 """
     Square <: AbstractQuadrilateral <: AbstractShape{2,4}
 
-Fields: `a`, `origin`, `θ`, `sinθ`, `cosθ`, `corners`, `models`
+Fields: `a`, `origin`, `ϕ`, `sinϕ`, `cosϕ`, `corners`, `models`
 """
-struct Square <: AbstractQuadrilateral
+struct Square <: AbstractRectangle
     a::Float64
-    origin::Point{2}
-    θ::Float64
-    sinθ::Float64
-    cosθ::Float64
-    corners::NTuple{4,Point{2}}
+    origin::Point{2,Cartesian}
+    ϕ::Float64
+    sinϕ::Float64
+    cosϕ::Float64
+    corners::NTuple{4,Point{2,Cartesian}}
     models::Array{Opt,1}
 
-    function Square(a::Real, origin::Point{2}, θ::Number)
-        s = new(a,origin,θ,sin(θ),cos(θ))
+    function Square(a::Real, origin::Point{2}, ϕ::Number)
+        s = new(a,origin,ϕ,sin(ϕ),cos(ϕ))
         models = build_models(s)
         c1 = rotate(s.origin+Point( s.a/2, s.a/2), s)
         c2 = rotate(s.origin+Point(-s.a/2, s.a/2), s)
         c3 = rotate(s.origin+Point(-s.a/2,-s.a/2), s)
         c4 = rotate(s.origin+Point( s.a/2,-s.a/2), s)
-        return new(a,origin,θ,sin(θ),cos(θ),(c1,c2,c3,c4),models)
+        return new(a,origin,ϕ,sin(ϕ),cos(ϕ),(c1,c2,c3,c4),models)
     end
 end
 
 """
-    Square(a,origin::Point;θ=0,reference=:cnter) -> square
+    Square(a, origin::Point; ϕ=0, reference=:center) -> square
 
 `a` length of sides
 """
-function Square(a::Real, origin::Point; θ::Real=0, reference::Symbol=:center)
+function Square(a::Real, origin::Point{2}; ϕ::Real=0, reference::Symbol=:center)
     if Base.sym_in(reference,(:bottom, :Bottom, :b, :B))
-        origin += rotate(Point( 0, a/2),cos(θ),sin(θ))
+        origin += rotate(Point( 0, a/2),cos(ϕ),sin(ϕ))
     elseif Base.sym_in(reference,(:top, :Top, :T, :t))
-        origin += rotate(Point( 0,-a/2),cos(θ),sin(θ))
+        origin += rotate(Point( 0,-a/2),cos(ϕ),sin(ϕ))
     elseif Base.sym_in(reference,(:left, :Left, :L, :l))
-        origin += rotate(Point( a/2, 0),cos(θ),sin(θ))
+        origin += rotate(Point( a/2, 0),cos(ϕ),sin(ϕ))
     elseif Base.sym_in(reference,(:right, :Right, :R, :r))
-        origin += rotate(Point(-a/2, 0),cos(θ),sin(θ))
+        origin += rotate(Point(-a/2, 0),cos(ϕ),sin(ϕ))
     elseif Base.sym_in(reference,(:topright, :TopRight, :TR, :tr, :ne, :NE))
-        origin += rotate(Point(-a/2,-a/2),cos(θ),sin(θ))
+        origin += rotate(Point(-a/2,-a/2),cos(ϕ),sin(ϕ))
     elseif Base.sym_in(reference,(:topleft, :TopLeft, :TL, :tl, :nw, :NW))
-        origin += rotate(Point( a/2,-a/2),cos(θ),sin(θ))
+        origin += rotate(Point( a/2,-a/2),cos(ϕ),sin(ϕ))
     elseif Base.sym_in(reference,(:bottomleft, :BottomLeft, :BL, :bl, :sw, :SW))
-        origin += rotate(Point( a/2, a/2),cos(θ),sin(θ))
+        origin += rotate(Point( a/2, a/2),cos(ϕ),sin(ϕ))
     elseif Base.sym_in(reference,(:bottomright, :BottomRight, :BR, :br, :se, :SE))
-        origin += rotate(Point(-a/2, a/2),cos(θ),sin(θ))
+        origin += rotate(Point(-a/2, a/2),cos(ϕ),sin(ϕ))
     end
-    return Square(a,origin,θ)
+    return Square(a,origin,ϕ)
 end
 
 """
-    Square(a,x0,y0; θ=0, reference=:center)
+    Square(a,x0,y0; ϕ=0, reference=:center)
 """
 Square(a::Real, x0::Real, y0::Real; kwargs...) = Square(a,Point(x0,y0); kwargs...)
 
 """
     (::Square)(p::Point) -> is_in_square::Bool
 """
-function (s::Square)(p::Point)
+function (s::Square)(p::Point{2})
     purot = unrotate(p, s)
     p = purot - s.origin
     return -s.a/2+10eps(s.a/2) < p.x < s.a/2-10eps(s.a/2)  &&  -s.a/2+10eps(s.a/2) < p.y < s.a/2-10eps(s.a/2)
@@ -191,12 +198,12 @@ function perimeter(t::Number,s::Square,side::Int)
     x += s.origin.x
     y += s.origin.y
     p = rotate(Point(x,y),s)
-    ṗ = rotate(Point(ẋ,ẏ),s.cosθ,s.sinθ)
+    ṗ = rotate(Point(ẋ,ẏ),s.cosϕ,s.sinϕ)
     return p.x, p.y, ṗ.x, ṗ.y
 end
 
 function Base.getproperty(s::Square, sym::Symbol)
-    if Base.sym_in(sym,(:A,))
+    if Base.sym_in(sym,(:A,:B,:b))
         return getfield(s,:a)
     else
         return getfield(s,sym)
@@ -207,14 +214,20 @@ function Base.propertynames(::Square,private=false)
     if private
         return fieldnames(Square)
     else
-        return (:a, :origin, :θ)
+        return (:a, :origin, :ϕ)
     end
 end
+
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
 
 function Base.show(io::IO, square::Square)
     printstyled(io, "Square", color=PRINTED_COLOR_DARK)
     print(io, "(a: ")
     printstyled(io, fmt("2.2f",square.a), color=PRINTED_COLOR_NUMBER)
+    print(io, ", ϕ: ")
+    printstyled(io, fmt("2.2f",square.ϕ),"°", color=PRINTED_COLOR_NUMBER)
     print(io, ", origin: ", square.origin, ")")
 end
 
@@ -224,69 +237,69 @@ end
 """
     Rectangle <: AbstractQuadrilateral <: AbstractShape{2,4}
 
-Fields: `a`, `b`, `origin`, `θ`, `sinθ`, `cosθ`, `corners`, `models`
+Fields: `a`, `b`, `origin`, `ϕ`, `sinϕ`, `cosϕ`, `corners`, `models`
 """
-struct Rectangle <: AbstractQuadrilateral
+struct Rectangle <: AbstractRectangle
     a::Float64
     b::Float64
-    origin::Point{2}
-    θ::Float64
-    sinθ::Float64
-    cosθ::Float64
-    corners::NTuple{4,Point{2}}
+    origin::Point{2,Cartesian}
+    ϕ::Float64
+    sinϕ::Float64
+    cosϕ::Float64
+    corners::NTuple{4,Point{2,Cartesian}}
     models::Array{Opt,1}
 
-    function Rectangle(a::Real, b::Real, origin::Point{2}, θ::Real)
-        r = new(a,b,origin,θ,sin(θ),cos(θ))
+    function Rectangle(a::Real, b::Real, origin::Point{2}, ϕ::Real)
+        r = new(a,b,origin,ϕ,sin(ϕ),cos(ϕ))
         models = build_models(r)
         c1 = rotate(r.origin+Point( r.a/2, r.b/2), r)
         c2 = rotate(r.origin+Point(-r.a/2, r.b/2), r)
         c3 = rotate(r.origin+Point(-r.a/2,-r.b/2), r)
         c4 = rotate(r.origin+Point( r.a/2,-r.b/2), r)
-        return new(a,b,origin,θ,sin(θ),cos(θ),(c1,c2,c3,c4),models)
+        return new(a,b,origin,ϕ,sin(ϕ),cos(ϕ),(c1,c2,c3,c4),models)
     end
 end
 
 """
-    Rectangle(a, b, origin::Point; θ=0, reference=:center) -> r
+    Rectangle(a, b, origin::Point; ϕ=0, reference=:center) -> r
 
-`a`, `b` length of sides, `θ` is angle of rotation relative to `reference`
+`a`, `b` length of sides, `ϕ` is angle of rotation relative to `reference`
 """
-function Rectangle(a::Real, b::Real, origin::Point; θ::Real=0, reference::Symbol=:center)
+function Rectangle(a::Real, b::Real, origin::Point{2}; ϕ::Real=0, reference::Symbol=:center)
     if Base.sym_in(reference,(:bottom, :Bottom, :b, :B))
-        origin += rotate(Point( 0, b/2), cos(θ), sin(θ))
+        origin += rotate(Point( 0, b/2), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:top, :Top, :T, :t))
-        origin += rotate(Point( 0,-b/2), cos(θ), sin(θ))
+        origin += rotate(Point( 0,-b/2), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:left, :Left, :L, :l))
-        origin += rotate(Point( a/2, 0), cos(θ), sin(θ))
+        origin += rotate(Point( a/2, 0), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:right, :Right, :R, :r))
-        origin += rotate(Point(-a/2, 0), cos(θ), sin(θ))
+        origin += rotate(Point(-a/2, 0), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:topright, :TopRight, :TR, :tr, :ne, :NE))
-        origin += rotate(Point(-a/2,-b/2), cos(θ), sin(θ))
+        origin += rotate(Point(-a/2,-b/2), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:topleft, :TopLeft, :TL, :tl, :nw, :NW))
-        origin += rotate(Point( a/2,-b/2), cos(θ), sin(θ))
+        origin += rotate(Point( a/2,-b/2), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:bottomleft, :BottomLeft, :BL, :bl, :sw, :SW))
-        origin += rotate(Point( a/2, b/2), cos(θ), sin(θ))
+        origin += rotate(Point( a/2, b/2), cos(ϕ), sin(ϕ))
     elseif Base.sym_in(reference,(:bottomright, :BottomRight, :BR, :br, :se, :SE))
-        origin += rotate(Point(-a/2, b/2), cos(θ), sin(θ))
+        origin += rotate(Point(-a/2, b/2), cos(ϕ), sin(ϕ))
     end
-    return Rectangle(a,b,origin,θ)
+    return Rectangle(a,b,origin,ϕ)
 end
 
 """
-    Rectangle(a, b, x0, y0; θ=0, reference=:center)
+    Rectangle(a, b, x0, y0; ϕ=0, reference=:center)
 """
 Rectangle(a::Real, b::Real, x0::Real, y0::Real; kwargs...) = Rectangle(a,b,Point(x0,y0); kwargs...)
 
 """
     Rectangle(s::Square) -> r
 """
-Rectangle(s::Square) = Rectangle(s.a,s.a,s.origin; θ = s.θ)
+Rectangle(s::Square) = Rectangle(s.a,s.a,s.origin; ϕ = s.ϕ)
 
 """
     (::Rectangle)(p::Point) -> is_in_rectangle::Bool
 """
-function (r::Rectangle)(p::Point)
+function (r::Rectangle)(p::Point{2})
     purot = unrotate(p, r)
     p = purot - r.origin
     return -r.a/2+10eps(r.a/2) < p.x < r.a/2-10eps(r.a/2)  &&  -r.b/2+10eps(r.b/2) < p.y < r.b/2-10eps(r.b/2)
@@ -317,7 +330,7 @@ function perimeter(t::Number,r::Rectangle,side::Int)
     x += r.origin.x
     y += r.origin.y
     p = rotate(Point(x,y),r)
-    ṗ = rotate(Point(ẋ,ẏ),r.cosθ,r.sinθ)
+    ṗ = rotate(Point(ẋ,ẏ),r.cosϕ,r.sinϕ)
     return p.x, p.y, ṗ.x, ṗ.y
 end
 
@@ -335,16 +348,22 @@ function Base.propertynames(::Rectangle,private=false)
     if private
         return fieldnames(Rectangle)
     else
-        return (:a, :b, :origin, :θ)
+        return (:a, :b, :origin, :ϕ)
     end
 end
+
+
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
 
 function Base.show(io::IO, rect::Rectangle)
     printstyled(io, "Rectangle", color=PRINTED_COLOR_DARK)
     print(io, "(a: ")
-    printstyled(io, fmt("2.2f",rect.a), color=PRINTED_COLOR_NUMBER)
+    printstyled(io, fmt("2.2f", rect.a), color=PRINTED_COLOR_NUMBER)
     print(io, ", b: ")
-    printstyled(io, fmt("2.2f",rect.b), color=PRINTED_COLOR_NUMBER)
+    printstyled(io, fmt("2.2f", rect.b), color=PRINTED_COLOR_NUMBER)
+    print(io, ", ϕ: ")
+    printstyled(io, fmt("3.1f", rect.ϕ), color=PRINTED_COLOR_NUMBER)
     print(io, ", origin: ", rect.origin, ")")
 end
 
@@ -357,48 +376,48 @@ import ..NL_NORMAL_FTOL
 import ..NL_NORMAL_MAXEVAL
 
 """
-    rotate(x,y,cosθ,sinθ) -> xrot, yrot
+    rotate(x,y,cosϕ,sinϕ) -> xrot, yrot
 
-rotate by `θ` about origin
+rotate by `ϕ` about origin
 
 ----------------
     rotate(x,y,shape) -> xrot, yrot
 
 rotate about `shape`'s center by `shape`'s angle
 """
-rotate(p::Point{2},cosθ::Real,sinθ::Real) = iszero(sinθ) ? p : Point(cosθ*p.x-sinθ*p.y, sinθ*p.x+cosθ*p.y)
-rotate(p::Point{2},s::AbstractShape) = s.origin + rotate(p-s.origin,s.cosθ,s.sinθ)
+rotate(p::Point{2},cosϕ::Real,sinϕ::Real) = iszero(sinϕ) ? p : Point(cosϕ*p.x-sinϕ*p.y, sinϕ*p.x+cosϕ*p.y)
+rotate(p::Point{2},s::AbstractShape{2}) = s.origin + rotate(p-s.origin,s.cosϕ,s.sinϕ)
 
-function rotate(p::AbstractArray,cosθ::Real,sinθ::Real)
+function rotate(p::AbstractArray,cosϕ::Real,sinϕ::Real)
     prot = Array{Point{2}}(undef,size(p))
-    rotate!(prot,p,cosθ,sinθ)
+    rotate!(prot,p,cosϕ,sinϕ)
     return prot
 end
-function rotate(p::AbstractArray,s::AbstractShape)
+function rotate(p::AbstractArray,s::AbstractShape{2})
     prot = Array{Point{2}}(undef,size(p))
-    rotate!(prot,p.-s.origin,s.cosθ,s.sinθ)
+    rotate!(prot,p.-s.origin,s.cosϕ,s.sinϕ)
     return prot .+ s.origin
 end
 
-function rotate!(prot::AbstractArray,p::Point{2},cosθ::Real,sinθ::Real)
-    for i ∈ eachindex(p) prot[i] = rotate(p[i],cosθ,sinθ) end
+function rotate!(prot::AbstractArray,p::Point{2},cosϕ::Real,sinϕ::Real)
+    for i ∈ eachindex(p) prot[i] = rotate(p[i],cosϕ,sinϕ) end
     return nothing
 end
 
 
 """
-    unrotate(x,y,cosθ,sinθ) -> xrot, yrot
+    unrotate(x,y,cosϕ,sinϕ) -> xrot, yrot
 
-rotate by `-θ` about origin
+rotate by `-ϕ` about origin
 
 ----------------
     unrotate(x,y,shape) -> xrot, yrot
 
 rotate about `shape`'s center by the negative of `shape`'s angle
 """
-unrotate(p::Point{2},cosθ::Real,sinθ::Real) = rotate(p,cosθ,-sinθ)
-unrotate(p::Point{2},s::AbstractShape) = s.origin + unrotate(p-s.origin,s.cosθ,s.sinθ)
-unrotate(p::AbstractArray,s::AbstractShape) = s.origin .+ unrotate(p.-s.origin,s.cosθ,s.sinθ)
+unrotate(p::Point{2},cosϕ::Real,sinϕ::Real) = rotate(p,cosϕ,-sinϕ)
+unrotate(p::Point{2},s::AbstractShape{2}) = s.origin + unrotate(p-s.origin,s.cosϕ,s.sinϕ)
+unrotate(p::AbstractArray,s::AbstractShape{2}) = s.origin .+ unrotate(p.-s.origin,s.cosϕ,s.sinϕ)
 
 ################################################################################
 # UNSYMMETRIC AUXILLIARIES
@@ -435,9 +454,9 @@ and the associated `tangent` vector and distance from surface `side`.
 The returned arguments are sorted in ascending order by `distance`, so that, e.g.,
 `normal[1]` is the normal vector associated with the closest side.
 """
-function normal_distance(s::TS,x::Number,y::Number) where TS<:AbstractShape
-    n = Array{Array{Float64,1}}(undef,length(s.models))
-    d = Array{Float64}(undef,length(s.models))
+function normal_distance(s::TS,x::Number,y::Number) where TS<:AbstractShape{2}
+    n = Vector{Vector{Float64}}(undef,length(s.models))
+    d = Vector{Float64}(undef,length(s.models))
     sides = 1:length(s.models)
     for i ∈ eachindex(s.models)
         model = s.models[i]
@@ -450,8 +469,8 @@ function normal_distance(s::TS,x::Number,y::Number) where TS<:AbstractShape
     end
     perm = sortperm(d)
     n, d = n[perm], d[perm]
-    NORMAL = Array{Array{Float64,1}}(undef,length(s.models))
-    TANGENT = Array{Array{Float64,1}}(undef,length(s.models))
+    NORMAL = Vector{Vector{Float64}}(undef,length(s.models))
+    TANGENT = Vector{Vector{Float64}}(undef,length(s.models))
     for i ∈ eachindex(NORMAL)
         nx, ny = n[i][1],n[i][2]
         NORMAL[i] = [nx, ny]
@@ -472,10 +491,10 @@ import ..SHAPE_FILL_ALPHA
 
 # plotting for all disks
 @recipe function f(d::AbstractDisk)
-    θ = LinRange(0,2π,201)
-    x = Vector{Float64}(undef,length(θ))
-    y = Vector{Float64}(undef,length(θ))
-    for i ∈ eachindex(θ) x[i],y[i] = perimeter(θ[i],d,1) end
+    ϕ = LinRange(0,2π,201)
+    x = Vector{Float64}(undef,length(ϕ))
+    y = Vector{Float64}(undef,length(ϕ))
+    for i ∈ eachindex(ϕ) x[i],y[i] = perimeter(ϕ[i],d,1) end
     alpha --> 0
     seriestype --> :path
     fillcolor --> SHAPE_COLOR
@@ -531,13 +550,13 @@ end
 # """
 #     struct Ellipse <: AbstractDisk <: AbstractShape{1}
 #
-#     Ellipse((a,b), x0, y0, θ=0; reference=:center) -> ellipse
-#     Ellipse(a, b, x0, y0, θ=0; reference=:center) -> ellipse
+#     Ellipse((a,b), x0, y0, ϕ=0; reference=:center) -> ellipse
+#     Ellipse(a, b, x0, y0, ϕ=0; reference=:center) -> ellipse
 #
 #
 # `a, b` axis lengths
 # `x0, y0` is location of `reference`
-# `θ` angle of `a` axis
+# `ϕ` angle of `a` axis
 #
 # ----------------
 #
@@ -548,29 +567,29 @@ end
 #     b::Float64
 #     x0::Float64
 #     y0::Float64
-#     θ::Float64
-#     sinθ::Float64
-#     cosθ::Float64
+#     ϕ::Float64
+#     sinϕ::Float64
+#     cosϕ::Float64
 #     corners::Tuple{}
 #     models::Array{Opt,1}
 #
 #     Ellipse((a,b),args...;kwargs...) = Ellipse(a,b,args...;kwargs...)
-#     function Ellipse(a::Number,b::Number,x0::Number,y0::Number,θ::Number=0; reference::Symbol=:center)
+#     function Ellipse(a::Number,b::Number,x0::Number,y0::Number,ϕ::Number=0; reference::Symbol=:center)
 #         if reference ∈ [:bottom, :Bottom, :b, :B]
-#             x0,y0 = (x0,y0) .+ rotate( 0, b,cos(θ),sin(θ))
+#             x0,y0 = (x0,y0) .+ rotate( 0, b,cos(ϕ),sin(ϕ))
 #         elseif reference ∈ [:top, :Top, :T, :t]
-#             x0,y0 = (x0,y0) .+ rotate( 0,-b,cos(θ),sin(θ))
+#             x0,y0 = (x0,y0) .+ rotate( 0,-b,cos(ϕ),sin(ϕ))
 #         elseif reference ∈ [:left, :Left, :L, :l]
-#             x0,y0 = (x0,y0) .+ rotate( a, 0,cos(θ),sin(θ))
+#             x0,y0 = (x0,y0) .+ rotate( a, 0,cos(ϕ),sin(ϕ))
 #         elseif reference ∈ [:right, :Right, :R, :r]
-#             x0,y0 = (x0,y0) .+ rotate(-a, 0,cos(θ),sin(θ))
+#             x0,y0 = (x0,y0) .+ rotate(-a, 0,cos(ϕ),sin(ϕ))
 #         end
-#          e = new(a,b,x0,y0,θ,sin(θ),cos(θ))
+#          e = new(a,b,x0,y0,ϕ,sin(ϕ),cos(ϕ))
 #          models = build_models(e)
-#          return new(a,b,x0,y0,θ,sin(θ),cos(θ),(),models)
+#          return new(a,b,x0,y0,ϕ,sin(ϕ),cos(ϕ),(),models)
 #     end
 #
-#     Ellipse(c::Circle) = Ellipse(c.R,c.R,c.x0,c.y0,c.θ)
+#     Ellipse(c::Circle) = Ellipse(c.R,c.R,c.x0,c.y0,c.ϕ)
 #
 #     function (e::Ellipse)(x,y)
 #         xurot, yurot = unrotate(x, y, e)
@@ -578,15 +597,15 @@ end
 #     end
 #
 #     function Base.show(io::IO, ellipse::Ellipse)
-#         print(io, "Ellipse(a=", fmt("2.2f",ellipse.a), ", b=", fmt("2.2f",ellipse.b), ", x0=", fmt("2.2f",ellipse.x0), ", y0=", fmt("2.2f",ellipse.y0), ", θ=∠", fmt("3.2f",(mod2pi(ellipse.θ))*180/π), "°)")
+#         print(io, "Ellipse(a=", fmt("2.2f",ellipse.a), ", b=", fmt("2.2f",ellipse.b), ", x0=", fmt("2.2f",ellipse.x0), ", y0=", fmt("2.2f",ellipse.y0), ", ϕ=∠", fmt("3.2f",(mod2pi(ellipse.ϕ))*180/π), "°)")
 #     end
 # end
 # function perimeter(t::Number,e::Ellipse,side::Int)
 #     sn,cs = sincos(t)
 #     xur,yur =    e.a*cs, e.b*sn
 #     xpur,ypur = -e.a*sn, e.b*cs
-#     x,y = (e.x0,e.y0) .+ rotate(xur,yur,e.cosθ,e.sinθ)
-#     ẋ,ẏ = rotate(xpur,ypur,e.cosθ,e.sinθ)
+#     x,y = (e.x0,e.y0) .+ rotate(xur,yur,e.cosϕ,e.sinϕ)
+#     ẋ,ẏ = rotate(xpur,ypur,e.cosϕ,e.sinϕ)
 #     return x,y,ẋ,ẏ
 # end
 #
@@ -594,15 +613,15 @@ end
 # """
 #     struct DeformedDisk{N} <: AbstractDisk <: AbstractShape{1}
 #
-#     DeformedDisk{N}(R, x0, y0, M, a, φ, θ=0) -> deformeddisk
-#     DeformedDisk{N}((R,M,a,φ), x0, y0, θ=0) -> deformeddisk
+#     DeformedDisk{N}(R, x0, y0, M, a, φ, ϕ=0) -> deformeddisk
+#     DeformedDisk{N}((R,M,a,φ), x0, y0, ϕ=0) -> deformeddisk
 #
 # `R` is radius,
 # `x0` and `y0` is center of circle of radius `R`,
 # `M` is array of length `N` of multipole integers,
 # `a` is array of length `N` amplitudes,
 # `φ` is array of length `N` of angles
-# `θ` is overall rotation angle
+# `ϕ` is overall rotation angle
 #
 # -----------------
 #
@@ -612,28 +631,28 @@ end
 #     R::Float64
 #     x0::Float64
 #     y0::Float64
-#     θ::Float64
+#     ϕ::Float64
 #     M::SArray{Tuple{N},Int,1,N}
 #     a::SArray{Tuple{N},Float64,1,N}
 #     φ::SArray{Tuple{N},Float64,1,N}
-#     sinθ::Float64
-#     cosθ::Float64
+#     sinϕ::Float64
+#     cosϕ::Float64
 #     corners::Tuple{}
 #     models::Array{Opt,1}
 #
 #     DeformedDisk{n}((R,M,a,φ),x0,y0,args...;kwargs...) where n= DeformedDisk{n}(R,x0,y0,M,a,φ,args...;kwargs...)
-#     function DeformedDisk{n}(R::Number,x0::Number,y0::Number,M,a,φ,θ=0) where n
+#     function DeformedDisk{n}(R::Number,x0::Number,y0::Number,M,a,φ,ϕ=0) where n
 #         @assert n==length(M)==length(a)==length(φ) "parameter N in DeformedDisk{N}(...) must be equal to length(M)"
-#         d = new{n}(R,x0,y0,θ,SVector{n}(M),SVector{n}(a),SVector{n}(φ.+θ),sin(θ),cos(θ))
+#         d = new{n}(R,x0,y0,ϕ,SVector{n}(M),SVector{n}(a),SVector{n}(φ.+ϕ),sin(ϕ),cos(ϕ))
 #         models = build_models(d)
-#         return new{n}(R,x0,y0,d.θ,d.M,d.a,d.φ,d.sinθ,d.cosθ,(),models)
+#         return new{n}(R,x0,y0,d.ϕ,d.M,d.a,d.φ,d.sinϕ,d.cosϕ,(),models)
 #     end
 #
-#     DeformedDisk(c::Circle) = DeformedDisk{0}(c.R,c.x0,c.y0,[],[],[],c.θ)
+#     DeformedDisk(c::Circle) = DeformedDisk{0}(c.R,c.x0,c.y0,[],[],[],c.ϕ)
 #
 #     function (d::DeformedDisk)(x,y)
-#         θ = atan(y-d.y0,x-d.x0)
-#         r = hypot(x-d.x0,y-d.y0) < d.R + sum(d.a.*(map((m,φ)->cos(m*(θ-φ)),d.M,d.φ))) - eps(d.R)
+#         ϕ = atan(y-d.y0,x-d.x0)
+#         r = hypot(x-d.x0,y-d.y0) < d.R + sum(d.a.*(map((m,φ)->cos(m*(ϕ-φ)),d.M,d.φ))) - eps(d.R)
 #         return r
 #     end
 #
@@ -656,8 +675,8 @@ end
 # """
 #     struct Annulus <: AbstractShape{2}
 #
-#     Annulus((R1,R2),x0,y0,θ=0) -> annulus
-#     Annulus(R1, R2, x0, y0, θ=0) -> annulus
+#     Annulus((R1,R2),x0,y0,ϕ=0) -> annulus
+#     Annulus(R1, R2, x0, y0, ϕ=0) -> annulus
 #
 # `R1` is inner radius, `R2` outer
 # `x0, y0` is center
@@ -670,18 +689,18 @@ end
 #     R2::Float64
 #     x0::Float64
 #     y0::Float64
-#     θ::Float64
-#     sinθ::Float64
-#     cosθ::Float64
+#     ϕ::Float64
+#     sinϕ::Float64
+#     cosϕ::Float64
 #     corners::Tuple{}
 #     models::Array{Opt,1}
 #
 #     Annulus((R1,R2),args...;kwargs...) = Annulus(R1,R2,args...;kwargs...)
-#     function Annulus(R1::Number,R2::Number,x0::Number,y0::Number,θ::Number=0)
+#     function Annulus(R1::Number,R2::Number,x0::Number,y0::Number,ϕ::Number=0)
 #         @assert R1≤R2 "R1=$R1, R2=$R2 must satisfy R1≤R2"
 #         a = new(R1,R2,x0,y0,0,0,1)
 #         models = build_models(a)
-#         return new(R1,R2,x0,y0,0,sin(θ),cos(θ),(),models)
+#         return new(R1,R2,x0,y0,0,sin(ϕ),cos(ϕ),(),models)
 #     end
 #
 #     (c::Annulus)(x,y) = c.R1+eps(c.R1) < hypot( (x-c.x0),(y-c.y0) ) < c.R2-eps(c.R2)
@@ -710,7 +729,7 @@ end
 #
 #
 # # """
-# #     Parallelogram(a, b, α, x0, y0, θ)
+# #     Parallelogram(a, b, α, x0, y0, ϕ)
 # # """
 # # struct Parallelogram <: AbstractParallelogram
 # #     a::Float64
@@ -718,23 +737,23 @@ end
 # #     α::Float64
 # #     x0::Float64
 # #     y0::Float64
-# #     θ::Float64
-# #     sinθ::Float64
-# #     cosθ::Float64
+# #     ϕ::Float64
+# #     sinϕ::Float64
+# #     cosϕ::Float64
 # #     tanα::Float64
 # #     cosα::Float64
 # #     models::Array{Opt,1}
 # #
-# #     function Parallelogram(a::Number, b::Number, α::Number, x0::Number, y0::Number, θ::Number)
-# #         new(a,b,α,x0,y0,θ,cos(θ),sin(θ),tan(α),cos(α))
+# #     function Parallelogram(a::Number, b::Number, α::Number, x0::Number, y0::Number, ϕ::Number)
+# #         new(a,b,α,x0,y0,ϕ,cos(ϕ),sin(ϕ),tan(α),cos(α))
 # #     end
 # #
 # #     function (p::Parallelogram)(x,y)
-# #         xrot, yrot = rotate(x-p.x0, y-p.y0, p.cosθ, p.sinθ)
+# #         xrot, yrot = rotate(x-p.x0, y-p.y0, p.cosϕ, p.sinϕ)
 # #         return p.tanα*(xrot-p.a) < yrot < p.tanα*xrot  &&  0 < yrot < p.cosα*p.b
 # #     end
 # #
-# #     Base.show(io::IO, par::Parallelogram) = print(io, "Parallelogram(a=$(fmt("2.2f",par.a)), b=$(fmt("2.2f",par.b)), α=$(fmt("2.2f",par.α)), x0=$(fmt("2.2f",par.x0)), y0=$(fmt("2.2f",par.y0)), θ=$(fmt("2.2f",par.θ)))")
+# #     Base.show(io::IO, par::Parallelogram) = print(io, "Parallelogram(a=$(fmt("2.2f",par.a)), b=$(fmt("2.2f",par.b)), α=$(fmt("2.2f",par.α)), x0=$(fmt("2.2f",par.x0)), y0=$(fmt("2.2f",par.y0)), ϕ=$(fmt("2.2f",par.ϕ)))")
 # #
 # #     @recipe function f(pg::Parallelogram)
 # #         x = cumsum([0, pg.a, +pg.b*cos(pg.α), -pg.a, -pg.b*cos(pg.α)])
@@ -746,7 +765,7 @@ end
 # #         fillalpha --> SHAPE_FILL_ALPHA
 # #         aspect_ratio --> 1
 # #         legend --> false
-# #         xrot, yrot = rotate(x,y,pg.cosθ,-pg.sinθ)
+# #         xrot, yrot = rotate(x,y,pg.cosϕ,-pg.sinϕ)
 # #         pg.x0 .+ xrot, pg.y0 .+ yrot
 # #     end
 # # end

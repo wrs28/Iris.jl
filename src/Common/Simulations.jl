@@ -37,21 +37,6 @@ using Statistics
 import ..AbstractDomain
 
 """
-	Unsymmetric
-"""
-struct Unsymmetric end
-
-"""
-	Symmetric
-"""
-LinearAlgebra.Symmetric
-
-"""
-	Hermitian
-"""
-LinearAlgebra.Hermitian
-
-"""
 	Simulation(ω₀, domains...; [k₂₀, k₃₀, k₁₀]) -> simulation
 
 Build a simulation object which can be passed to the various solvers to find

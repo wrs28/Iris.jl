@@ -8,17 +8,7 @@ function _bls_by_shape(bls::AbstractBL{SIDE},c::Circle) where SIDE
 	return bls(start=start,stop=stop)
 end
 
-# function _bls_by_shape(bls::AbstractBL{SIDE},s::Square) where SIDE
-# 	if SIDE == 1
-# 		stop = s.a
-# 		start = stop + bls.depth
-# 	else
-# 		throw("circle only has side=1, evaluated at $side")
-# 	end
-# 	return bls(start=start,stop=stop)
-# end
-
-_bls_by_shape(bls,s::Square) = _bls_by_shape(bls,Rectangle(s))
+_bls_by_shape(bls::AbstractBL,s::Square) = _bls_by_shape(bls,Rectangle(s))
 
 function _bls_by_shape(bls::AbstractBL{SIDE},shape::Rectangle) where SIDE
 	if SIDE==1
@@ -35,4 +25,12 @@ function _bls_by_shape(bls::AbstractBL{SIDE},shape::Rectangle) where SIDE
 		start = stop - bls.depth
 	end
 	return bls(start=start, stop=stop)
+end
+
+
+################################################################################
+# Plotting
+
+@recipe function f(bnd::Boundary{2})
+	bnd.shape
 end

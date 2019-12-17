@@ -5,7 +5,7 @@ module Domains
 
 files = (
     "1D/Domains1D.jl",
-    # "2D/Domains2D.jl",
+    "2D/Domains2D.jl",
     # "3D/Domains3D.jl"
 )
 
@@ -13,6 +13,8 @@ export AbstractDomain
 export LatticeDomain
 export NondispersiveDomain
 export DispersiveDomain
+export Symmetric
+export Unsymmetric
 
 using ..Boundaries
 using ..DielectricFunctions
@@ -21,29 +23,34 @@ using ..Dispersions
 using ..Lattices
 using ..Points
 using ..Shapes
+using LinearAlgebra
+using RecipesBase
 
-import ..PRINTED_COLOR_NUMBER
-import ..PRINTED_COLOR_DARK
+"""
+	Unsymmetric
+"""
+struct Unsymmetric end
+"""
+	Symmetric
+"""
+LinearAlgebra.Symmetric
 
 """
     AbstractDomain{N}
 """
 abstract type AbstractDomain{N} end
 
-"""
-    LatticeDomain(::[`Boundary`](@ref), ::[`Lattice`](@ref), [n=1; type=:generic, name=:anonymous, fit=true) -> domain
+################################################################################
+# LATTICE DOMAIN
 
-combines `boundary` with `lattice` (in either order) to generate a lattice domain.
-Symbol `type` labels the kinds of domain (e.g. :Cavity, or :Waveguide).
-"""
-struct LatticeDomain{N,TBND,TLAT} <: AbstractDomain{N}
+struct LatticeDomain{N,CLASS,TC,TBND,TLAT,TP} <: AbstractDomain{N}
     boundary::TBND
     lattice::TLAT
     n::ComplexF64
     ε::ComplexF64
     type::Symbol
     name::Symbol
-    x::Vector{Point{N}}
+    x::Vector{Point{N,TP}}
     indices::Vector{CartesianIndex{N}}
     interior::BitArray{1}
     bulk::BitArray{1}
@@ -52,13 +59,13 @@ struct LatticeDomain{N,TBND,TLAT} <: AbstractDomain{N}
     nnm::NTuple{N,Vector{Int}}
     nnp::NTuple{N,Vector{Int}}
 
-    function LatticeDomain(
+    function LatticeDomain{CLASS}(
         boundary::TBND,
         lattice::TLAT,
         n::Number,
         type::Symbol,
         name::Symbol,
-        x::Vector{Point{N}},
+        x::Vector{Point{N,TP}},
         indices::Vector{CartesianIndex{N}},
         interior::BitArray{1},
         bulk::BitArray{1},
@@ -66,9 +73,9 @@ struct LatticeDomain{N,TBND,TLAT} <: AbstractDomain{N}
         corner::BitArray{1},
         nnm::NTuple{N,Vector{Int}},
         nnp::NTuple{N,Vector{Int}}
-        ) where {TBND<:Boundary{N},TLAT<:Lattice{N}} where N
+        ) where {TBND<:Boundary{N},TP,TLAT<:Lattice{N,TC},CLASS} where {N,TC}
 
-        new{N,TBND,TLAT}(boundary,lattice,n,n^2,type,name,x,indices,interior,bulk,surface,corner,nnm,nnp)
+        new{N,CLASS,TC,TBND,TLAT,TP}(boundary,lattice,n,n^2,type,name,x,indices,interior,bulk,surface,corner,nnm,nnp)
     end
 end
 
@@ -82,23 +89,9 @@ function Base.getproperty(ldom::LatticeDomain, sym::Symbol)
     end
 end
 
-function Base.propertynames(::LatticeDomain, private=false)
-    if private
-        return fieldnames(LatticeDomain)
-    else
-        return (:boundary, :lattice, :shape, :n, :ε, :type, :name, :x)
-    end
-end
+################################################################################
+# NONDISPERSIVE DOMAIN
 
-"""
-    NondispersiveDomain(shape, [dielectric, type, name]) -> domain
-
-    NondispersiveDomain(shape, n, [type, name]) -> domain
-
-    NondispersiveDomain(shape, n1, n2, [type, name]) -> domain
-
-`dielectric<:`[`AbstractDielectricFunction`](@ref)
-"""
 struct NondispersiveDomain{N,TSH,TDF} <: AbstractDomain{N}
     shape::TSH
     dielectric::TDF
@@ -115,35 +108,18 @@ struct NondispersiveDomain{N,TSH,TDF} <: AbstractDomain{N}
         new{N,TSH,TDF}(shape,dielectric,type,name)
     end
 end
+
 NondispersiveDomain(shape::AbstractShape, n::Number=1, args...) =
     NondispersiveDomain(shape,DielectricFunctions.PiecewiseConstant(n), args...)
+
 NondispersiveDomain(shape::AbstractShape, n1::Number, n2::Number, args...) =
     NondispersiveDomain(shape,DielectricFunctions.PiecewiseConstant(n1,n2), args...)
+
 NondispersiveDomain(boundary::Boundary, args...) = NondispersiveDomain(boundary.shape, args...)
 
+################################################################################
+# DISPERSIVE DOMAIN
 
-"""
-    struct DispersiveDomain
-
-    DispersiveDomain(type,boundary,lattice,[dielectric,pump];align=false,[name]) -> domain
-    DispersiveDomain(type,lattice,boundary,[dielectric,pump];align=false,[name]) -> domain
-
-combines `boundary` with `lattice` (in either order) to generate a list of sites.
-`T` just labels the kinds of domain (e.g. Cavity, or Waveguide)
-each site is labeled by being in the interior, or containing the interior (`domain.surface`),
-or being a corner.
-
-----------------------
-    (::DispersiveDomain)(args...;align=false) -> dom
-
-construct a new domain with modified parameters in `args`
-This is for "updating" non-geometric fields of the immutable `domain`.
-For example, to change the polarity of the boundary layers, do
-    `new_dom = old_dom(conj(old_dom.boundary))`
-
-For geometric parameters it recomputes the whole domain, so this command is no
-more efficient than explicitly constructing a new domain. It might save some typing, however.
-"""
 struct DispersiveDomain{N,TSH,TCHI,TPF} <: AbstractDomain{N}
     shape::TSH
     χ::TCHI
@@ -162,8 +138,10 @@ struct DispersiveDomain{N,TSH,TCHI,TPF} <: AbstractDomain{N}
         new{N,TSH,TCHI,TPF}(shape,χ,pump,type,name)
     end
 end
+
 DispersiveDomain(shape::AbstractShape, χ::AbstractDispersion, F::Number=1, args...) =
     DispersiveDomain(shape, χ, PumpFunctions.PiecewiseConstant(F), args...)
+
 DispersiveDomain(boundary::Boundary, args...) = DispersiveDomain(boundary.shape, args...)
 
 
@@ -174,7 +152,11 @@ foreach(include,files)
 ################################################################################
 # Pretty Printing
 
-function Base.show(io::IO,dom::LatticeDomain)
+import ..PRINTED_COLOR_NUMBER
+import ..PRINTED_COLOR_DARK
+
+function Base.show(io::IO,dom::LatticeDomain{N,CLASS}) where {N,CLASS}
+    print(io,"$(N)D $CLASS ")
     printstyled(io,"LatticeDomain ",color=PRINTED_COLOR_DARK)
     println(io,"(",dom.type,"): ",dom.name)
     print(io,"\tNumber of sites: ")
@@ -208,75 +190,4 @@ function Base.show(io::IO,ddom::DispersiveDomain)
     println(io,"\t\t",ddom.χ)
 end
 
-
 end # module
-
-
-
-
-# @recipe function f(d::Domain)
-#     aspect_ratio --> 1
-#     legend --> false
-#     @series begin
-#         seriestype --> :scatter
-#         markersize --> MARKERSIZE_SCALE/sqrt(length(d.x))
-#         markerstrokealpha --> 0
-#         shape --> MARKERSHAPE
-#         (d.x[d.bulk],d.y[d.bulk])
-#     end
-#     @series begin
-#         seriestype --> :scatter
-#         markersize --> MARKERSIZE_SCALE/sqrt(length(d.x))
-#         markerstrokealpha --> 0
-#         shape --> MARKERSHAPE
-#         (d.x[d.surface],d.y[d.surface])
-#     end
-#     @series begin
-#         seriestype --> :scatter
-#         markersize --> MARKERSIZE_SCALE/sqrt(length(d.x))
-#         markerstrokealpha --> 0
-#         shape --> MARKERSHAPE
-#         (d.x[d.corner],d.y[d.corner])
-#     end
-#     @series d.boundary
-# end
-#
-
-
-
-
-
-
-
-
-# function (dom::Domain{N})(dielectric::DielectricFunction) where N
-#     return new{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
-#     dom.name,dom.boundary,dom.lattice,dielectric,dom.pump,
-#     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
-#     dom.surface,dom.corner,dom.nnm,dom.nnp)
-# end
-# function (dom::Domain{N})(pump::PumpFunction) where N
-#     return newnew{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
-#     dom.name,dom.boundary,dom.lattice,dom.dielectric,pump,
-#     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
-#     dom.surface,dom.corner,dom.nnm,dom.nnp)
-# end
-# function (dom::Domain{N})(boundary::Boundary) where N
-#     return newnew{N,typeof(bnd.boundary),typeof(bnd.lattice),typeof(bnd.dielectric),typeof(bnd.pump)}(dom.type,
-#     dom.name,boundary,dom.lattice,dom.dielectric,dom.pump,
-#     dom.x,dom.indices,dom.ε,dom.F,dom.interior,dom.bulk,
-#     dom.surface,dom.corner,dom.nnm,dom.nnp)
-# end
-
-
-
-
-
-
-# # for modifying non-geometric parameters of an already existing domain
-# function (dom::Domain)(args...)
-#     for a ∈ args
-#         dom = dom(a)
-#     end
-#     return dom
-# end

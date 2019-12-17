@@ -8,3 +8,10 @@ function _bls_by_shape(bls::AbstractBL{SIDE},i::Interval) where SIDE
 	end
 	return bls(start=start,stop=stop)
 end
+
+################################################################################
+# Plotting
+
+@recipe function f(bnd::Boundary{1})
+	bnd.shape
+end
