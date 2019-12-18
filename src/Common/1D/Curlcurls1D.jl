@@ -1,7 +1,7 @@
 """
 	Curlcurl(::Lattice{1}, α::Vector, α_half::Vector, nnm, nnp, indices, interior, surface)
 """
-function Curlcurl(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface)
+function Curlcurl{Symmetric}(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface)
 
 	dx = lattice.dx
 
@@ -15,7 +15,7 @@ function Curlcurl(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half
 	∂ₓ = ∂ₓ_bulk + ∂ₓ_surface
 	i∂ₓ = 1im*∂ₓ
 
-	return Curlcurl{1}(∂ₓα⁻¹∂ₓ,i∂ₓ,spdiagm(0=>α))
+	return Curlcurl{1,Symmetric}(∂ₓα⁻¹∂ₓ,i∂ₓ,spdiagm(0=>α))
 end
 
 """

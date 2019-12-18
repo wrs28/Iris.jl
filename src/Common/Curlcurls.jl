@@ -7,17 +7,19 @@ export Curlcurl
 
 files = (
     "1D/Curlcurls1D.jl",
-    # "2D/Curlcurls2D.jl",
+    "2D/Symmetric/Curlcurls2D.jl",
     # "3D/Curlcurls3D.jl"
     )
 
 
+using ..Domains
 using ..Lattices
 using ..Laplacians
+using ..Points
 using LinearAlgebra
 using SparseArrays
 
-struct Curlcurl{N}
+struct Curlcurl{N,CLASS}
     cc0::SparseMatrixCSC{ComplexF64,Int} # constant
     cc1::SparseMatrixCSC{ComplexF64,Int} # linear in kx,ky,kz
     cc2::SparseMatrixCSC{ComplexF64,Int} # quadratic in kx,ky,kz
@@ -39,8 +41,8 @@ Base.conj(cc::Curlcurl{N}) where N = Curlcurl{N}(conj(cc.cc0),conj(cc.cc1),conj(
 import ..PRINTED_COLOR_DARK
 import ..PRINTED_COLOR_VARIABLE
 
-function Base.show(io::IO,cc::Curlcurl{N}) where N
-    print(io,"$(N)D ")
+function Base.show(io::IO,cc::Curlcurl{N,CLASS}) where {N,CLASS}
+    print(io,"$(N)D $CLASS")
     printstyled(io,"Curlcurl",color=PRINTED_COLOR_DARK)
     print(io,"(call with ")
     printstyled(io,"ky",color=PRINTED_COLOR_VARIABLE)

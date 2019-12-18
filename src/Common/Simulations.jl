@@ -11,13 +11,11 @@ export Simulation
 export smooth!
 export update_dielectric!
 export update_pump!
-export Unsymmetric
-export Symmetric
 export Hermitian
 
 files = (
 	"1D/Simulations1D.jl",
-	# "2D/Simulations2D.jl",
+	"2D/Symmetric/Simulations2D.jl",
 	# "3D/Simulations3D.jl"
 	)
 
@@ -52,7 +50,7 @@ struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	nondispersive_domains::TNDOM
 	dispersive_domains::TDDOM
 
-	x::Vector{Point{N}}
+	x::Vector{Point{N,Cartesian}}
 	lattice_domain_indices::Vector{Int}
 	nondispersive_domain_indices::Vector{Int}
 	dispersive_domain_indices::Vector{Int}
@@ -60,8 +58,8 @@ struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	F::Vector{Float64}
 	χ::Vector{AbstractDispersion}
 
-	laplacian::Laplacian{N}
-	curlcurl::Curlcurl{N}
+	laplacian::Laplacian{N,CLASS}
+	curlcurl::Curlcurl{N,CLASS}
 	self_energy::TSE
 	α::NTuple{N,Vector{ComplexF64}}
 	σ::NTuple{N,Vector{ComplexF64}}
@@ -72,6 +70,37 @@ struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	k₂₀::Float64
 	k₃₀::Float64
 	smoothed::Base.RefValue{Bool}
+end
+
+# for arbitrary domain order
+function Simulation(
+			ω₀::Real,
+			domains::Vararg{AbstractDomain{N}};
+			kwargs...
+			) where N
+
+	lattice_domains = _get_lattice_domains(domains...)
+	nondispersive_domains = _get_nondispersive_domains(domains...)
+	dispersive_domains = _get_dispersive_domains(domains...)
+
+	# check
+	length(lattice_domains)>0 || throw(ArgumentError("must provide at least one `LatticeDomain`, but 0 provided instead"))
+	return Simulation(ω₀, lattice_domains, nondispersive_domains, dispersive_domains; kwargs...)
+end
+
+# functions to extract lattice_domains, etc, from arbitrary list of domains
+fnames = (:_get_lattice_domains, :_get_nondispersive_domains, :_get_dispersive_domains)
+types = (LatticeDomain, NondispersiveDomain, DispersiveDomain)
+for i ∈ eachindex(types)
+	@eval begin
+		$(fnames[i])(ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
+		$(fnames[i])(arg, args...) = $(fnames[i])(args...)
+		$(fnames[i])(ldom1::$(types[i]), ldom2::$(types[i]), args...) = (ldom1,ldom2,$(fnames[i])(args...)...)
+		$(fnames[i])(arg, ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
+		$(fnames[i])(ldom::$(types[i]), arg, args...) = (ldom,$(fnames[i])(args...)...)
+		$(fnames[i])(arg1, arg2, args...) = $(fnames[i])(args...)
+		$(fnames[i])() = ()
+	end
 end
 
 foreach(include,files)
@@ -208,7 +237,7 @@ end
 
 isvoid(domain::AbstractDomain) = domain.type==:Void
 
-function boundary_layer!(Σ, domains, x::Vector{Point{N}}, domain_indices) where N
+function boundary_layer!(Σ, domains, x::Vector{Point{N,C}}, domain_indices) where {N,C}
 	for j ∈ eachindex(Σ) for i ∈ eachindex(x)
 		Σ[j][i] = boundary_layer(domains[domain_indices[i]],x[i],j)
 	end end
@@ -282,7 +311,7 @@ function Base.show(io::IO,sim::Simulation{N,CLASS}) where {N,CLASS}
 	suffix = length(sim.domains)>1 ? "s" : ""
 	if sim.smoothed[]
 		printstyled(io,"Smoothed ",color=PRINTED_COLOR_GOOD)
-		print(io,"$(N)D ", CLASS)
+		print(io,"$(N)D $CLASS ")
 		printstyled(io," Simulation",color=PRINTED_COLOR_DARK)
 		println(io, " with ", length(sim.domains)," domain",suffix)
 	else

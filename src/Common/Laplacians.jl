@@ -12,6 +12,7 @@ files = (
     )
 
 using ..Lattices
+using ..Points
 using LinearAlgebra
 using SparseArrays
 
@@ -34,7 +35,7 @@ import ..PRINTED_COLOR_VARIABLE
 
 function Base.show(io::IO,::Laplacian{N,CLASS}) where {N,CLASS}
     print(io,"$(N)D $CLASS ")
-    printstyled(io,"Laplacian",color=PRINTED_COLOR_DARK)
+    printstyled(io,"Laplacian", color=PRINTED_COLOR_DARK)
 end
 
 end

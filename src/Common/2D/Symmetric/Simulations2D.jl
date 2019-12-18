@@ -2,19 +2,15 @@
 
 function Simulation(
 			ω₀::Real,
-			lattice_domains::NTuple{K,LatticeDomain{1}},
-			nondispersive_domains::NTuple{L,NondispersiveDomain{1}},
-			dispersive_domains::NTuple{M,DispersiveDomain{1}};
+			lattice_domains::Tuple{LatticeDomain{2,Symmetric}},
+			nondispersive_domains::NTuple{L,NondispersiveDomain{2}},
+			dispersive_domains::NTuple{M,DispersiveDomain{2}};
 			k₂₀::Real=0,
 			k₃₀::Real=0,
 			k₁₀::Real=sqrt(ω₀^2-k₂₀^2-k₃₀^2)
-			) where {K,L,M}
+			) where {L,M}
 
-	# simple checking for 1D symmetric
-	!isempty(lattice_domains) || throw("must provide at least one LatticeDomain")
-	length(lattice_domains) == 1 || throw("in 1D, can only provide one LatticeDomain")
 	lattice_domain = lattice_domains[1]
-
 	smoothed = Ref(false)
 	x = lattice_domain.x
 
@@ -65,20 +61,15 @@ function Simulation(
 	bulk = lattice_domain.bulk
 	corner = lattice_domain.corner
 
-	# checking
-	surface[1] || throw("first site should be an endpoint, something is amiss")
-	surface[end] || throw("last site should be an endpoint, something is amiss")
-	sum(surface)>2 && throw("no point except first and last should be an endpoint, something is amiss")
+	x_half = _generate_half_x(lattice_domain.lattice, x, indices)
 
-	x_half = generate_half_x(lattice_domain.lattice, x, indices)
-
-	σ = (Vector{ComplexF64}(undef,length(x)),)
-	σ_half = (Vector{ComplexF64}(undef,length(x)+1),)
+	σ = (similar(x,ComplexF64), similar(x,ComplexF64))
+	σ_half = (similar(x_half[1],ComplexF64), similar(x_half[2],ComplexF64))
 	boundary_layer!(σ, lattice_domains, x, lattice_domain_indices)
-	boundary_layer!(σ_half, lattice_domains, x_half[1], vcat(lattice_domain_indices, lattice_domain_indices[end]))
-	α = (1 .+ 1im*σ[1]/k₁₀,)
-	α_half = (1 .+ 1im*σ_half[1]/k₁₀,)
-
+	# boundary_layer!(σ_half, lattice_domains, x_half[1], vcat(lattice_domain_indices, lattice_domain_indices[end]))
+	α = (1 .+ 1im*σ[1]/k₁₀, 1 .+ 1im*σ[2]/k₂₀)
+	# α_half = (1 .+ 1im*σ_half[1]/k₁₀, 1 .+ 1im*σ_half[2]/k₂₀)
+	return x, σ
 	laplacian = Laplacian(lattice_domain.lattice,α[1],α_half[1])
 	curlcurl = Curlcurl(lattice_domain.lattice,α[1],α_half[1],nnm,nnp,indices,interior,surface)
 
@@ -110,59 +101,48 @@ function Simulation(
 end
 
 ################################################################################
-# SIMULATION{1} building utilities
+# SIMULATION{2} building utilities
 
-# for arbitrary domain order
-function Simulation(
-			ω₀::Real,
-			domains::Vararg{AbstractDomain{1}};
-			kwargs...
-			)
-
-	lattice_domains = _get_lattice_domains(domains...)
-	nondispersive_domains = _get_nondispersive_domains(domains...)
-	dispersive_domains = _get_dispersive_domains(domains...)
-
-	return Simulation(ω₀, lattice_domains, nondispersive_domains, dispersive_domains; kwargs...)
-end
-
-# functions to extract lattice_domains, etc, from arbitrary list of domains
-fnames = (:_get_lattice_domains, :_get_nondispersive_domains, :_get_dispersive_domains)
-types = (LatticeDomain, NondispersiveDomain, DispersiveDomain)
-for i ∈ eachindex(types)
-	@eval begin
-		$(fnames[i])(ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
-		$(fnames[i])(arg, args...) = $(fnames[i])(args...)
-		$(fnames[i])(ldom1::$(types[i]), ldom2::$(types[i]), args...) = (ldom1,ldom2,$(fnames[i])(args...)...)
-		$(fnames[i])(arg, ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
-		$(fnames[i])(ldom::$(types[i]), arg, args...) = (ldom,$(fnames[i])(args...)...)
-		$(fnames[i])(arg1, arg2, args...) = $(fnames[i])(args...)
-		$(fnames[i])() = ()
+# used in building Simulation{2}
+function _generate_half_x(lattice::Lattice{2}, x::Vector{Point{2,C}}, indices) where C
+	half_x = (Vector{Point{2,Cartesian}}(undef,2length(x)),Vector{Point{2,Cartesian}}(undef,2length(x)))
+	for i ∈ eachindex(x)
+		half_x[1][i]     	   = lattice[indices[i][1]-.5, indices[i][2]   ]
+		half_x[1][i+length(x)] = lattice[indices[i][1]+.5, indices[i][2]   ]
+		half_x[2][i]		   = lattice[indices[i][1]   , indices[i][2]-.5]
+		half_x[2][i+length(x)] = lattice[indices[i][1]   , indices[i][2]+.5]
 	end
-end
-
-# used in building Simulation{1}
-function generate_half_x(lattice::Lattice{1}, x::Vector{Point{1}}, indices)
-	half_x = (Vector{Point{1}}(undef,length(x)+1),)
-	for i ∈ eachindex(x) half_x[1][i] = lattice[indices[i][1]-.5] end
-	half_x[1][end] = lattice[indices[length(x)][1]+.5]
 	return half_x
 end
 
-# 1-D hook for boundary_layer found in Simulations.jl
-@inline function boundary_layer(domain::LatticeDomain, x::Point{1}, dim::Integer)
-	typeof(domain.boundary.shape)<:Interval || throw("1D only defined for shape=Interval, but shape=", domain.boundary.shape)
-	bl1 = domain.boundary.bls[1]
-	bl2 = domain.boundary.bls[2]
-	σx = bl1(x)+bl2(x)
-	return σx
+# 2-D hook for boundary_layer found in Simulations.jl
+@inline function boundary_layer(domain::LatticeDomain{2}, x::Point{2}, dim::Integer)
+	if typeof(domain.boundary.shape) <: AbstractQuadrilateral
+		if dim==1
+			bl1 = domain.boundary.bls[1]
+			bl2 = domain.boundary.bls[2]
+		else
+			bl1 = domain.boundary.bls[3]
+			bl2 = domain.boundary.bls[4]
+		end
+		return bl1(x)+bl2(x)
+	elseif typeof(domain.boundary.shape) <: AbstractDisk
+		if dim==1
+			bl1 = domain.boundary.bls[1]
+			bl2 = domain.boundary.bls[2]
+		else
+			bl1 = noBL()
+			bl2 = noBL()
+		end
+		return bl1(x)+bl2(x)
+	end
 end
 
 
 ################################################################################
-# 1-d smoothing functions
+# 2-d smoothing functions
 
-function smooth_dielectric!(sim::Simulation{1}, num_sub_pixel::Integer = NUM_SUBPIXELS)
+function smooth_dielectric!(sim::Simulation{2}, num_sub_pixel::Integer = NUM_SUBPIXELS)
     indices = sim.nondispersive_domain_indices
     lattice = sim.lattice
     X = Vector{Point{1}}(undef,num_sub_pixel)
@@ -183,7 +163,7 @@ function smooth_dielectric!(sim::Simulation{1}, num_sub_pixel::Integer = NUM_SUB
     return nothing
 end
 
-function smooth_pump!(sim::Simulation{1}, num_sub_pixel::Integer = NUM_SUBPIXELS)
+function smooth_pump!(sim::Simulation{2}, num_sub_pixel::Integer = NUM_SUBPIXELS)
 	indices = sim.dispersive_domain_indices
     lattice = sim.lattice
     X = Vector{Point{1}}(undef,num_sub_pixel)
@@ -205,7 +185,7 @@ end
 ################################################################################
 # extras
 
-function Base.getproperty(sim::Simulation{1}, sym::Symbol)
+function Base.getproperty(sim::Simulation{2}, sym::Symbol)
 	if sym==:lattice_domain
 		return getfield(sim,:lattice_domains)[1]
 	elseif Base.sym_in(sym,(:k10,:k1₀))
@@ -225,7 +205,7 @@ function Base.getproperty(sim::Simulation{1}, sym::Symbol)
 	end
 end
 
-function Base.propertynames(sim::Simulation{1}, private=false)
+function Base.propertynames(sim::Simulation{2}, private=false)
 	if private
 		return fieldnames(Simulation)
 	else
@@ -240,7 +220,7 @@ import ..PRINTED_COLOR_GOOD
 import ..PRINTED_COLOR_WARN
 import ..PRINTED_COLOR_DARK
 
-function Base.show(io::IO,sim::Simulation{1,CLASS}) where CLASS
+function Base.show(io::IO,sim::Simulation{2,CLASS}) where CLASS
 	if sim.smoothed[]
 		printstyled(io,"Smoothed ",color=PRINTED_COLOR_GOOD)
 		print(io,"1D ", CLASS)

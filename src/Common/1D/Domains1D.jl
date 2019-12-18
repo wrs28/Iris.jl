@@ -12,7 +12,7 @@ function LatticeDomain(
     if fit
         nx = ceil(Int,bnd.shape.a/lat.dx)
         dx = bnd.shape.a/nx
-        lat = Lattice(dx; origin=bnd.shape.start+dx/2)
+        lat = Lattices.Cartesian(dx; origin=bnd.shape.start+dx/2)
     end
 
     i1 = latticeindex(lat,bnd.shape.start)

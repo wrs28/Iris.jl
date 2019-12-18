@@ -3,7 +3,7 @@
 """
 	Laplacian(::Lattice{2}, α::Vector, α_half::Vector) -> lap
 """
-function Laplacian(
+function Laplacian{Symmetric}(
 			lattice::Lattice{2,Cartesian},
 			αx::Vector{ComplexF64},
 			αy::Vector{ComplexF64},
@@ -37,7 +37,7 @@ end
 ################################################################################
 # POLAR
 
-function Laplacian(lattice::Lattice{2,Polar}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64})#, nnm, nnp, indices, interior, surface)
+function Laplacian{Symmetric}(lattice::Lattice{2,Polar}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64})#, nnm, nnp, indices, interior, surface)
 	throw("not implemented for 2D Polar yet")
 	N = length(α)
 
@@ -107,4 +107,4 @@ end
 
 ################################################################################
 # SPHERICAL
-Laplacian(lattice::Lattice{2,Spherical}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface) = throw("not implemented for 2D Spherical yet")
+Laplacian{Symmetric}(lattice::Lattice{2,Spherical}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface) = throw("not implemented for 2D Spherical yet")

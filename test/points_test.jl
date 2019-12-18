@@ -1,4 +1,6 @@
-@testset "Points.jl" begin
+using Test
+
+@testset "Points" begin
     p = Point(1,2,3,4)
     @test 3*p == Point(3,6,9,12)
     @test p*3 == Point(3,6,9,12)

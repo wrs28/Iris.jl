@@ -1,6 +1,7 @@
-function SelfEnergy(domain::LatticeDomain{1},α_half)
+function SelfEnergy{Symmetric}(domain::LatticeDomain{2,Cartesian},αx_half,αy_half)
 
-    N = length(α_half)-1
+    Nx = length(αx_half)-1
+    Ny = length(αy_half)-1
     a = domain.shape.a
     α_half⁻¹ = 1 ./α_half
     dx = domain.dx

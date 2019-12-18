@@ -11,8 +11,7 @@ function Simulation(
 			) where {K,L,M}
 
 	# simple checking for 1D symmetric
-	!isempty(lattice_domains) || throw("must provide at least one LatticeDomain")
-	length(lattice_domains) == 1 || throw("in 1D, can only provide one LatticeDomain")
+	K==1 || throw("in 1D, can only provide one LatticeDomain, but $K provided instead")
 	lattice_domain = lattice_domains[1]
 
 	smoothed = Ref(false)
@@ -70,7 +69,7 @@ function Simulation(
 	surface[end] || throw("last site should be an endpoint, something is amiss")
 	sum(surface)>2 && throw("no point except first and last should be an endpoint, something is amiss")
 
-	x_half = generate_half_x(lattice_domain.lattice, x, indices)
+	x_half = _generate_half_x(lattice_domain.lattice, x, indices)
 
 	σ = (Vector{ComplexF64}(undef,length(x)),)
 	σ_half = (Vector{ComplexF64}(undef,length(x)+1),)
@@ -79,7 +78,7 @@ function Simulation(
 	α = (1 .+ 1im*σ[1]/k₁₀,)
 	α_half = (1 .+ 1im*σ_half[1]/k₁₀,)
 
-	laplacian = Laplacian(lattice_domain.lattice,α[1],α_half[1])
+	laplacian = Laplacian{Symmetric}(lattice_domain.lattice,α[1],α_half[1])
 	curlcurl = Curlcurl(lattice_domain.lattice,α[1],α_half[1],nnm,nnp,indices,interior,surface)
 
 	Σ = SelfEnergy(lattice_domain,α_half[1])
@@ -112,37 +111,8 @@ end
 ################################################################################
 # SIMULATION{1} building utilities
 
-# for arbitrary domain order
-function Simulation(
-			ω₀::Real,
-			domains::Vararg{AbstractDomain{1}};
-			kwargs...
-			)
-
-	lattice_domains = _get_lattice_domains(domains...)
-	nondispersive_domains = _get_nondispersive_domains(domains...)
-	dispersive_domains = _get_dispersive_domains(domains...)
-
-	return Simulation(ω₀, lattice_domains, nondispersive_domains, dispersive_domains; kwargs...)
-end
-
-# functions to extract lattice_domains, etc, from arbitrary list of domains
-fnames = (:_get_lattice_domains, :_get_nondispersive_domains, :_get_dispersive_domains)
-types = (LatticeDomain, NondispersiveDomain, DispersiveDomain)
-for i ∈ eachindex(types)
-	@eval begin
-		$(fnames[i])(ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
-		$(fnames[i])(arg, args...) = $(fnames[i])(args...)
-		$(fnames[i])(ldom1::$(types[i]), ldom2::$(types[i]), args...) = (ldom1,ldom2,$(fnames[i])(args...)...)
-		$(fnames[i])(arg, ldom::$(types[i]), args...) = (ldom,$(fnames[i])(args...)...)
-		$(fnames[i])(ldom::$(types[i]), arg, args...) = (ldom,$(fnames[i])(args...)...)
-		$(fnames[i])(arg1, arg2, args...) = $(fnames[i])(args...)
-		$(fnames[i])() = ()
-	end
-end
-
 # used in building Simulation{1}
-function generate_half_x(lattice::Lattice{1}, x::Vector{Point{1}}, indices)
+function _generate_half_x(lattice::Lattice{1}, x::Vector{Point{1}}, indices)
 	half_x = (Vector{Point{1}}(undef,length(x)+1),)
 	for i ∈ eachindex(x) half_x[1][i] = lattice[indices[i][1]-.5] end
 	half_x[1][end] = lattice[indices[length(x)][1]+.5]
@@ -150,7 +120,7 @@ function generate_half_x(lattice::Lattice{1}, x::Vector{Point{1}}, indices)
 end
 
 # 1-D hook for boundary_layer found in Simulations.jl
-@inline function boundary_layer(domain::LatticeDomain, x::Point{1}, dim::Integer)
+@inline function boundary_layer(domain::LatticeDomain{1}, x::Point{1}, dim::Integer)
 	typeof(domain.boundary.shape)<:Interval || throw("1D only defined for shape=Interval, but shape=", domain.boundary.shape)
 	bl1 = domain.boundary.bls[1]
 	bl2 = domain.boundary.bls[2]

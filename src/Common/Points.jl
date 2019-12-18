@@ -1,3 +1,5 @@
+# I think this file is done 12/18/2019 WRS
+
 """
 N-dimensional Point containers
 """
@@ -37,23 +39,21 @@ struct Point{N,C}
 end
 
 """
-	Point(x,y...) -> point::Point
+	Point(x₁,x₂...,xⱼ) -> point::Point{j,Cartesian}
 """
-Point(x::Real,y...) = Point{Cartesian}(x,y...)
+Point(arg,args...) = Point{Cartesian}(arg,args...)
 
 """
-	Point{C}(x,y...) -> point::Point{N,C}
+	Point{C}(x₁,x₂...,xⱼ) -> point::Point{j,C}
 
 `C` is an `AbstractCoordinateType`, one of `Cartesian`, `Polar`, `Spherical`
 """
-Point{C}(x::Real,y...) where C = Point{C}((float(x),float.(y)...))
-
-Point(vec::NTuple{N}) where N = Point{Cartesian}(vec)
+Point{C}(vec::Vararg{Real,N}) where {N,C} = Point{C}(vec)
 Point{C}(vec::NTuple{N}) where {N,C} = Point{C}(SVector{N,Float64}(vec))
 
 Point(p::Point) = p
-Point(p::Point{N,C},vec::SVector{N}) where {N,C} = Point{C}(p,vec)
-Point{C}(p::Point{N,C},vec::SVector{N}) where {N,C} = Point{C}(p.vec)
+Point(p::Point{N,C},vec::SVector{N}) where {N,C} = Point{C}(vec)
+Point{C}(p::Point{N,C},vec::SVector{N}) where {N,C} = Point{C}(vec)
 
 function Cartesian(p::Point{N,C}) where {N,C}
 	if C<:Cartesian
@@ -86,6 +86,7 @@ function Spherical(p::Point{N,C}) where {N,C}
 end
 
 Base.convert(::Type{Point{N,C}}, p::Point) where {N,C} = C(p)
+Base.convert(::Type{Float64}, p::Point{1}) = convert(Float64, p.x)
 
 Base.:*(p::Point,a::Number) = *(a,p)
 Base.:*(a::Number,p::Point{N,Cartesian}) where N = Point{Cartesian}(a*p.vector)
@@ -114,8 +115,6 @@ LinearAlgebra.norm(p::Point{N,Cartesian}) where N = norm(p.vec)
 LinearAlgebra.norm(p::Point{2,Polar}) = p.s
 LinearAlgebra.norm(p::Point{3,Polar}) = hypot(p.s,p.z)
 LinearAlgebra.norm(p::Point{3,Spherical}) = p.r
-
-Base.convert(::Type{Float64}, p::Point{1}) = convert(Float64, p.x)
 
 Base.ndims(::Point{N}) where N = N
 Base.getindex(p::Point,index::Integer) = getfield(p,:vector)[index]

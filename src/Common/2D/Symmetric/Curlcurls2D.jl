@@ -1,8 +1,8 @@
 """
 	Curlcurl(::Lattice{1}, α::Vector, α_half::Vector, nnm, nnp, indices, interior, surface)
 """
-function Curlcurl(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface)
-
+function Curlcurl{Symmetric}(lattice::Lattice{2,Cartesian}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface)
+	throw("2d curlcurl not implemented yet")
 	dx = lattice.dx
 
 	α_half⁻¹ = 1 ./α_half
@@ -15,15 +15,14 @@ function Curlcurl(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half
 	∂ₓ = ∂ₓ_bulk + ∂ₓ_surface
 	i∂ₓ = 1im*∂ₓ
 
-	return Curlcurl{1}(∂ₓα⁻¹∂ₓ,i∂ₓ,spdiagm(0=>α))
+	return Curlcurl{2,Symmetric}(∂ₓα⁻¹∂ₓ,i∂ₓ,spdiagm(0=>α))
 end
 
 """
 	(cc::Curlcurl{1})(ky, kz) = ∇×∇×
 """
-function (cc::Curlcurl{1})(ky::Real,kz::Real)
+function (cc::Curlcurl{2})(kz::Real)
 
-	ky² = ky^2
 	kz² = kz^2
 	kykz = ky*kz
 

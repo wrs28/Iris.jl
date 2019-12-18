@@ -9,7 +9,7 @@ plot(shape)
 bnd = Boundary(shape,DirichletBC,PML)
 plot(bnd)
 
-lat = Lattices.Cartesian(.1,.125; angles=.1)
+lat = Lattices.Cartesian(.1,.125)
 plot(lat)
 
 @code_warntype LatticeDomain(bnd,lat)

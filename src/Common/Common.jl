@@ -30,7 +30,7 @@ include("../Defaults.jl")
 
 # Base.conj(::Tuple{}) = ()
 
-include("Points.jl")
+include("Points.jl") # ✅
 using .Points
 export Point
 export Cartesian
@@ -42,6 +42,7 @@ using .VectorFields
 export ScalarField
 export ElectricField
 export VectorField
+export update!
 
 include("Shapes.jl")
 using .Shapes
@@ -99,51 +100,48 @@ export DispersiveDomain
 export Symmetric
 export Unsymmetric
 
-# include("Laplacians.jl")
-# using .Laplacians
-# export Laplacian
+include("Laplacians.jl")
+using .Laplacians
+export Laplacian
 
-# include("Curlcurls.jl")
-# using .Curlcurls
-# export Curlcurl
+include("Curlcurls.jl")
+using .Curlcurls
+export Curlcurl
 
 # # include("Curls.jl")
 # # using .Curls
 # # export Curl
 
-# include("SelfEnergies.jl")
-# using .SelfEnergies
+include("SelfEnergies.jl")
+using .SelfEnergies
 
-# include("Simulations.jl")
-# using .Simulations
-# export Simulation
-# export smooth!
-# export update!
-# export update_dielectric!
-# export update_pump!
-# export Unsymmetric
-# export Symmetric
+include("Simulations.jl")
+using .Simulations
+export Simulation
+export smooth!
+export update_dielectric!
+export update_pump!
 # export Hermitian
 
-# include("HelmholtzOperators.jl")
-# using .HelmholtzOperators
-# export Helmholtz
+include("HelmholtzOperators.jl")
+using .HelmholtzOperators
+export Helmholtz
 
-# include("MaxwellOperators.jl")
-# using .MaxwellOperators
-# export Maxwell
+include("MaxwellOperators.jl")
+using .MaxwellOperators
+export Maxwell
 
-# include("LU_Factorizations.jl")
-# using .LU_Factorizations
-# export DEFAULT_LUPACK
-# export MSolver
-# export PSolver
-# export USolver
-# export AbstractLUPACK
+include("LU_Factorizations.jl")
+using .LU_Factorizations
+export DEFAULT_LUPACK
+export MSolver
+export PSolver
+export USolver
+export AbstractLUPACK
 
-# include("Plotting.jl")
-# using .Plotting
+include("Plotting.jl")
+using .Plotting
 
-# foreach(include,dimensional_files)
+foreach(include,dimensional_files)
 
 end # module

@@ -1,4 +1,4 @@
-function SelfEnergy(domain::LatticeDomain{1},α_half)
+function SelfEnergy{Symmetric}(domain::LatticeDomain{1},α_half)
 
     N = length(α_half)-1
     a = domain.shape.a

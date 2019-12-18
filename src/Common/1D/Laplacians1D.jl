@@ -3,7 +3,7 @@
 """
 	Laplacian(::Lattice{1}, α::Vector, α_half::Vector) -> lap
 """
-function Laplacian(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64})
+function Laplacian{Symmetric}(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64})
 	dx = lattice.dx
 	N = length(α)
 	α_half⁻¹ = 1 ./α_half
@@ -20,7 +20,7 @@ end
 ################################################################################
 # POLAR
 
-function Laplacian(lattice::Lattice{1,Polar}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64})#, nnm, nnp, indices, interior, surface)
+function Laplacian{Symmetric}(lattice::Lattice{1,Polar}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64})#, nnm, nnp, indices, interior, surface)
 	throw("not implemented for 1D Polar yet")
 	N = length(α)
 
@@ -90,4 +90,4 @@ end
 
 ################################################################################
 # SPHERICAL
-Laplacian(lattice::Lattice{1,Spherical}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface) = throw("not implemented for 1D Spherical yet")
+Laplacian{Symmetric}(lattice::Lattice{1,Spherical}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface) = throw("not implemented for 1D Spherical yet")
