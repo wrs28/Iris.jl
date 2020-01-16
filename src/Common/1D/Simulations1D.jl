@@ -71,17 +71,19 @@ function Simulation(
 
 	x_half = _generate_half_x(lattice_domain.lattice, x, indices)
 
-	σ = (Vector{ComplexF64}(undef,length(x)),)
-	σ_half = (Vector{ComplexF64}(undef,length(x)+1),)
-	boundary_layer!(σ, lattice_domains, x, lattice_domain_indices)
-	boundary_layer!(σ_half, lattice_domains, x_half[1], vcat(lattice_domain_indices, lattice_domain_indices[end]))
+	# σ = (Vector{ComplexF64}(undef,length(x)),)
+	# σ_half = (Vector{ComplexF64}(undef,length(x)+1),)
+	# boundary_layer!(σ, lattice_domains, x, lattice_domain_indices)
+	# boundary_layer!(σ_half, lattice_domains, x_half[1], vcat(lattice_domain_indices, lattice_domain_indices[end]))
+	σ = boundary_layer(lattice_domain,x)
+	σ_half = boundary_layer(lattice_domain,x_half[1])
 	α = (1 .+ 1im*σ[1]/k₁₀,)
 	α_half = (1 .+ 1im*σ_half[1]/k₁₀,)
 
 	laplacian = Laplacian{Symmetric}(lattice_domain.lattice,α[1],α_half[1])
-	curlcurl = Curlcurl(lattice_domain.lattice,α[1],α_half[1],nnm,nnp,indices,interior,surface)
+	# curlcurl = Curlcurl{Symmetric}(lattice_domain.lattice,α[1],α_half[1],nnm,nnp,indices,interior,surface)
 
-	Σ = SelfEnergy(lattice_domain,α_half[1])
+	Σ = SelfEnergy{Symmetric}(lattice_domain,α_half[1])
 
 	return Simulation{1,Symmetric,ComplexF64,typeof(lattice_domains),typeof(nondispersive_domains),typeof(dispersive_domains),typeof(Σ)}(
 		lattice_domains,
@@ -95,7 +97,7 @@ function Simulation(
 		F,
 		χ,
 		laplacian,
-		curlcurl,
+		# curlcurl,
 		Σ,
 		α,
 		σ,
@@ -112,20 +114,17 @@ end
 # SIMULATION{1} building utilities
 
 # used in building Simulation{1}
-function _generate_half_x(lattice::Lattice{1}, x::Vector{Point{1}}, indices)
-	half_x = (Vector{Point{1}}(undef,length(x)+1),)
+function _generate_half_x(lattice::Lattice{1}, x::Vector{Point{1,TP}}, indices) where TP
+	half_x = (Vector{Point{1,Cartesian}}(undef,length(x)+1),)
 	for i ∈ eachindex(x) half_x[1][i] = lattice[indices[i][1]-.5] end
 	half_x[1][end] = lattice[indices[length(x)][1]+.5]
 	return half_x
 end
 
 # 1-D hook for boundary_layer found in Simulations.jl
-@inline function boundary_layer(domain::LatticeDomain{1}, x::Point{1}, dim::Integer)
+@inline function boundary_layer(domain::LatticeDomain{1}, x::Vector{Point{1,C}}) where C
 	typeof(domain.boundary.shape)<:Interval || throw("1D only defined for shape=Interval, but shape=", domain.boundary.shape)
-	bl1 = domain.boundary.bls[1]
-	bl2 = domain.boundary.bls[2]
-	σx = bl1(x)+bl2(x)
-	return σx
+	return (domain.boundary.bls[1].(x)+domain.boundary.bls[2].(x),)
 end
 
 
@@ -209,19 +208,19 @@ end
 import ..PRINTED_COLOR_GOOD
 import ..PRINTED_COLOR_WARN
 import ..PRINTED_COLOR_DARK
+import ..PRINTED_COLOR_NUMBER
 
 function Base.show(io::IO,sim::Simulation{1,CLASS}) where CLASS
 	if sim.smoothed[]
 		printstyled(io,"Smoothed ",color=PRINTED_COLOR_GOOD)
-		print(io,"1D ", CLASS)
-		printstyled(io," Simulation\n",color=PRINTED_COLOR_DARK)
 	else
 		printstyled(io,"Unsmoothed ",color=PRINTED_COLOR_WARN)
-		print(io, 1, "D ", CLASS)
-		printstyled(io," Simulation\n",color=PRINTED_COLOR_DARK)
 	end
+	CLASS<:Symmetric ? print(io,"Symmetric") : nothing
+	CLASS<:Unsymmetric ? print(io,"Unsymmetric") : nothing
+	printstyled(io," Simulation\n",color=PRINTED_COLOR_DARK)
     print(io,"\tn sites: ")
-	printstyled(io,length(sim),"\n",color=:light_cyan)
+	printstyled(io,length(sim),"\n",color=PRINTED_COLOR_NUMBER)
 	println(io,"\t====================")
 	println(IOContext(io,:tabbed2=>true),sim.boundary)
 	println(io)
@@ -229,18 +228,8 @@ function Base.show(io::IO,sim::Simulation{1,CLASS}) where CLASS
 	println(io)
 	domains = (sim.nondispersive_domains...,sim.dispersive_domains...)
 	for d ∈ eachindex(domains)
-		print(io,"\t\tDomain ")
-		print(io,d)
-		if typeof(domains[d])<:NondispersiveDomain
-			printstyled(io," nondispersive ",color=PRINTED_COLOR_DARK)
-		elseif typeof(domains[d])<:DispersiveDomain
-			printstyled(io," dispersive    ",color=PRINTED_COLOR_DARK)
-		end
-		print(io, " (",domains[d].type,"): ")
-		print(io,domains[d].name)
-		if typeof(domains[d])<:DispersiveDomain
-			print(IOContext(io,:tabbed2=>true),"\n\t\t\t",domains[d].χ)
-		end
+		print(io,"\t\tDomain ", d, " ")
+		print(IOContext(io,:tabbed2=>true),domains[d])
 		d < length(domains) ? println(io) : nothing
 	end
 end

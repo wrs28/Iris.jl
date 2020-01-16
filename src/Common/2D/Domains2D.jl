@@ -1,32 +1,65 @@
 function LatticeDomain(
             boundary::Boundary{2},
-            lattice::Lattice{2,TC},
+            lattice::Lattice{2,Cartesian},
             n::Number = 1;
             type::Symbol = :generic,
             name::Symbol = :anonymous,
-            fit::Bool = true
-            ) where TC
+            fit::Bool = boundary.shape.ϕ ≈ lattice.ϕ)
 
     bnd = boundary
     lat = lattice
 
-    if (typeof(bnd.shape) <: AbstractRectangle) && (TC <: Cartesian) && (bnd.shape.ϕ ≈ lat.ϕ) && fit
+    if (typeof(bnd.shape) <: AbstractRectangle) && fit
         nx = ceil(Int,bnd.shape.a/lat.dx)
         ny = ceil(Int,bnd.shape.b/lat.dy)
         dx = bnd.shape.a/nx
         dy = bnd.shape.a/ny
         lat = Lattices.Cartesian(dx, dy; origin=bnd.shape.origin)
-        CLASS = Symmetric
-    elseif (typeof(bnd.shape) <: AbstractUniformDisk) && (TC <: Polar) && (bnd.shape.origin ≈ lat.origin) && fit
+        CLASS = Symmetric()
+    else
+        CLASS = Unsymmetric()
+    end
+
+    return lattice_domain_classy(boundary,lattice,n,CLASS;type=type,name=name)
+end
+
+
+function LatticeDomain(
+            boundary::Boundary{2},
+            lattice::Lattice{2,Polar},
+            n::Number = 1;
+            type::Symbol = :generic,
+            name::Symbol = :anonymous,
+            fit::Bool = boundary.shape.origin ≈ lattice.origin)
+
+    bnd = boundary
+    lat = lattice
+
+    if (typeof(bnd.shape) <: AbstractUniformDisk) && fit
         nr = ceil(Int,bnd.shape.r/lat.dr)
         nϕ = ceil(Int,2π/lat.dϕ)
         dr = bnd.shape.r/nr
         dϕ = 2π/nϕ
         lat = Lattices.Polar(dr, dϕ; origin=bnd.shape.origin)
-        CLASS = Symmetric
+        CLASS = Symmetric()
     else
-        CLASS = Unsymmetric
+        CLASS = Unsymmetric()
     end
+
+    return lattice_domain_classy(boundary,lattice,n,CLASS;type=type,name=name)
+end
+
+function lattice_domain_classy(
+            boundary::Boundary{2},
+            lattice::Lattice{2},
+            n::Number,
+            ::CLASS;
+            type::Symbol = :generic,
+            name::Symbol = :anonymous
+            ) where CLASS
+
+    bnd = boundary
+    lat = lattice
 
     ijminmax = _generate_spanning_indices(bnd,lat)
     p = _generate_points(bnd,lat,ijminmax...)
@@ -48,13 +81,9 @@ function LatticeDomain(
     nnyp = nnyp[inds_keep]
     indices = map(z->z+CartesianIndex(ijminmax[1]-1,ijminmax[3]-1),inds_keep)
 
-    return LatticeDomain{CLASS}(bnd, lat, n, type, name, x, indices, interior,
-                            bulk, surface, corner, (nnxm,nnym), (nnxp,nnyp))
+    return LatticeDomain{CLASS}(bnd, lat, n, x, indices, interior,
+                            bulk, surface, corner, (nnxm,nnym), (nnxp,nnyp); type=type, name=name)
 end
-
-
-LatticeDomain(lattice::Lattice{2}, boundary::Boundary{2}, args...; kwargs...) =
-    Lattice(boundary, lattice, args...; kwargs...)
 
 
 function Base.propertynames(::LatticeDomain{2}, private=false)

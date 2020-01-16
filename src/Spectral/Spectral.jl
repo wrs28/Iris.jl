@@ -130,26 +130,26 @@ end
 foreach(include,dimensions)
 
 # add convenience constructors for ElectricField
-for ep ∈ (HelmholtzLEP,HelmholtzCF,HelmholtzNEP)
-	@eval begin
-		Common.ScalarField(mep::$(ep)) = ScalarField(mep.simulation)
-		Common.ScalarField(arg,mep::$(ep)) = ScalarField(mep.simulation,arg)
-		Common.ScalarField(mep::$(ep),arg) = ScalarField(mep.simulation,arg)
-	end
-end
-for ep ∈ (MaxwellLEP,MaxwellCF,MaxwellNEP)
-	@eval begin
-		# """
-		# 	ElectricField(::$($ep),[m=1]) -> ElectricField
-		# 	ElectricField(::$($ep),values) -> ElectricField
-		#
-		# arguments can be provided in any order
-		# """
-		Common.ElectricField(mep::$(ep)) = ElectricField(mep.simulation)
-		Common.ElectricField(arg,mep::$(ep)) = ElectricField(mep.simulation,arg)
-		Common.ElectricField(mep::$(ep),arg) = ElectricField(mep.simulation,arg)
-	end
-end
+# for ep ∈ (HelmholtzLEP,HelmholtzCF,HelmholtzNEP)
+# 	@eval begin
+# 		Common.ScalarField(mep::$(ep)) = ScalarField(mep.simulation)
+# 		Common.ScalarField(arg,mep::$(ep)) = ScalarField(mep.simulation,arg)
+# 		Common.ScalarField(mep::$(ep),arg) = ScalarField(mep.simulation,arg)
+# 	end
+# end
+# for ep ∈ (MaxwellLEP,MaxwellCF,MaxwellNEP)
+# 	@eval begin
+# 		# """
+# 		# 	ElectricField(::$($ep),[m=1]) -> ElectricField
+# 		# 	ElectricField(::$($ep),values) -> ElectricField
+# 		#
+# 		# arguments can be provided in any order
+# 		# """
+# 		Common.ElectricField(mep::$(ep)) = ElectricField(mep.simulation)
+# 		Common.ElectricField(arg,mep::$(ep)) = ElectricField(mep.simulation,arg)
+# 		Common.ElectricField(mep::$(ep),arg) = ElectricField(mep.simulation,arg)
+# 	end
+# end
 
 import ..Common.DEFAULT_LINEAR_EIGENSOLVER
 import ..Common.DEFAULT_NONLINEAR_EIGENSOLVER

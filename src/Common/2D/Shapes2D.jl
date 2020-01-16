@@ -58,14 +58,15 @@ function Circle(radius::Real, origin::Point{2}; ϕ::Real=0, reference::Symbol=:c
 end
 
 """
+    Circle(radius, x0, y0; ϕ=0, reference=:center) -> circle
+"""
+Circle(radius::Real, x0::Real, y0::Real; kwargs...) = Circle(radius, Point(x0,y0); kwargs...)
+
+"""
     (::Circle)(p::Point{2}) --> is_in_circle::Bool
 """
 (c::Circle)(p::Point{2}) = norm(p-c.origin) < c.radius-eps(c.radius)
 
-"""
-    Circle(radius, x0, y0; ϕ=0, reference=:center) -> circle
-"""
-Circle(radius::Real, x0::Real, y0::Real; kwargs...) = Circle(radius, Point(x0,y0); kwargs...)
 
 """
     perimeter(t,shape,side) -> x,y,dx/dt,dy/dt
@@ -103,7 +104,7 @@ function Base.show(io::IO, circle::Circle)
     printstyled(io, "Circle", color=PRINTED_COLOR_DARK)
     print(io, "(radius: ")
     printstyled(io, fmt("2.2f",circle.radius), color=PRINTED_COLOR_NUMBER)
-    print(io, ", origin: ", circle.origin, ")")
+    print(io, ", center: ", circle.origin, ")")
 end
 
 ################################################################################
@@ -170,7 +171,7 @@ Square(a::Real, x0::Real, y0::Real; kwargs...) = Square(a,Point(x0,y0); kwargs..
 function (s::Square)(p::Point{2})
     purot = unrotate(p, s)
     p = purot - s.origin
-    return -s.a/2+10eps(s.a/2) < p.x < s.a/2-10eps(s.a/2)  &&  -s.a/2+10eps(s.a/2) < p.y < s.a/2-10eps(s.a/2)
+    return -s.a/2+eps(s.a/2) < p.x < s.a/2-eps(s.a/2)  &&  -s.a/2+eps(s.a/2) < p.y < s.a/2-eps(s.a/2)
 end
 
 function perimeter(t::Number,s::Square,side::Int)
@@ -227,8 +228,8 @@ function Base.show(io::IO, square::Square)
     print(io, "(a: ")
     printstyled(io, fmt("2.2f",square.a), color=PRINTED_COLOR_NUMBER)
     print(io, ", ϕ: ")
-    printstyled(io, fmt("2.2f",square.ϕ),"°", color=PRINTED_COLOR_NUMBER)
-    print(io, ", origin: ", square.origin, ")")
+    printstyled(io, fmt("3.1f",180square.ϕ/π),"°", color=PRINTED_COLOR_NUMBER)
+    print(io, ", center: ", square.origin, ")")
 end
 
 
@@ -302,7 +303,7 @@ Rectangle(s::Square) = Rectangle(s.a,s.a,s.origin; ϕ = s.ϕ)
 function (r::Rectangle)(p::Point{2})
     purot = unrotate(p, r)
     p = purot - r.origin
-    return -r.a/2+10eps(r.a/2) < p.x < r.a/2-10eps(r.a/2)  &&  -r.b/2+10eps(r.b/2) < p.y < r.b/2-10eps(r.b/2)
+    return -r.a/2+eps(r.a/2) < p.x < r.a/2-eps(r.a/2)  &&  -r.b/2+eps(r.b/2) < p.y < r.b/2-eps(r.b/2)
 end
 
 function perimeter(t::Number,r::Rectangle,side::Int)
@@ -363,8 +364,8 @@ function Base.show(io::IO, rect::Rectangle)
     print(io, ", b: ")
     printstyled(io, fmt("2.2f", rect.b), color=PRINTED_COLOR_NUMBER)
     print(io, ", ϕ: ")
-    printstyled(io, fmt("3.1f", rect.ϕ), color=PRINTED_COLOR_NUMBER)
-    print(io, ", origin: ", rect.origin, ")")
+    printstyled(io, fmt("3.1f", 180rect.ϕ/π),"°", color=PRINTED_COLOR_NUMBER)
+    print(io, ", center: ", rect.origin, ")")
 end
 
 ################################################################################

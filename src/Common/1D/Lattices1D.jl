@@ -8,10 +8,10 @@ Base.getindex(lat::Lattice{1,Cartesian} ,i::Real)   = lat.origin + i*lat.dx*lat.
 Base.getindex(lat::Lattice{1,Polar}     ,i::Real)   = lat.origin + lat.r0 + i*lat.dr
 Base.getindex(lat::Lattice{1,Spherical} ,i::Real)   = lat.origin + lat.r0 + i*lat.dr
 
-latticeindex(lat::Lattice{1,Bravais}    ,p::Point{1}) = (p.x-lat.x0)/lat.a
-latticeindex(lat::Lattice{1,Cartesian}  ,p::Point{1}) = (p.x-lat.x0)/lat.dx
-latticeindex(lat::Lattice{1,Polar}      ,p::Point{1}) = (p.x-lat.x0)/lat.dr - 1/2
-latticeindex(lat::Lattice{1,Spherical}  ,p::Point{1}) = (p.x-lat.x0)/lat.dr - 1/2
+latticeindex(lat::Lattice{1,Bravais}    ,p::Point{1}) = (p.x-lat.origin.x)/lat.a
+latticeindex(lat::Lattice{1,Cartesian}  ,p::Point{1}) = (p.x-lat.origin.x)/lat.dx
+latticeindex(lat::Lattice{1,Polar}      ,p::Point{1}) = (p.x-lat.origin.x)/lat.dr - 1/2
+latticeindex(lat::Lattice{1,Spherical}  ,p::Point{1}) = (p.x-lat.origin.x)/lat.dr - 1/2
 
 
 ################################################################################
@@ -132,5 +132,6 @@ end
 ################################################################################
 # PLOTTING
 @recipe function f(lat::Lattice{1},n1=-10,n2=10)
+    ylims --> [-1,1]
     lat[n1:n2]
 end

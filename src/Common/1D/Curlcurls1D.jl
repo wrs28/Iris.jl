@@ -4,10 +4,8 @@
 function Curlcurl{Symmetric}(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface)
 
 	dx = lattice.dx
-
 	α_half⁻¹ = 1 ./α_half
-
-	∂ₓα⁻¹∂ₓ = Laplacian(lattice,α,α_half).l0
+	∂ₓα⁻¹∂ₓ = Laplacian{Symmetric}(lattice,α,α_half).l0
 
 	N = length(α)
 	∂ₓ_bulk = _bulk_derivative(lattice,N,interior,surface,nnm,nnp)
@@ -15,7 +13,7 @@ function Curlcurl{Symmetric}(lattice::Lattice{1,Cartesian}, α::Vector{ComplexF6
 	∂ₓ = ∂ₓ_bulk + ∂ₓ_surface
 	i∂ₓ = 1im*∂ₓ
 
-	return Curlcurl{1,Symmetric}(∂ₓα⁻¹∂ₓ,i∂ₓ,spdiagm(0=>α))
+	return Curlcurl{1,Symmetric}(∂ₓα⁻¹∂ₓ,i∂ₓ,spdiagm(0=>α),spdiagm(0=>α))
 end
 
 """

@@ -13,8 +13,8 @@ export AbstractDomain
 export LatticeDomain
 export NondispersiveDomain
 export DispersiveDomain
-export Symmetric
-export Unsymmetric
+# export SymmetricDomain
+# export UnsymmetricDomain
 
 using ..Boundaries
 using ..DielectricFunctions
@@ -23,17 +23,10 @@ using ..Dispersions
 using ..Lattices
 using ..Points
 using ..Shapes
-using LinearAlgebra
 using RecipesBase
 
-"""
-	Unsymmetric
-"""
-struct Unsymmetric end
-"""
-	Symmetric
-"""
-LinearAlgebra.Symmetric
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra.norm
 
 """
     AbstractDomain{N}
@@ -63,8 +56,6 @@ struct LatticeDomain{N,CLASS,TC,TBND,TLAT,TP} <: AbstractDomain{N}
         boundary::TBND,
         lattice::TLAT,
         n::Number,
-        type::Symbol,
-        name::Symbol,
         x::Vector{Point{N,TP}},
         indices::Vector{CartesianIndex{N}},
         interior::BitArray{1},
@@ -72,12 +63,29 @@ struct LatticeDomain{N,CLASS,TC,TBND,TLAT,TP} <: AbstractDomain{N}
         surface::BitArray{1},
         corner::BitArray{1},
         nnm::NTuple{N,Vector{Int}},
-        nnp::NTuple{N,Vector{Int}}
+        nnp::NTuple{N,Vector{Int}};
+        type::Symbol = :generic,
+        name::Symbol = :anonymous
         ) where {TBND<:Boundary{N},TP,TLAT<:Lattice{N,TC},CLASS} where {N,TC}
 
         new{N,CLASS,TC,TBND,TLAT,TP}(boundary,lattice,n,n^2,type,name,x,indices,interior,bulk,surface,corner,nnm,nnp)
     end
 end
+
+LatticeDomain(lattice::Lattice, boundary::Boundary, n::Number=1; kwargs...) =
+    LatticeDomain(boundary, lattice, n; kwargs...)
+
+LatticeDomain(boundary::Boundary, n::Number, lattice::Lattice; kwargs...) =
+    LatticeDomain(boundary, lattice, n; kwargs...)
+
+LatticeDomain(lattice::Lattice, n::Number, boundary::Boundary; kwargs...) =
+    LatticeDomain(boundary, lattice, n; kwargs...)
+
+LatticeDomain(n::Number, boundary::Boundary, lattice::Lattice; kwargs...) =
+    LatticeDomain(boundary, lattice, n; kwargs...)
+
+LatticeDomain(n::Number, lattice::Lattice, boundary::Boundary; kwargs...) =
+    LatticeDomain(boundary, lattice, n; kwargs...)
 
 function Base.getproperty(ldom::LatticeDomain, sym::Symbol)
     if sym == :shape
@@ -117,6 +125,26 @@ NondispersiveDomain(shape::AbstractShape, n1::Number, n2::Number, args...) =
 
 NondispersiveDomain(boundary::Boundary, args...) = NondispersiveDomain(boundary.shape, args...)
 
+
+Base.propertynames(ndom::NondispersiveDomain, private=false) = (fieldnames(NondispersiveDomain)..., propertynames(ndom.dielectric,private)...)
+
+function Base.getproperty(ndom::NondispersiveDomain, sym::Symbol)
+    dielectric = getfield(ndom,:dielectric)
+    if Base.sym_in(sym,propertynames(dielectric,true))
+        return getproperty(dielectric,sym)
+    else
+        return getfield(ndom,sym)
+    end
+end
+
+function Base.setproperty!(ndom::NondispersiveDomain, sym::Symbol, val)
+    if Base.sym_in(sym,propertynames(ndom.dielectric,true))
+        return setproperty!(ndom.dielectric,sym,val)
+    else
+        return setfield!(ndom,sym,val)
+    end
+end
+
 ################################################################################
 # DISPERSIVE DOMAIN
 
@@ -130,7 +158,7 @@ struct DispersiveDomain{N,TSH,TCHI,TPF} <: AbstractDomain{N}
     function DispersiveDomain(
                 shape::TSH,
                 χ::TCHI,
-                pump::TPF,
+                pump::TPF;
                 type::Symbol = :generic,
                 name::Symbol = :anonymous
                 ) where {TSH<:AbstractShape{N}, TPF<:AbstractPumpFunction, TCHI<:AbstractDispersion} where N
@@ -139,24 +167,46 @@ struct DispersiveDomain{N,TSH,TCHI,TPF} <: AbstractDomain{N}
     end
 end
 
-DispersiveDomain(shape::AbstractShape, χ::AbstractDispersion, F::Number=1, args...) =
-    DispersiveDomain(shape, χ, PumpFunctions.PiecewiseConstant(F), args...)
+DispersiveDomain(shape::AbstractShape, χ::AbstractDispersion, F::Number=1; kwargs...) =
+    DispersiveDomain(shape, χ, PumpFunctions.PiecewiseConstant(F); kwargs...)
 
-DispersiveDomain(boundary::Boundary, args...) = DispersiveDomain(boundary.shape, args...)
+DispersiveDomain(boundary::Boundary, args...; kwargs...) = DispersiveDomain(boundary.shape, args...; kwargs...)
 
 
-# load dimensional files
+Base.propertynames(ddom::DispersiveDomain, private=false) = (fieldnames(DispersiveDomain)..., propertynames(ddom.pump,private)...)
+
+function Base.getproperty(ddom::DispersiveDomain, sym::Symbol)
+    pump = getfield(ddom,:pump)
+    if Base.sym_in(sym,propertynames(pump,true))
+        return getproperty(pump,sym)
+    else
+        return getfield(ddom,sym)
+    end
+end
+
+function Base.setproperty!(ddom::DispersiveDomain, sym::Symbol, val)
+    if Base.sym_in(sym,propertynames(ddom.pump,true))
+        return setproperty!(ddom.pump,sym,val)
+    else
+        return setfield!(ddom,sym,val)
+    end
+end
+
+################################################################################
+# load dimensional files (mostly lattice domain)
 foreach(include,files)
-
 
 ################################################################################
 # Pretty Printing
 
 import ..PRINTED_COLOR_NUMBER
 import ..PRINTED_COLOR_DARK
+import ..PRINTED_COLOR_VARIABLE
 
 function Base.show(io::IO,dom::LatticeDomain{N,CLASS}) where {N,CLASS}
-    print(io,"$(N)D $CLASS ")
+    print(io,"$(N)D ")
+    CLASS<:Symmetric ? print(io,"Symmetric ") : nothing
+    CLASS<:Unsymmetric ? print(io,"Unsymmetric ") : nothing
     printstyled(io,"LatticeDomain ",color=PRINTED_COLOR_DARK)
     println(io,"(",dom.type,"): ",dom.name)
     print(io,"\tNumber of sites: ")
@@ -167,6 +217,9 @@ function Base.show(io::IO,dom::LatticeDomain{N,CLASS}) where {N,CLASS}
     printstyled(io,sum(dom.surface),"\n",color=PRINTED_COLOR_NUMBER)
     print(io,"\tNumber of corner points: ")
     printstyled(io,sum(dom.corner),"\n",color=PRINTED_COLOR_NUMBER)
+    print(io,"\tBackground Index: ")
+    printstyled(io,dom.n;color=PRINTED_COLOR_NUMBER)
+    println(io)
     print(io,"\t\t====================")
     println(io)
     println(IOContext(io,:tabbed2=>true),dom.lattice)
@@ -177,16 +230,21 @@ end
 function Base.show(io::IO,ndom::NondispersiveDomain)
     printstyled(io,"NondispersiveDomain ",color=PRINTED_COLOR_DARK)
     println(io,"(",ndom.type,"): ",ndom.name)
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     println(io,"\t\t",ndom.shape)
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     show(IOContext(io,:tabbed2=>true), ndom.dielectric)
 end
 
 function Base.show(io::IO,ddom::DispersiveDomain)
     printstyled(io,"DispersiveDomain ",color=PRINTED_COLOR_DARK)
     println(io,"(",ddom.type,"): ",ddom.name)
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     println(io,"\t\t",ddom.shape)
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     show(IOContext(io,:tabbed2=>true),ddom.pump)
     println(io)
+    get(io,:tabbed2,false) ? print(io,"\t\t") : nothing
     println(io,"\t\t",ddom.χ)
 end
 

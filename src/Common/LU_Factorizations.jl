@@ -109,11 +109,11 @@ end
 function Base.show(io::IO,si::LUfact{M}) where M
     printstyled(io,"LUfact ",color=PRINTED_COLOR_LIGHT)
     print(io,"(using ")
-    if M==MSolver
+    if M<:MSolver
         printstyled(io,"MUMPS",color=PRINTED_COLOR_NUMBER)
-    elseif M==PSolver
+    elseif M<:PSolver
         printstyled(io,"Pardiso",color=PRINTED_COLOR_NUMBER)
-    elseif M==USolver
+    elseif M<:USolver
         printstyled(io,"UMFPACK",color=PRINTED_COLOR_NUMBER)
     end
     print(io,")")

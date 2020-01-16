@@ -3,17 +3,18 @@ for constructing boundary layers and evaluating [`PML`](@ref)/[`cPML`](@ref) con
 """
 module BoundaryLayers
 
-export getside
 export PML
 export cPML
 export noBL
 export AbstractBL
 export AbstractRealBL
 export AbstractComplexBL
+export getside
 
 # PML params used in Boundaries
 import ..EXTINCTION
 import ..SCALING_ANGLE
+import ..BL_DEPTH
 
 import ..PRINTED_COLOR_NUMBER
 import ..PRINTED_COLOR_DARK
@@ -60,15 +61,19 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 			end
 		end
 
-		"""
-			$($TBL){SIDE}(depth) -> bl
+		if $TBL == :noBL
+			noBL{SIDE}(depth::Real=BL_DEPTH) where SIDE = noBL{SIDE}(0,NaN,NaN)
+		else
+			"""
+				$($TBL){SIDE}(depth) -> bl
 
-		$($TBL) along dimension `SIDE` with `depth`. The location of the layer determined
-		later by associating it with a shape in a call to `Boundary`.
+			$($TBL) along dimension `SIDE` with `depth`. The location of the layer determined
+			later by associating it with a shape in a call to `Boundary`.
 
-		see also: [`Boundary`](@ref), [`PML`](@ref), [`cPML`](@ref), [`noBL`](@ref)
-		"""
-		$TBL{SIDE}(depth) where SIDE = $TBL{SIDE}(depth,NaN,NaN)
+			see also: [`Boundary`](@ref), [`PML`](@ref), [`cPML`](@ref), [`noBL`](@ref)
+			"""
+			$TBL{SIDE}(depth::Real=BL_DEPTH) where SIDE = $TBL{SIDE}(depth,NaN,NaN)
+		end
 
 		function Base.show(io::IO,tbl::$TBL{SIDE}) where SIDE
 			printstyled(io,$TBL,color=PRINTED_COLOR_DARK)
@@ -84,21 +89,21 @@ for (TBL,ATBL) ∈ zip((:PML,:cPML,:noBL),
 		(bl::$TBL{SIDE})(;depth=bl.depth, start=bl.start, stop=bl.stop) where SIDE = $TBL{SIDE}(depth,start,stop)
 	end
 end
-noBL{SIDE}() where SIDE = noBL{SIDE}(0,NaN,NaN)
+# noBL{SIDE}(depth::Real=BL_DEPTH) where SIDE = noBL{SIDE}(0,NaN,NaN)
 
 """
 	(::PML)(p::Point) -> σ
 
 evaluate the PML conductivity `σ` at the point `p`.
 """
-(pml::PML)(p::Point) = conductivity_profile(p[ceil(Int,getside(pml)/2)],pml.start,pml.stop)
+(pml::PML)(p::Point) = _conductivity_profile(p[1+(getside(pml)-1)÷2],pml.start,pml.stop)
 
 """
 	(::cPML)(p::Point) -> σ
 
 evaluate the cPML conductivity `σ` at the point `p`.
 """
-(cpml::cPML)(p::Point) = conj_conductivity_profile(p[ceil(Int,getside(cpml)/2)],cpml.start,cpml.stop)
+(cpml::cPML)(p::Point) = _conj_conductivity_profile(p[1+(getside(cpml)-1)÷2],cpml.start,cpml.stop)
 
 """
 	(::noBL)(p::Point) -> 0.0
@@ -120,11 +125,11 @@ Base.conj(nbl::noBL) = nbl
 
 # used inside PML. This is the place to modify the PML profile
 """
-	conductivity_profile(z,start,stop) -> σ
+	_conductivity_profile(z,start,stop) -> σ
 
 PML conductivity `σ` at point `z`
 """
-function conductivity_profile(z::Real,start::Real,stop::Real)
+function _conductivity_profile(z::Real,start::Real,stop::Real)
 	if (start≤stop && start≤z) || (start≥stop && start≥z)
 		depth = abs(stop-start)
 	    β = 2*sqrt(depth)
@@ -137,11 +142,11 @@ function conductivity_profile(z::Real,start::Real,stop::Real)
 end
 
 """
-	integrated_conductivity_profile(z,start,stop) -> σ
+	_integrated_conductivity_profile(z,start,stop) -> σ
 
 integrated PML conductivity `σ` at point `z`
 """
-function integrated_conductivity_profile(z::Real,start::Real,stop::Real)
+function _integrated_conductivity_profile(z::Real,start::Real,stop::Real)
 	if (start≤stop && start≤z) || (start≥stop && start≥z)
 		depth = abs(stop-start)
 		β = 2*sqrt(depth)
@@ -156,17 +161,17 @@ end
 
 # used inside cPML
 """
-	conj_conductivity_profile(z,start,stop) -> σ
+	_conj_conductivity_profile(z,start,stop) -> σ
 
 conjugate PML conductivity `σ` at point `z`
 """
-conj_conductivity_profile(z,start,stop) = -conj(conductivity_profile(z,start,stop))
+_conj_conductivity_profile(z,start,stop) = -conj(_conductivity_profile(z,start,stop))
 
 """
-	conj_integrated_conductivity_profile(z,start,stop) -> σ
+	_conj_integrated_conductivity_profile(z,start,stop) -> σ
 
 integrated conjugate PML conductivity `σ` at point `z`
 """
-conj_integrated_conductivity_profile(z,start,stop) = -conj(integrated_conductivity_profile(z,start,stop))
+_conj_integrated_conductivity_profile(z,start,stop) = -conj(_integrated_conductivity_profile(z,start,stop))
 
 end # module

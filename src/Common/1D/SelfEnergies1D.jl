@@ -1,4 +1,4 @@
-function SelfEnergy{Symmetric}(domain::LatticeDomain{1},α_half)
+function SelfEnergy{Symmetric}(domain::LatticeDomain{1,Symmetric}, α_half)
 
     N = length(α_half)-1
     a = domain.shape.a
@@ -9,11 +9,11 @@ function SelfEnergy{Symmetric}(domain::LatticeDomain{1},α_half)
     if typeof(bc1)<:DirichletBC{1}
         Σ0L = sparse([1],[1],[-α_half⁻¹[1]/dx^2],N,N)
         Σ1L = sparse([1],[1],[+1/dx],N,N)
-        fL = FM(dx,0)
+        fL = FΣ1D(dx,0)
     elseif typeof(bc1)<:NeumannBC{1}
         Σ0L = sparse([1],[1],[+α_half⁻¹[1]/dx^2],N,N)
         Σ1L = sparse([1],[1],[-1/dx],N,N)
-        fL = FM(dx,0)
+        fL = FΣ1D(dx,0)
     elseif typeof(bc1)<:FloquetBC{1}
         # Σ0L = sparse([li],[ri],[α_half⁻¹[ri+1]/dx^2],N,N)
         # Σ1L = sparse([li],[ri],[-1/dx],N,N)
@@ -23,25 +23,25 @@ function SelfEnergy{Symmetric}(domain::LatticeDomain{1},α_half)
         Σ0L = sparse([1],[1],[+α_half⁻¹[1]/dx^2],N,N)
         Σ1L = sparse([1],[1],[-1/dx],N,N)
         if isempty(bc1.in)
-            fL = FM(dx,+1)
+            fL = FΣ1D(dx,+1)
         else
-            fL = FM(dx,-1)
+            fL = FΣ1D(dx,-1)
         end
     else
         Σ0L = spzeros(N,N)
         Σ1L = spzeros(N,N)
-        fL = FM(dx,0)
+        fL = FΣ1D(dx,0)
     end
 
     bc2 = domain.boundary.bcs[2]
     if typeof(bc2)<:DirichletBC{2}
         Σ0R = sparse([N],[N],[-α_half⁻¹[N+1]/dx^2],N,N)
         Σ1R = sparse([N],[N],[-1/dx],N,N)
-        fR = FM(dx,0)
+        fR = FΣ1D(dx,0)
     elseif typeof(bc2)<:NeumannBC{2}
         Σ0R = sparse([N],[N],[+α_half⁻¹[N+1]/dx^2],N,N)
         Σ1R = sparse([N],[N],[+1/dx],N,N)
-        fR = FM(dx,0)
+        fR = FΣ1D(dx,0)
     elseif typeof(bc2)<:FloquetBC{2}
         # Σ0R = sparse([ri],[1],[-α_half⁻¹[li]/dx^2],N,N)
         # Σ1R = sparse([ri],[1],[+1/dx],N,N)
@@ -51,27 +51,27 @@ function SelfEnergy{Symmetric}(domain::LatticeDomain{1},α_half)
         Σ0R = sparse([N],[N],[+α_half⁻¹[N+1]/dx^2],N,N)
         Σ1R = sparse([N],[N],[+1/dx],N,N)
         if isempty(bc2.in)
-            fR = FM(dx,+1)
+            fR = FΣ1D(dx,+1)
         else
-            fR = FM(dx,-1)
+            fR = FΣ1D(dx,-1)
         end
     else
         Σ0R = spzeros(N,N)
         Σ1R = spzeros(N,N)
-        fR = FM(dx,0)
+        fR = FΣ1D(dx,0)
     end
     Σ2 = spzeros(N,N)
 
     fs = (fL,fR)
 
-    return SelfEnergy{1,2,typeof(fs)}((-Σ0L,-Σ0R),(Σ1L,Σ1R),Σ2,(fL,fR))
+    return SelfEnergy{1,Symmetric,2,typeof(fs)}((-Σ0L,-Σ0R),(Σ1L,Σ1R),Σ2,(fL,fR))
 end
 
-struct FM
+struct FΣ1D
     dx::Float64
     sign::Int
 end
-function (fm::FM)(ω::Number,ka,ky=0,kz=0)
+function (fm::FΣ1D)(ω::Number,ka,ky=0,kz=0)
     if iszero(fm.sign)
         return complex(1.0,0)
     else
@@ -81,7 +81,7 @@ function (fm::FM)(ω::Number,ka,ky=0,kz=0)
         return exp(fm.sign*1im*kx*fm.dx)
     end
 end
-function (fm::FM)(ω::Matrix,ka,ky,kz)
+function (fm::FΣ1D)(ω::Matrix,ka,ky,kz)
     if iszero(fm.sign)
         return one(convert(Matrix{ComplexF64},ω))
     else

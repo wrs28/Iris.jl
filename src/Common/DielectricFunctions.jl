@@ -24,7 +24,7 @@ import ..PRINTED_COLOR_DARK
 abstract type AbstractDielectricFunction <: Function end
 
 """
-    PiecewiseConstant([n1=1,n=0]) -> pc
+    PiecewiseConstant([n1=1,n2=0]) -> pc
 
     PiecewiseConstant(n::Complex) -> pc
 """
@@ -41,11 +41,21 @@ PiecewiseConstant(n::Complex) = PiecewiseConstant(real(n),imag(n))
 """
 (pc::PiecewiseConstant)(p::Point) = pc.ε
 
+function Base.propertynames(::PiecewiseConstant,private=false)
+    if private
+        return (:n₁, :n₂, :n1, :n2, :n, :ε)
+    else
+        return (:n₁, :n₂, :n, :ε)
+    end
+end
+
 function Base.getproperty(pc::PiecewiseConstant, sym::Symbol)
     if sym == :n1
         return getfield(pc,:n₁)
     elseif sym == :n2
         return getfield(pc,:n₂)
+    elseif sym == :n
+        return complex(getfield(pc,:n₁),getfield(pc,:n₂))
     else
         return getfield(pc,sym)
     end
@@ -53,9 +63,13 @@ end
 
 function Base.setproperty!(pc::PiecewiseConstant, sym::Symbol, x)
     if sym == :n1
-        setfield!(pc,:n₁,x)
+        setfield!(pc,:n₁,float(x))
     elseif sym == :n2
-        setfield!(pc,:n₂,x)
+        setfield!(pc,:n₂,float(x))
+    elseif sym == :n
+        n1,n2 = reim(x)
+        setfield!(pc,:n₁,float(n1))
+        setfield!(pc,:n₂,float(n2))
     elseif sym == :ε
         n1,n2 = reim(sqrt(x))
         setfield!(pc,:n₁,n1)

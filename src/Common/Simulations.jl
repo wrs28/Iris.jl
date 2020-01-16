@@ -11,7 +11,6 @@ export Simulation
 export smooth!
 export update_dielectric!
 export update_pump!
-export Hermitian
 
 files = (
 	"1D/Simulations1D.jl",
@@ -28,11 +27,12 @@ using ..Points
 using ..SelfEnergies
 using ..Shapes
 using ..VectorFields
-using LinearAlgebra
+# using LinearAlgebra
 using SparseArrays
 using Statistics
 
 import ..AbstractDomain
+import ..Symmetric, ..Unsymmetric
 
 """
 	Simulation(ω₀, domains...; [k₂₀, k₃₀, k₁₀]) -> simulation
@@ -59,7 +59,7 @@ struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	χ::Vector{AbstractDispersion}
 
 	laplacian::Laplacian{N,CLASS}
-	curlcurl::Curlcurl{N,CLASS}
+	# curlcurl::Curlcurl{N,CLASS}
 	self_energy::TSE
 	α::NTuple{N,Vector{ComplexF64}}
 	σ::NTuple{N,Vector{ComplexF64}}
@@ -236,14 +236,6 @@ end
 end
 
 isvoid(domain::AbstractDomain) = domain.type==:Void
-
-function boundary_layer!(Σ, domains, x::Vector{Point{N,C}}, domain_indices) where {N,C}
-	for j ∈ eachindex(Σ) for i ∈ eachindex(x)
-		Σ[j][i] = boundary_layer(domains[domain_indices[i]],x[i],j)
-	end end
-	return nothing
-end
-
 
 
 

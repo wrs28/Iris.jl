@@ -7,10 +7,11 @@ export VectorField
 export ScalarField
 export ElectricField
 export update!
+export component
 
 dimensional_files = (
     "1D/VectorFields1D.jl",
-    # "2D/VectorFields2D.jl",
+    "2D/VectorFields2D.jl",
     # "3D/VectorFields3D.jl",
     )
 
@@ -22,7 +23,7 @@ using Interpolations
 
 `N`is the dimension, `M` is the number of field components
 """
-struct VectorField{N,M} <: AbstractMatrix{ComplexF64} # N = Dimension, M = number of field components, C = coordinate type
+struct VectorField{N,M} <: AbstractMatrix{ComplexF64} # N = Dimension, M = number of field components
     positions::Vector{Point{N,Cartesian}}
     values::Matrix{ComplexF64}
     start::Point{N,Cartesian}
@@ -30,19 +31,50 @@ struct VectorField{N,M} <: AbstractMatrix{ComplexF64} # N = Dimension, M = numbe
     start_inds::Vector{Int}
     stop_inds::Vector{Int}
 
-    function VectorField{M}(pos::Vector{Point{N}}, val::AbstractMatrix, start::Point{N}, stop::Point{N}, start_inds::Vector, stop_inds::Vector) where {N,M}
+    function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix, start::Point{N}, stop::Point{N}, start_inds::Vector, stop_inds::Vector) where {N,M,TP<:Point{N}}
         size(val,1)==M*length(pos) || throw("provided matrix has size(matrix,1)=$(size(val,1))≠$M*length(pos)=$(M*length(pos))")
-        return new{N,M}(Cartesian.(pos),val,Cartesian(start),Cartesian(stop),start_inds,stop_inds)
+        return new{N,M}(pos,val,start,stop,start_inds,stop_inds)
     end
 end
 
-VectorField{M}(pos::Vector{TP},val::AbstractVector,args...) where {M,TP<:Point{N}} where N = VectorField{M}(pos,reshape(val,length(val),1),args...)
+(f::VectorField)(i::Integer) = VectorField(f,view(f.values,:,i))
 
-VectorField(f::VectorField{M},vals::AbstractVecOrMat) where M = VectorField{M}(f.pos,vals,f.start,f.stop,f.start_inds,f.stop_inds)
+"""
+    VectorField{M}(pos,val,start,stop,start_inds,stop_inds) -> field
 
+`field` is an `M`-component vector field in `N` dimensions, where `pos::Vector{Point{N}}`.
+`val` is a vector or matrix of field values.
+`start` and `stop` are `Point{N}`'s that define the smallest and largest corners of the hyperrectangle in `N`-dimsensions that all the elements of `pos` reside in
+`start_inds` and `stop_inds` give the indices
+"""
+VectorField{M}(pos::Vector{TP},args...) where {M,TP<:Point{N}} where N = VectorField{N,M}(pos,args...)
+VectorField{N,M}(pos::Vector{TP},val::AbstractVector,args...) where {N,M,TP<:Point{N}} = VectorField{N,M}(pos,reshape(val,length(val),1),args...)
+
+"""
+    VectorField(field,vals) -> newfield
+
+`newfield` has field values `vals` on the same sites as `field`
+"""
+VectorField(f::VectorField{N,M},vals::AbstractVecOrMat) where {N,M} = VectorField{M}(f,vals)
+VectorField{M}(f::VectorField{N,M},vals::AbstractVecOrMat) where {N,M} = VectorField{N,M}(f.positions,vals,f.start,f.stop,f.start_inds,f.stop_inds)
+
+"""
+    update!(field,vals)
+
+update `field::VectorField` with values `vals` in place.
+"""
 update!(f::VectorField,vals::AbstractVecOrMat) = copyto!(f.values,vals)
 
-(f::VectorField)(i) = VectorField(f,view(f.values,:,i))
+"""
+    component(i,field)
+
+view of `i`-th component of `field::VectorField`
+"""
+function component(i::Integer,f::VectorField{N,M}; verbose::Bool=true) where {N,M}
+    1 ≤ i ≤ M || (if verbose @error("attempt to access i=$i component of $M-component field") end; BoundsError())
+    n = size(f,1)
+    return view(getfield(f,:values),(i-1)n÷M+1:(i)n÷M,:)
+end
 
 Base.conj(f::VectorField) = VectorField(f,conj(f.values))
 Base.conj!(f::VectorField) = begin conj!(f.values); f end
@@ -50,8 +82,8 @@ Base.conj!(f::VectorField) = begin conj!(f.values); f end
 fnames = (:+,:-)
 for fname ∈ fnames
     @eval begin
-        function Base.$fname(f1::VectorField{M},f2::VectorField{M}) where M
-            f1.pos == f2.pos || throw("cannot binary operate `VectorField`s that do not share field points")
+        function Base.$fname(f1::VectorField{N,M},f2::VectorField{N,M}) where {N,M}
+            f1.positions == f2.positions || throw("cannot binary operate `VectorField`s that do not share field points")
             return VectorField(f1,$fname(f1.values,f2.values))
         end
     end
@@ -68,24 +100,43 @@ for fname ∈ fnames @eval Base.$fname(f::VectorField) = $fname(f.values) end
 Base.iterate(f::VectorField,state) = iterate(f.values,state)
 Base.IndexStyle(::Type{<:VectorField}) = IndexLinear()
 
-function Base.getproperty(e::VectorField{N,1}, sym::Symbol) where N
-    p = getelectricfieldproperty(e,sym)
+
+"""
+    ScalarField{N} <: AbstractMatrix{ComplexF64}
+
+Access a given field (mode) `i` with `S(i)`.
+"""
+ScalarField{N} = VectorField{N,1}
+ScalarField(args...) = VectorField{1}(args...)
+
+"""
+    ElectricField{N} <: AbstractMatrix{ComplexF64}
+
+`E.x`, `E.y`, `E.z` create views into components of electric fields.
+
+Access a given field (mode) `i` with `E(i)`.
+"""
+ElectricField{N} = VectorField{N,3}
+ElectricField(args...) = VectorField{3}(args...)
+
+function Base.getproperty(s::ScalarField{N}, sym::Symbol) where N
+    p = _getdimensionalproperty(s,sym)
     if isnothing(p)
-        n,m = size(getfield(e,:values))
+        n,m = size(getfield(s,:values))
         if sym == :pos
-            return getfield(e,:positions)
+            return getfield(s,:positions)
         elseif sym == :val
-            return getfield(e,:values)
+            return getfield(s,:values)
         else
-            return getfield(e,sym)
+            return getfield(s,sym)
         end
     else
         return p
     end
 end
 
-function Base.getproperty(e::VectorField{N,3}, sym::Symbol) where N
-    p = getelectricfieldproperty(e,sym)
+function Base.getproperty(e::ElectricField{N}, sym::Symbol) where N
+    p = _getdimensionalproperty(e,sym)
     if isnothing(p)
         n,m = size(getfield(e,:values))
         if sym == :pos
@@ -106,42 +157,7 @@ function Base.getproperty(e::VectorField{N,3}, sym::Symbol) where N
     end
 end
 
-"""
-    ScalarField{N} <: AbstractMatrix{ComplexF64}
-
-Access a given field (mode) `i` with `S(i)`.
-"""
-ScalarField{N} = VectorField{N,1}
-
-"""
-    ScalarField(pos, values, start, stop, start_inds, stop_inds) -> sf
-"""
-ScalarField(args...) = VectorField{1}(args...)
-
-"""
-    ScalarField(sf::ScalarField, values) -> sf
-"""
-ScalarField(f::ScalarField,vals::AbstractVecOrMat) = VectorField(f::ScalarField,vals::AbstractVecOrMat)
-
-"""
-    ElectricField{N} <: AbstractMatrix{ComplexF64}
-
-`E.x`, `E.y`, `E.z` create views into components of electric fields.
-
-Access a given field (mode) `i` with `E(i)`.
-"""
-ElectricField{N} = VectorField{N,3}
-
-"""
-    ElectricField{M}(pos, values, start, stop, start_inds, stop_inds) -> sf
-"""
-ElectricField(args...) = VectorField{3}(args...)
-
-"""
-    ElectricField(sf::ElectricField, values) -> sf
-"""
-ElectricField(f::ScalarField,vals::AbstractVecOrMat) = VectorField(f::ElectricField,vals::AbstractVecOrMat)
-
+_getdimensionalproperty(v::VectorField{N,M}, sym::Symbol) where {N,M} = nothing
 
 foreach(include,dimensional_files)
 
@@ -197,17 +213,27 @@ import ..PRINTED_COLOR_DARK
 import ..PRINTED_COLOR_INSTRUCTION
 import ..PRINTED_COLOR_VARIABLE
 
-function Base.show(io::IO,mime::MIME"text/plain",f::ScalarField)
+function Base.show(io::IO,mime::MIME"text/plain",s::VectorField{N,M}) where {N,M}
+    ds = displaysize(io)
+    ioc = IOContext(io, :displaysize => (ds[1],ds[2]), :typeinfo => ComplexF64)
+    show(io,s)
+    println(io)
+    show(ioc,mime,s.values)
+end
+
+function Base.show(io::IO,mime::MIME"text/plain",s::ScalarField)
     ds = displaysize(io)
     ioc = IOContext(io, :displaysize => (ds[1],ds[2]))
-    show(io,f)
-    show(ioc,mime,v.x)
+    show(io,s)
+    println(io)
+    show(ioc,mime,s.values)
 end
 
 function Base.show(io::IO,mime::MIME"text/plain",e::ElectricField)
     ds = displaysize(io)
     ioc = IOContext(io, :displaysize => (ds[1]÷3,ds[2]))
     show(io,e)
+    println(io)
     printstyled(io,"\nX-component\n",color=PRINTED_COLOR_VARIABLE)
     show(ioc,mime,e.x)
     printstyled(io,"\nY-component\n",color=PRINTED_COLOR_VARIABLE)
@@ -219,7 +245,7 @@ end
 function Base.show(io::IO,f::VectorField{N,M}) where {N,M}
     n,m = size(f)
     if M==1
-        printstyled(io,"Scalar",color=PRINTED_COLOR_DARK)
+        printstyled(io,"ScalarField",color=PRINTED_COLOR_DARK)
     elseif M==3
         printstyled(io,"ElectricField",color=PRINTED_COLOR_DARK)
     else

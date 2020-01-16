@@ -195,6 +195,10 @@ end
 
 @inline function χ!(tls::TwoLevelSystem,ω,ωs::Vector,ψs::ScalarField)
     index = size(ψs,1)÷2+INDEX_OFFSET
+    if index ≥ size(ψs,1)
+        @warn "INDEX_OFFSET=$INDEX_OFFSET inconsistent with number of sites $(size(ψs,1))"
+        index = 1
+    end
     H!(tls,ωs,ψs)
     Dg = tls.D₀*γ(tls,ω)
     gp² = tls.γp^2

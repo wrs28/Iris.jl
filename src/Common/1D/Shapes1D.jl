@@ -26,15 +26,15 @@ Alternately, `(::Interval)(x,y,z...)`
 (i::Interval)(x::Real,y...) = i(Point(x,y...))
 
 """
-    Interval(start, stop; [ref=:center]) -> interval
+    Interval(start, stop; [reference=:center]) -> interval
 
 1-Dimensional Interval.
 
 `ref` determines where `origin` of the interval is relative to `start` & `stop`
 """
-function Interval(start,stop;ref::Symbol=:center)
+function Interval(start,stop;reference::Symbol=:center)
     p1, p2 = Point(start), Point(stop)
-    return Interval(p1,p2,generate_origin(p1,p2,ref),norm(stop-start))
+    return Interval(p1,p2,generate_origin(p1,p2,reference),norm(stop-start))
 end
 
 function generate_origin(start::Point{1},stop::Point{1},ref::Symbol)
@@ -56,9 +56,9 @@ import ..PRINTED_COLOR_DARK
 function Base.show(io::IO,i::Interval)
     printstyled(io, "Interval",color=PRINTED_COLOR_DARK)
     print(io," (")
-    printstyled(io,i.start,color=PRINTED_COLOR_NUMBER)
-    print(io,",")
-    printstyled(io,i.stop,color=PRINTED_COLOR_NUMBER)
+    printstyled(io,i.start.x,color=PRINTED_COLOR_NUMBER)
+    print(io,", ")
+    printstyled(io,i.stop.x,color=PRINTED_COLOR_NUMBER)
     print(io,")")
 end
 

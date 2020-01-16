@@ -34,7 +34,7 @@ function (cc::Curlcurl{2})(kz::Real)
 end
 
 
-function _bulk_laplacian(lattice::Lattice{1},N,interior,surface,nnm,nnp,α_half⁻¹)
+function _bulk_laplacian(lattice::Lattice{2},N,interior,surface,nnm,nnp,α_half⁻¹)
 	rows = findall(interior .& .!surface)
 	colsm = nnm[1][interior .& .!surface]
 	colsp = nnp[1][interior .& .!surface]
@@ -44,7 +44,7 @@ function _bulk_laplacian(lattice::Lattice{1},N,interior,surface,nnm,nnp,α_half�
 	vals0 = - valsm - valsp
 	return sparse(vcat(rows,rows,rows),vcat(colsm,cols0,colsp),vcat(valsm,vals0,valsp)/lattice.dx^2,N,N)
 end
-function _surface_laplacian(lattice,N,interior,surface,nnm,nnp,α_half⁻¹,indices)
+function _surface_laplacian(lattice::Lattice{2},N,interior,surface,nnm,nnp,α_half⁻¹,indices)
 	rows_sf = findall(surface .& interior)
 	cols_sfm = map(i->findfirst(isequal(indices[i]-CartesianIndex(1,)),indices),rows_sf)
 	rows_sfm = [rows_sf[findfirst(.!isnothing.(cols_sfm))]]
@@ -59,7 +59,7 @@ function _surface_laplacian(lattice,N,interior,surface,nnm,nnp,α_half⁻¹,indi
 	return sparse(vcat(rows_sfm,rows_sf,rows_sfp),vcat(cols_sfm,cols_sf0,cols_sfp),vcat(vals_sfm,vals_sf0,vals_sfp)/lattice.dx^2,N,N)
 end
 
-function _bulk_derivative(lattice::Lattice{1},N,interior,surface,nnm,nnp)
+function _bulk_derivative(lattice::Lattice{2},N,interior,surface,nnm,nnp)
 	rows = findall(interior .& .!surface)
 	colsm = nnm[1][interior .& .!surface]
 	valsm = -ones(size(colsm))
@@ -67,7 +67,7 @@ function _bulk_derivative(lattice::Lattice{1},N,interior,surface,nnm,nnp)
 	valsp = ones(size(colsm))
 	return sparse(vcat(rows,rows),vcat(colsm,colsp),vcat(valsm,valsp)/lattice.dx,N,N)
 end
-function _surface_derivative(lattice::Lattice{1},N,interior,surface,nnm,nnp,indices)
+function _surface_derivative(lattice::Lattice{2},N,interior,surface,nnm,nnp,indices)
 	rows_sf = findall(surface .& interior)
 	cols_sfm = map(i->findfirst(isequal(indices[i]-CartesianIndex(1,)),indices),rows_sf)
 	rows_sfm = [rows_sf[findfirst(.!isnothing.(cols_sfm))]]

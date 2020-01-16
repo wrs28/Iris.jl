@@ -7,20 +7,22 @@ export Helmholtz
 
 files = (
     "1D/HelmholtzOperators1D.jl",
-    # "2D/HelmholtzOperators2D.jl",
+    "2D/Symmetric/HelmholtzOperators2D.jl",
     # "3D/HelmholtzOperators3D.jl"
     )
 
 using ..VectorFields
 using ..Simulations
 using ..Dispersions
-using LinearAlgebra
 using SparseArrays
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra: I
 
 """
     maxwell(simulation{1}; ky=0, kz=0) -> m
 """
-struct Helmholtz{N,TΣ,TSIM}
+struct Helmholtz{N,CLASS,TΣ,TSIM}
     A::SparseMatrixCSC{ComplexF64,Int}
     D²::SparseMatrixCSC{ComplexF64,Int}
     αεpFχ::SparseMatrixCSC{Complex{Float64},Int}
@@ -42,6 +44,45 @@ end
 # load 1D, 2D, 3D
 foreach(include,files)
 
+
+################################################################################
+# susceptabilities and jacobians
+
+# linear
+@inline function helmholtz_susceptability!(h::Helmholtz,ω::Number)
+    sim = h.sim
+    @fastmath @inbounds @simd for i ∈ eachindex(h.Fχ.nzval)
+        χ = susceptability(sim.χ[i], ω)
+        h.Fχ.nzval[i] = sim.F[i]*χ
+    end
+    @fastmath @inbounds @simd for i ∈ eachindex(h.αε.nzval) h.αεpFχ.nzval[i] = h.αε.nzval[i] + h.Fχ.nzval[i] end
+    return nothing
+end
+
+
+# nonlinear + local jacobian
+@inline function helmholtz_susceptability!(h::Helmholtz,ω,ωs::Vector,ψs::ScalarField)
+    sim = h.sim
+    foreach(d->susceptability(d.χ,ω,ωs,ψs), sim.dispersive_domains)
+    @inbounds for μ ∈ eachindex(h.Fχs)
+        @inbounds for i ∈ eachindex(h.Fχ.nzval)
+            if typeof(sim.χ[i])<:TwoLevelSystem
+                χ::TwoLevelSystem = sim.χ[i]
+                μ==1 ? h.Fχ.nzval[i] = sim.F[i]*χ.chi[i] : nothing
+                h.Fχs[μ].nzval[i] = sim.F[i]*χ.chis[i,μ]
+                @inbounds @simd for ν ∈ eachindex(h.Fχs)
+                    h.dFχdψr[i,μ,ν] = sim.F[i]*χ.dχdψr[i,μ,ν]
+                    h.dFχdψi[i,μ,ν] = sim.F[i]*χ.dχdψi[i,μ,ν]
+                    h.dFχdω[i,μ,ν] = sim.F[i]*χ.dχdω[i,μ,ν]
+                    h.dFχdϕ[i,μ,ν] = sim.F[i]*χ.dχdϕ[i,μ,ν]
+                end
+            end
+        end
+    end
+    @fastmath @inbounds @simd for i ∈ eachindex(h.αε.nzval) h.αεpFχ.nzval[i] = h.αε.nzval[i] + h.Fχ.nzval[i] end
+    return nothing
+end
+
 ################################################################################
 # Pretty Printing
 
@@ -49,9 +90,11 @@ import ..PRINTED_COLOR_DARK
 import ..PRINTED_COLOR_VARIABLE
 import ..PRINTED_COLOR_INSTRUCTION
 
-function Base.show(io::IO,::Helmholtz{N}) where N
+function Base.show(io::IO,::Helmholtz{N,CLASS}) where {N,CLASS}
     print(io,N,"D ")
-    printstyled(io,"Maxwell ",color=PRINTED_COLOR_DARK)
+    CLASS<:Symmetric ? print(io,"Symmetric ") : nothing
+    CLASS<:Unsymmetric ? print(io,"Unsymmetric ") : nothing
+    printstyled(io,"Helmholtz ",color=PRINTED_COLOR_DARK)
     print(io,"Operator ")
     printstyled(io,"(call w/ args ",color=PRINTED_COLOR_INSTRUCTION)
     printstyled(io,"ω",color=PRINTED_COLOR_VARIABLE)
@@ -63,15 +106,19 @@ function Base.show(io::IO,::Helmholtz{N}) where N
     printstyled(io,"A",color=PRINTED_COLOR_VARIABLE)
 end
 
-function Base.getproperty(m::Helmholtz,sym::Symbol)
+function Base.getproperty(h::Helmholtz,sym::Symbol)
     if sym==:sim
-        return getfield(m,:simulation)
+        return getfield(h,:simulation)
+    elseif sym==:ky
+        return getfield(h,:kb)
+    elseif sym==:kz
+        return getfield(h,:kc)
     else
-        return getfield(m,sym)
+        return getfield(h,sym)
     end
 end
 
-function Base.propertynames(::Helmholtz{1},private=false)
+function Base.propertynames(::Helmholtz{1}, private=false)
     if private
         return fieldnames(Helmholtz)
     else

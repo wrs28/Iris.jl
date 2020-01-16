@@ -44,9 +44,6 @@ struct Boundary{N,TS,TBC,TBL}
 		        bls::NTuple{NSIDES,AbstractBL}
 		        ) where {NDIMS,NSIDES}
 
-		length(bcs)==nsides(shape) || throw("incorrect number of boundary conditions $(length(bcs)), should match number of sides $(nsides(sh))")
-		length(bls)==nsides(shape) || throw("incorrect number of boundary layers $(length(bls)), should match number of sides $(nsides(sh))")
-
 		bcs_sorted = map(i->bcs[i],TupleTools.sortperm(map(b->getside(b),bcs)))
 		bls_sorted = map(i->bls[i],TupleTools.sortperm(map(b->getside(b),bls)))
 		bls_sorted = map(x->_bls_by_shape(x,shape),bls_sorted)
@@ -83,8 +80,8 @@ function Boundary(
 			bls::NTuple{MBL,AbstractBL}
 			) where {NDIMS,NSIDES,MBC,MBL}
 
-	MBC ≤ NSIDES || throw("more boundary conditions $MBC than sides $NSIDES")
-	MBL ≤ NSIDES || throw("more boundary layers $MBC than sides $NSIDES")
+	MBC ≤ NSIDES || throw(ArgumentError("more boundary conditions $MBC than sides $NSIDES"))
+	MBL ≤ NSIDES || throw(ArgumentError("more boundary layers $MBC than sides $NSIDES"))
 
 	all_sides = ntuple(identity,NSIDES)
 

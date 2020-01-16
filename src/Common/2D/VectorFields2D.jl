@@ -1,4 +1,4 @@
-function getelectricfieldproperty(s::ScalarField{2}, sym::Symbol)
+function _getdimensionalproperty(s::ScalarField{2}, sym::Symbol)
     n,m = size(getfield(s,:values))
     if sym==:left
         start_ind = getfield(s,:start_inds)[1]
@@ -25,7 +25,7 @@ function getelectricfieldproperty(s::ScalarField{2}, sym::Symbol)
     end
 end
 
-function getelectricfieldproperty(e::ElectricField{2}, sym::Symbol)
+function _getdimensionalproperty(e::ElectricField{2}, sym::Symbol)
     n,m = size(getfield(e,:values))
     if sym==:left
         start_ind = getfield(e,:start_inds)[1]

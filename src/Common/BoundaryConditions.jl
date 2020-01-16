@@ -6,7 +6,6 @@ module BoundaryConditions
 export AbstractBC
 export AbstractComplexBC
 export AbstractRealBC
-export getside
 export noBC
 export DirichletBC
 export NeumannBC
@@ -128,8 +127,9 @@ end
 function Base.show(io::IO,mbc::MatchedBC{SIDE}) where SIDE
 	printstyled(io,"MatchedBC",color=PRINTED_COLOR_DARK)
 	!get(io,:compact,false) ? print(io," SIDE=",SIDE,";") : nothing
-	print(IOContext(io,:typeinfo=>Array{Int})," in:", mbc.in)
-	print(io,"/out:", mbc.out)
+	ioc = IOContext(io,:typeinfo=>Array{Int})
+	print(ioc," in:", mbc.in)
+	print(ioc,"/out:", mbc.out)
 end
 
 Base.conj(bc::AbstractRealBC) = bc

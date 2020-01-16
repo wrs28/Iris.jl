@@ -34,7 +34,9 @@ PiecewiseConstant() = PiecewiseConstant(1)
 """
 (pc::PiecewiseConstant)(args...) = pc.F
 
+
 # Base.conj(pc::PiecewiseConstant) = pc
+
 
 
 # Pretty Printing

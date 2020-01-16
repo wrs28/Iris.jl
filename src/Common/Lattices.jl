@@ -37,12 +37,6 @@ struct Lattice{N,TYPE}
                 ) where {N,CE,CO} where TYPE<:AbstractLatticeType
 
         1≤N≤3 || throw(ErrorException("lattice only defined for dimensions ≤ 3, d=$N"))
-        if TYPE<:Polar
-            2≤N≤3 || throw(ErrorException("lattice type $TYPE not consistent with dimension $N, which must be ≥2"))
-        end
-        if TYPE<:Spherical
-            3≤N≤3 || throw(ErrorException("lattice type $TYPE not consistent with dimension $N, which must be 3"))
-        end
         constants = _lattice_constants(primitives)
         vectors = _lattice_vectors(primitives)
         return new{N,TYPE}(constants, vectors, origin)
@@ -94,11 +88,19 @@ end
 function Lattice(type::Union{Cartesian,Polar,Spherical},
             constants::NTuple{N,Float64};
             origin = Point(ntuple(i->0.0,N)),
-            angles = zeros(Float64,(N-1)N÷2),#SVector{M,Float64}(ntuple(i->0.0,(N-1)N÷2)),
+            kwargs...
             ) where N
 
+    if haskey(kwargs,:angles)
+        angles = kwargs[:angles]
+    elseif haskey(kwargs,:angle)
+        angles = kwargs[:angle]
+    else
+        angles = zeros(Float64,(N-1)N÷2)#SVector{M,Float64}(ntuple(i->0.0,(N-1)N÷2)),
+    end
+
     M = length(angles)
-    M==(N-1)N÷2 || throw(ErrorException("incorrect number of angles for dimension, should be $((N-1)N÷2), but is $M"))
+    M==(N-1)N÷2 || throw(ArgumentError("incorrect number of angles for dimension, should be $((N-1)N÷2), but is $M"))
     return Lattice(type, _lattice_primitives(type,angles,constants), _lattice_origin(origin,constants))
 end
 
@@ -112,6 +114,6 @@ foreach(include,files)
 """
     latticeindex(lattice, point) -> ind::Float64
 """
-latticeindex(lat::Lattice,x::Real,y...) = latticeindex(lat,Point(x,y...))
+latticeindex(lat::Lattice{N,C},x::Real,y...) where {N,C} = latticeindex(lat,Point{C}(x,y...))
 
 end # module

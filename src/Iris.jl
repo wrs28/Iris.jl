@@ -19,6 +19,7 @@ using Reexport
 
 include("Common/Common.jl")
 @reexport using .Common
+import .Common: Symmetric, Unsymmetric
 
 include("Spectral/Spectral.jl")
 @reexport using .Spectral

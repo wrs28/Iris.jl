@@ -13,11 +13,15 @@ files = (
 
 using ..Lattices
 using ..Points
-using LinearAlgebra
 using SparseArrays
 
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra: I
 
-struct Laplacian{N,CLASS} l0::SparseMatrixCSC{ComplexF64,Int} end
+struct Laplacian{N,CLASS}
+    l0::SparseMatrixCSC{ComplexF64,Int}
+    complex_scaling::SparseMatrixCSC{ComplexF64,Int}
+end
 
 foreach(include,files)
 
@@ -25,7 +29,7 @@ function Base.conj!(lap::Laplacian{N}) where N
     conj!(lap.l0)
     return lap
 end
-Base.conj(lap::Laplacian{N,CLASS}) where {N,CLASS} = Laplacian{N,CLASS}(conj(lap.l0))
+Base.conj(lap::Laplacian{N,CLASS}) where {N,CLASS} = Laplacian{N,CLASS}(conj(lap.l0),lap.complex_scaling)
 
 ################################################################################
 # PRETTY PRINTING
@@ -34,7 +38,9 @@ import ..PRINTED_COLOR_DARK
 import ..PRINTED_COLOR_VARIABLE
 
 function Base.show(io::IO,::Laplacian{N,CLASS}) where {N,CLASS}
-    print(io,"$(N)D $CLASS ")
+    print(io,"$(N)D ")
+    CLASS<:Symmetric ? print(io,"Symmetric ") : nothing
+    CLASS<:Unsymmetric ? print(io,"Unsymmetric ") : nothing
     printstyled(io,"Laplacian", color=PRINTED_COLOR_DARK)
 end
 
