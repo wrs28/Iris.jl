@@ -62,7 +62,7 @@ function Simulation(
 	F = Vector{Float64}(undef,length(lattice_domain.x))
 	χ = Vector{AbstractDispersion}(undef,length(lattice_domain.x))
 	Fs = Vector{Vector{Float64}}(undef,length(dispersive_domains))
-	for i ∈ eachindex(Fs) Fs[i] = zeros(Float64,length(x)) end
+	for i ∈ eachindex(Fs) Fs[i] = zeros(Float64,length(lattice_domain.x)) end
 	if isempty(dispersive_domains)
 		for i ∈ eachindex(F) F[i] = 0 end
 		for i ∈ eachindex(F) χ[i] = NoDispersion() end
@@ -77,7 +77,7 @@ function Simulation(
 			else
 				F[i] = pumps[d](lattice_domain.x[i])
 				χ[i] = χs[d]
-				Fs[d][i] = pumps[d](x[i])
+				Fs[d][i] = pumps[d](lattice_domain.x[i])
 			end
 		end
 	end

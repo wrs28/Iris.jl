@@ -38,11 +38,9 @@ using Test
         @testset "Helmholtz 2D" begin
             @testset "Dirichlet" begin
                 bnd = Boundary(Square(π,0,0),DirichletBC)
-                cavity = NondispersiveDomain(Circle(1,0,0),3)
-                cavity2 = NondispersiveDomain(Circle(.9,0,0),3+.1im)
                 lat = Cartesian(.004,.004)
                 latdom = LatticeDomain(bnd,lat)
-                sim = Simulation(1,latdom,cavity2,cavity)
+                sim = Simulation(1,latdom)
                 lep = @test_nowarn HelmholtzLEP(sim)
                 ω, ψ = @test_nowarn helmholtzeigen(lep,1;nev=10)
                 sort!(ω; by=real)
@@ -56,21 +54,6 @@ using Test
                 @test isapprox(ω[8]^2, 3^2 + 2^2; atol = 3e-2)
                 @test isapprox(ω[9]^2, 1^2 + 4^2; atol = 3e-2)
                 @test isapprox(ω[10]^2, 4^2 + 1^2; atol = 3e-2)
-            end
-            @testset "cPML" begin
-                cavity = Interval(-.5,.5)
-                pump = Interval(-.5,0)
-                bnd = Boundary(Interval(-1,1),cPML)
-                dom = NondispersiveDomain(cavity,3)
-                lat = Cartesian(.001)
-                latdom = LatticeDomain(bnd,lat)
-                sim = Simulation(10,dom,latdom)
-                lep = @test_nowarn HelmholtzLEP(sim)
-                ω, ψ = @test_nowarn helmholtzeigen(lep,10;nev=4)
-                sort!(ω; by=real)
-                @test isapprox(ω[2] - ω[1], π/3; atol=1e-3)
-                @test isapprox(ω[3] - ω[2], π/3; atol=1e-3)
-                @test isapprox(ω[4] - ω[3], π/3; atol=1e-3)
             end
         end
     end

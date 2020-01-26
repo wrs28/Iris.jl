@@ -28,9 +28,11 @@ import ..Lasing.MaxwellSALT
 
 Saturable CPA object with `M` component fields
 """
-struct SCPAProblem{M,THS} SALT::THS end
+struct SCPAProblem{NMODES,M,THS}
+    SALT::THS
 
-SCPAProblem(SALT::SALTProblem{M}) where M = SCPAProblem{M,typeof(SALT)}(SALT)
+    SCPAProblem(SALT::SALTProblem{NMODES,M}) where {NMODES,M} = new{NMODES,M,typeof(SALT)}(SALT)
+end
 
 function Base.getproperty(mcpa::SCPAProblem, sym::Symbol)
     if sym == :SALT
@@ -43,7 +45,7 @@ end
 Base.propertynames(::SCPAProblem,private=false) = propertynames(SALTProblem,private)
 
 
-HelmholtzSCPA = SCPAProblem{1}
+HelmholtzSCPA{NMODES} = SCPAProblem{NMODES,1}
 """
     HelmholtzSCPA(sim::Simulation, m::Integer) -> scpa
 
@@ -52,7 +54,7 @@ SPCA object with `m` fields for Helmholtz problem
 HelmholtzSCPA(sim::Simulation,m::Integer) = SCPAProblem(HelmholtzSALT{m}(sim))
 
 
-MaxwellSCPA = SCPAProblem{3}
+MaxwellSCPA{NMODES} = SCPAProblem{NMODES,3}
 """
     MaxwellSCPA(sim::Simulation, m::Integer) -> scpa
 
@@ -107,12 +109,12 @@ fixedpoint
 
 import ..Common.PRINTED_COLOR_LIGHT
 
-function Base.show(io::IO,ms::SCPAProblem{M}) where M
+function Base.show(io::IO,ms::SCPAProblem)
     print(io,ms.m, " mode")
     ms.m>1 ? print(io,"s") : nothing
-    if M==1
+    if typeof(ms)<:HelmholtzSCPA
         printstyled(io," HelmholtzSCPA",color = PRINTED_COLOR_LIGHT)
-    elseif M==3
+    elseif typeof(ms)<:MAxwellSCPA
         printstyled(io," MaxwellSCPA",color = PRINTED_COLOR_LIGHT)
     end
     print(IOContext(io,:SCPA=>true), ms.SALT)

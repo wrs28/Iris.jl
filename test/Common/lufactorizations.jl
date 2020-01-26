@@ -8,8 +8,8 @@ using SparseArrays
     y = rand(1000)
     alu = @test_nowarn lu(A,USolver)
     @test norm(A*(alu\y)-y) ≤ 1e-12
-    alu = @test_broken lu(A,PSolver)
-    @test_broken norm(A*(alu\y)-y) ≤ 1e-12
-    alu = @test_broken lu(A,MSolver)
-    @test_broken norm(A*(alu\y)-y) ≤ 1e-12
+    # alu = @test_skip lu(A,PSolver)
+    # @test_skip norm(A*(alu\y)-y) ≤ 1e-12
+    # alu = @test_skip lu(A,MSolver)
+    # @test_skip norm(A*(alu\y)-y) ≤ 1e-12
 end
