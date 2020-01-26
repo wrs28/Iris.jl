@@ -13,8 +13,6 @@ export AbstractDomain
 export LatticeDomain
 export NondispersiveDomain
 export DispersiveDomain
-# export SymmetricDomain
-# export UnsymmetricDomain
 
 using ..Boundaries
 using ..DielectricFunctions
@@ -195,6 +193,7 @@ end
 ################################################################################
 # load dimensional files (mostly lattice domain)
 foreach(include,files)
+
 
 ################################################################################
 # Pretty Printing

@@ -1,3 +1,15 @@
+module HelmholtzOperators2DSymmetric
+
+using ..VectorFields
+using ..Simulations
+using ..Dispersions
+using SparseArrays
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra: I
+import ..Helmholtz
+import ..helmholtz_susceptability!
+
 function Helmholtz(
             sim::TSIM;
             m::Int = 1) where TSIM<:Simulation{2,Symmetric}
@@ -64,3 +76,7 @@ function _compute_Σs(sim::Simulation{2,Symmetric})
     Σ0T = sim.self_energy.Σ0[4]
     return (Σ0L, Σ0R, Σ0B, Σ0T)
 end
+
+end
+
+using .HelmholtzOperators2DSymmetric

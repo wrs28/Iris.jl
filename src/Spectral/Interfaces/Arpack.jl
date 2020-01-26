@@ -1,4 +1,29 @@
+module ArpackInterface
+
 using Arpack
+using LinearAlgebra
+using SparseArrays
+
+using ..Common
+import ..AbstractEigenproblem
+import ..AbstractLinearEigenproblem
+import ..AbstractCFEigenproblem
+import ..AbstractNonlinearEigenproblem
+import ..HelmholtzProblem
+import ..MaxwellProblem
+import ..DEFAULT_LINEAR_EIGENSOLVER
+import ..INDEX_OFFSET
+import ..HelmholtzLEP
+import ..HelmholtzCF
+import ..MaxwellLEP
+import ..MaxwellCF
+import ..DOC_LEP_H
+import ..DOC_LEP_M
+import ..DOC_CF_H
+import ..DOC_CF_M
+import ..helmholtzeigen
+import ..maxwelleigen
+import ..orthogonalize!
 
 ################################################################################
 # LEP
@@ -44,7 +69,7 @@ end
 # maxwelleigen and helmholtzeigen
 
 function iris_eigen_arpack(
-            lep::AbstractLinearEigenproblem{1},
+            lep::AbstractLinearEigenproblem,
             ω::Number,
 			args...;
             verbose::Bool=false,
@@ -63,25 +88,26 @@ function iris_eigen_arpack(
 end
 
 if DEFAULT_LINEAR_EIGENSOLVER == :Arpack
-@doc """
-$doc_lep_h
-`nev` Number of eigenvalues (`6`);
-`v0` Starting vector (`zeros((0,))`);
-`maxiter` Maximum iterations (`300`);
-`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
-`tol` Tolerance is max of ε and `tol` (`0.0`);
-"""
-helmholtzeigen(lep::HelmholtzLEP, args...;kwargs...) = iris_eigen_arpack(lep,args...;kwargs...)
+	@doc """
+	$DOC_LEP_H
+	`nev` Number of eigenvalues (`6`);
+	`v0` Starting vector (`zeros((0,))`);
+	`maxiter` Maximum iterations (`300`);
+	`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
+	`tol` Tolerance is max of ε and `tol` (`0.0`);
+	"""
+	helmholtzeigen(lep::HelmholtzLEP, args...;kwargs...) = iris_eigen_arpack(lep,args...;kwargs...)
 
-@doc """
-$doc_lep_m
-`nev` Number of eigenvalues (`6`);
-`v0` Starting vector (`zeros((0,))`);
-`maxiter` Maximum iterations (`300`);
-`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
-`tol` Tolerance is max of ε and `tol` (`0.0`);
-"""
-maxwelleigen(lep::MaxwellLEP, args...;kwargs...) = iris_eigen_arpack(lep,args...;kwargs...)
+	@doc """
+	$DOC_LEP_M
+	`nev` Number of eigenvalues (`6`);
+	`v0` Starting vector (`zeros((0,))`);
+	`maxiter` Maximum iterations (`300`);
+	`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
+	`tol` Tolerance is max of ε and `tol` (`0.0`);
+	"""
+	maxwelleigen(lep::MaxwellLEP, args...;kwargs...) = iris_eigen_arpack(lep,args...;kwargs...)
+
 end
 
 
@@ -102,23 +128,28 @@ function iris_eigen_arpack(
 end
 
 if DEFAULT_LINEAR_EIGENSOLVER == :Arpack
-@doc """
-$doc_cf_h
-`nev` Number of eigenvalues (`6`);
-`v0` Starting vector (`zeros((0,))`);
-`maxiter` Maximum iterations (`300`);
-`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
-`tol` Tolerance is max of ε and `tol` (`0.0`);
-""" ->
-helmholtzeigen(cf::HelmholtzCF, args...;kwargs...) = iris_eigen_arpack(cf,args...;kwargs...)
+	@doc """
+	$DOC_CF_H
+	`nev` Number of eigenvalues (`6`);
+	`v0` Starting vector (`zeros((0,))`);
+	`maxiter` Maximum iterations (`300`);
+	`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
+	`tol` Tolerance is max of ε and `tol` (`0.0`);
+	""" ->
+	helmholtzeigen(cf::HelmholtzCF, args...;kwargs...) = iris_eigen_arpack(cf,args...;kwargs...)
 
-@doc """
-$doc_cf_m
-`nev` Number of eigenvalues (`6`);
-`v0` Starting vector (`zeros((0,))`);
-`maxiter` Maximum iterations (`300`);
-`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
-`tol` Tolerance is max of ε and `tol` (`0.0`);
-""" ->
-maxwelleigen(cf::MaxwellCF, args...;kwargs...) = iris_eigen_arpack(cf,args...;kwargs...)
+	@doc """
+	$DOC_CF_M
+	`nev` Number of eigenvalues (`6`);
+	`v0` Starting vector (`zeros((0,))`);
+	`maxiter` Maximum iterations (`300`);
+	`ncv` Number of Krylov vectors (`max(20,2*nev+1)`);
+	`tol` Tolerance is max of ε and `tol` (`0.0`);
+	""" ->
+	maxwelleigen(cf::MaxwellCF, args...;kwargs...) = iris_eigen_arpack(cf,args...;kwargs...)
+
 end
+
+end #module
+
+using .ArpackInterface

@@ -41,10 +41,6 @@ struct Helmholtz{N,CLASS,TΣ,TSIM}
     kc::Float64
 end
 
-# load 1D, 2D, 3D
-foreach(include,files)
-
-
 ################################################################################
 # susceptabilities and jacobians
 
@@ -125,5 +121,8 @@ function Base.propertynames(::Helmholtz{1}, private=false)
         (:simulation,:ky,:kz)
     end
 end
+
+# load 1D, 2D, 3D
+foreach(include,files)
 
 end #module

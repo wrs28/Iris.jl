@@ -1,5 +1,29 @@
 # TODO: fix and test smoothing
 
+module Simulations1D
+
+using ..Curlcurls
+using ..Dispersions
+using ..Domains
+using ..Laplacians
+using ..Lattices
+using ..Points
+using ..SelfEnergies
+using ..Shapes
+using ..VectorFields
+# using LinearAlgebra
+using SparseArrays
+using Statistics
+
+import ..AbstractDomain
+import ..Symmetric, ..Unsymmetric
+import ..Simulation
+import ..smooth_dielectric!
+import ..smooth_pump!
+import ..which_domains
+import ..simulation_dielectric!
+import ..simulation_pump!
+
 function Simulation(
 			ω₀::Real,
 			lattice_domains::NTuple{K,LatticeDomain{1}},
@@ -38,6 +62,8 @@ function Simulation(
 
 	F = Vector{Float64}(undef,length(x))
 	χ = Vector{AbstractDispersion}(undef,length(x))
+	Fs = Vector{Vector{Float64}}(undef,length(dispersive_domains))
+	for i ∈ eachindex(Fs) Fs[i] = zeros(Float64,length(x)) end
 	if isempty(dispersive_domains)
 		for i ∈ eachindex(F) F[i] = 0 end
 		for i ∈ eachindex(F) χ[i] = NoDispersion() end
@@ -52,6 +78,7 @@ function Simulation(
 			else
 				F[i] = pumps[d](x[i])
 				χ[i] = χs[d]
+				Fs[d][i] = pumps[d](x[i])
 			end
 		end
 	end
@@ -96,6 +123,7 @@ function Simulation(
 		ε,
 		F,
 		χ,
+		Fs,
 		laplacian,
 		# curlcurl,
 		Σ,
@@ -205,10 +233,10 @@ end
 ################################################################################
 # Pretty Printing
 
-import ..PRINTED_COLOR_GOOD
-import ..PRINTED_COLOR_WARN
-import ..PRINTED_COLOR_DARK
-import ..PRINTED_COLOR_NUMBER
+import ...PRINTED_COLOR_GOOD
+import ...PRINTED_COLOR_WARN
+import ...PRINTED_COLOR_DARK
+import ...PRINTED_COLOR_NUMBER
 
 function Base.show(io::IO,sim::Simulation{1,CLASS}) where CLASS
 	if sim.smoothed[]
@@ -233,3 +261,7 @@ function Base.show(io::IO,sim::Simulation{1,CLASS}) where CLASS
 		d < length(domains) ? println(io) : nothing
 	end
 end
+
+end
+
+using .Simulations1D

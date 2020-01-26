@@ -3,12 +3,12 @@
     module SaturableCPA
 
 Convenience wrappers for solution of the nonlinear SatruableCPA equation.
-Exports `MaxwellSCPA` constructor and extends methods of `NLsolve`, which must
-be separately imported. Also convenience nonlinear solver wrapper `SCPA`.
+Exports `HelmholtzSCPA` and `MaxwellSCPA` constructors and extends methods of
+`NLsolve`, which must be separately imported.
 """
 module SaturableCPA
 
-export SCPA
+export HelmholtzSCPA
 export MaxwellSCPA
 
 using ..Common
@@ -16,20 +16,23 @@ using ..Lasing
 using NLsolve
 using RecipesBase
 
-struct MaxwellSCPA{TMS} SALT::TMS end
+import ..Lasing.SALTProblem
+import ..Lasing.HelmholtzSALT
+import ..Lasing.MaxwellSALT
 
-fnames = (:nlsolve,:fixedpoint)
-for fn ∈ fnames
-    @eval NLsolve.$(fn)(ms::MaxwellSCPA; kwargs...) = $(fn)(ms, ms.ωs, ms.ψs; kwargs...)
+################################################################################
+# SCPA objects and constructors (mostly hooks into SALT constructors)
 
-    @eval begin function NLsolve.$(fn)(ms::MaxwellSCPA, ωs_init, ψs_init::ElectricField; kwargs...)
-            ms.m==size(ψs_init,2) || throw("number of modes in ψs_init ($(size(ψs_init,2))) must be the same as given in MaxwellSCPA ($(ms.m))")
-            return $(fn)(ms.SALT,ωs_init,ψs_init; kwargs...)
-        end
-    end
-end
+"""
+    SCPAProblem{M,THS}
 
-function Base.getproperty(mcpa::MaxwellSCPA,sym::Symbol)
+Saturable CPA object with `M` component fields
+"""
+struct SCPAProblem{M,THS} SALT::THS end
+
+SCPAProblem(SALT::SALTProblem{M}) where M = SCPAProblem{M,typeof(SALT)}(SALT)
+
+function Base.getproperty(mcpa::SCPAProblem, sym::Symbol)
     if sym == :SALT
         getfield(mcpa,:SALT)
     else
@@ -37,69 +40,99 @@ function Base.getproperty(mcpa::MaxwellSCPA,sym::Symbol)
     end
 end
 
-Base.propertynames(::MaxwellSCPA,private=false) = propertynames(MaxwellSALT,private)
+Base.propertynames(::SCPAProblem,private=false) = propertynames(SALTProblem,private)
 
+
+HelmholtzSCPA = SCPAProblem{1}
 """
-    SCPA(simulation, ωs_init, ψs_init; kwargs...) -> ωs, ψs
+    HelmholtzSCPA(sim::Simulation, m::Integer) -> scpa
 
-Convenience wrapper, solving SCPA problem for `simulation`, initialized at CPA
-frequencies `ωs_init` and fields `ψs_init`.
+SPCA object with `m` fields for Helmholtz problem
 """
-function SCPA(
-            sim::Simulation,
-            ωs_init::Vector{Float64},
-            ψs_init::ElectricField;
-            kwargs...)
+HelmholtzSCPA(sim::Simulation,m::Integer) = SCPAProblem(HelmholtzSALT{m}(sim))
 
-    ms = MaxwellSCPA(sim,length(ωs_init))
-    results = nlsolve(ms, ωs_init, ψs_init; kwargs...)
-    ωs,ψs = x_to_ωψ(sim,results.zero,length(ωs_init))
-    (results.f_converged || results.x_converged) || printstyled("beware: no convergence",color=PRINTED_COLOR_BAD)
-    return ωs, ψs
+
+MaxwellSCPA = SCPAProblem{3}
+"""
+    MaxwellSCPA(sim::Simulation, m::Integer) -> scpa
+
+SPCA object with `m` fields for Maxwell problem
+"""
+MaxwellSCPA(sim::Simulation,m::Integer) = SCPAProblem(MaxwellSALT{m}(sim))
+
+
+
+################################################################################
+# Extend NLsolve functions
+
+fnames = (:nlsolve,:fixedpoint)
+for fn ∈ fnames
+    @eval NLsolve.$(fn)(ms::SCPAProblem; kwargs...) = $(fn)(ms, ms.ωs, ms.ψs; kwargs...)
+
+    @eval begin function NLsolve.$(fn)(ms::SCPAProblem, ωs_init, ψs_init::VectorField; kwargs...)
+            ms.m==size(ψs_init,2) || throw("number of modes in ψs_init ($(size(ψs_init,2))) must be the same as given in SCPA ($(ms.m))")
+            return $(fn)(ms.SALT,ωs_init,ψs_init; kwargs...)
+        end
+    end
 end
+
+
+"""
+    nlsolve(scpa; kwargs...) -> results
+
+    nlsolve(scpa, init_ωs, init_ψs; kwargs...) -> results
+
+solve nonlinear SCPA equation where `scpa` is a `HelmholtzSCPA` or `MaxwellSCPA`.
+Results also stored `scpa`.
+
+`init_ψs` must be a `ScalarField` (for Helmholtz) or `ElectricField` (for Maxwell)
+"""
+nlsolve
+
+"""
+    fixedpoint(scpa; kwargs...) -> results
+
+    fixedpoint(scpa, init_ωs, init_ψs; kwargs...) -> results
+
+Convenience wrapper for `NLsolve`'s `fixedpoint` wrapper.
+Solves nonlinear SCPA equation where `scpa` is a `HelmholtzSCPA` or `MaxwellSCPA`.
+Results also stored `scpa`.
+
+`init_ψs` must be a `ScalarField` (for Helmholtz) or `ElectricField` (for Maxwell)
+"""
+fixedpoint
 
 ################################################################################
 # Pretty Printing
 
 import ..Common.PRINTED_COLOR_LIGHT
-import ..Common.PRINTED_COLOR_WARN
-import ..Common.PRINTED_COLOR_VARIABLE
-import ..Common.PRINTED_COLOR_GOOD
-import ..Common.PRINTED_COLOR_BAD
-import ..Common.PRINTED_COLOR_INSTRUCTION
 
-function Base.show(io::IO,ms::MaxwellSCPA)
+function Base.show(io::IO,ms::SCPAProblem{M}) where M
     print(io,ms.m, " mode")
     ms.m>1 ? print(io,"s") : nothing
-    printstyled(io," MaxwellSCPA",color = PRINTED_COLOR_LIGHT)
-    if !ms.solved[]
-        printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"unsolved",color=PRINTED_COLOR_WARN)
-        printstyled(io,", pass to ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"NLsolve.nlsolve",color=PRINTED_COLOR_VARIABLE)
-        printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
-    elseif ms.converged[]
-        printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"solved",color=PRINTED_COLOR_GOOD)
-        printstyled(io,", solution in fields ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"ωs",color=:cyan)
-        printstyled(io,", ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"ψs",color=:cyan)
-        printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
-    else
-        printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"solve attempted",color=PRINTED_COLOR_BAD)
-        printstyled(io,", ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"no convergence",color=PRINTED_COLOR_BAD)
-        printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
+    if M==1
+        printstyled(io," HelmholtzSCPA",color = PRINTED_COLOR_LIGHT)
+    elseif M==3
+        printstyled(io," MaxwellSCPA",color = PRINTED_COLOR_LIGHT)
     end
+    print(IOContext(io,:SCPA=>true), ms.SALT)
 end
 
+################################################################################
 # Plotting
-@recipe f(ms::MaxwellSCPA;by=abs2) = ms,by
-@recipe f(by::Function,ms::MaxwellSCPA) = ms,by
-@recipe f(ms::MaxwellSCPA,by::Function) = ms.SALT,by
-@recipe f(sim::Simulation,ms::MaxwellSCPA;by=abs2) = sim,ms.SALT,by
-@recipe f(ms::MaxwellSCPA,sim::Simulation;by=abs2) = sim,ms.SALT,by
+@recipe f(ms::SCPAProblem; by=abs2) = ms, by
+@recipe f(by::Function, ms::SCPAProblem) = ms, by
+@recipe f(ms::SCPAProblem, by::Function) = ms.SALT, by
+
+@recipe f(sim::Simulation, ms::SCPAProblem; by=abs2) = sim, ms, by
+@recipe f(ms::SCPAProblem, sim::Simulation; by=abs2) = sim, ms, by
+
+@recipe f(ms::SCPAProblem, sim::Simulation, by::Function) = sim, ms, by
+@recipe f(sim::Simulation, by::Function, ms::SCPAProblem) = sim, ms, by
+@recipe f(ms::SCPAProblem, by::Function, sim::Simulation) = sim, ms, by
+@recipe f(by::Function, sim::Simulation, ms::SCPAProblem) = sim, ms, by
+@recipe f(by::Function, ms::SCPAProblem, sim::Simulation) = sim, ms, by
+
+@recipe f(sim::Simulation, ms::SCPAProblem, by::Function) = sim, ms.SALT, by
 
 end # module

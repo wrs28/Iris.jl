@@ -33,10 +33,10 @@ include("Scattering/Scattering.jl")
 include("SMatrices/SMatrices.jl")
 @reexport using  .SMatrices
 
-include("Lasing/Lasing.jl")
+include("Lasing/Lasing.jl") # ✅ 1D helmholtz tests
 @reexport using .Lasing
 
-include("SaturableCPA/SaturableCPA.jl")
+include("SaturableCPA/SaturableCPA.jl") # ✅ 1D helmholtz tests
 @reexport using .SaturableCPA
 
 include("TimeDomain/TimeDomain.jl")

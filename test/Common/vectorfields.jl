@@ -10,11 +10,7 @@ using Test
         r = rand(ComplexF64,M*n,nmodes)
         pos = Vector{Point{N}}(undef,n)
         for i ∈ 1:n pos[i] = Point(randn(Float64,N)...) end
-        start = Point(zeros(Int,N)...)
-        stop = Point(ones(Int,N)...)
-        start_inds = rand(Int,N)
-        stop_inds = rand(Int,N)
-        e = VectorField{M}(pos,r,start,stop,start_inds,stop_inds)
+        e = VectorField{M}(pos,r)
         @test e==conj(conj(e))
         @test e + e == 2e
         @test e - e == 0e
@@ -38,11 +34,7 @@ using Test
         r = rand(ComplexF64,M*n,nmodes)
         pos = Vector{Point{N}}(undef,n)
         for i ∈ 1:n pos[i] = Point(randn(Float64,N)...) end
-        start = Point(zeros(Int,N)...)
-        stop = Point(ones(Int,N)...)
-        start_inds = rand(Int,N)
-        stop_inds = rand(Int,N)
-        e = ScalarField(pos,r,start,stop,start_inds,stop_inds)
+        e = ScalarField(pos,r)
         @test e==conj(conj(e))
         @test e + e == 2e
         @test e - e == 0e
@@ -66,11 +58,7 @@ using Test
         r = rand(ComplexF64,M*n,nmodes)
         pos = Vector{Point{N}}(undef,n)
         for i ∈ 1:n pos[i] = Point(randn(Float64,N)...) end
-        start = Point(zeros(Int,N)...)
-        stop = Point(ones(Int,N)...)
-        start_inds = rand(Int,N)
-        stop_inds = rand(Int,N)
-        e = ElectricField(pos,r,start,stop,start_inds,stop_inds)
+        e = ElectricField(pos,r)
         @test e==conj(conj(e))
         @test e + e == 2e
         @test e - e == 0e

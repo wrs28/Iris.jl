@@ -76,7 +76,11 @@ end
 `in::Vector` are input channels specified by integer
 `out::Vector` are output channels specified by integer
 """
-MatchedBC{SIDE}(;in::Array{Int,1}=Int[],out::Array{Int,1}=Int[]) where SIDE = MatchedBC{SIDE}(in,out)
+function MatchedBC{SIDE}(;in=Int[],out=Int[]) where SIDE
+	typeof(in)<:Number ? in = [in] : nothing
+	typeof(out)<:Number ? out = [out] : nothing
+	return MatchedBC{SIDE}(in,out)
+end
 
 """
 	LocalBC{SIDE}

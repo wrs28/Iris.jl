@@ -1,3 +1,20 @@
+module Domains2D
+
+
+using ..Boundaries
+using ..DielectricFunctions
+using ..PumpFunctions
+using ..Dispersions
+using ..Lattices
+using ..Points
+using ..Shapes
+using RecipesBase
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra.norm
+
+import ..LatticeDomain
+
 function LatticeDomain(
             boundary::Boundary{2},
             lattice::Lattice{2,Cartesian},
@@ -308,8 +325,8 @@ _generate_corner(bnd::Boundary{2},lat::Lattice{2,Polar},p,surface,interior) = fa
 ################################################################################
 # PLOTTING
 
-import ..Common.MARKERSIZE_SCALE
-import ..Common.MARKERSHAPE
+import ...Common.MARKERSIZE_SCALE
+import ...Common.MARKERSHAPE
 
 @recipe function f(d::LatticeDomain{2})
     aspect_ratio --> 1
@@ -337,3 +354,7 @@ import ..Common.MARKERSHAPE
     end
     # @series d.boundary
 end
+
+end
+
+using .Domains2D

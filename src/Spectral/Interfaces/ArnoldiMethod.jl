@@ -1,5 +1,18 @@
+module ArnoldiMethodInterface
+
 using ArnoldiMethod
 using ArnoldiMethodTransformations
+using ..Common
+
+import ..AbstractEigenproblem
+import ..AbstractLinearEigenproblem
+import ..AbstractCFEigenproblem
+import ..AbstractNonlinearEigenproblem
+import ..HelmholtzProblem
+import ..MaxwellProblem
+import ..DEFAULT_LINEAR_EIGENSOLVER
+import ..HelmholtzLEP
+import ..MaxwellLEP
 
 ################################################################################
 #LEP
@@ -172,3 +185,7 @@ Advanced keywords:
 """ ->
 maxwelleigen(cf::MaxwellCF,args...;kwargs...) = iris_eigen_arnoldimethod(cf,args...;kwargs...)
 end
+
+end
+
+using .ArnoldiMethodInterface

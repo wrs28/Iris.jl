@@ -30,6 +30,7 @@ using ..VectorFields
 # using LinearAlgebra
 using SparseArrays
 using Statistics
+using RecipesBase
 
 import ..AbstractDomain
 import ..Symmetric, ..Unsymmetric
@@ -57,6 +58,7 @@ struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	ε::Vector{ComplexF64}
 	F::Vector{Float64}
 	χ::Vector{AbstractDispersion}
+	Fs::Vector{Vector{Float64}}
 
 	laplacian::Laplacian{N,CLASS}
 	# curlcurl::Curlcurl{N,CLASS}
@@ -103,8 +105,6 @@ for i ∈ eachindex(types)
 	end
 end
 
-foreach(include,files)
-
 Base.length(sim::Simulation) = length(sim.x)
 Base.ndims(sim::Simulation{N}) where N = N
 
@@ -125,6 +125,7 @@ function smooth!(sim::Simulation, num_sub_pixel::Integer = NUM_SUBPIXELS)
 	sim.smoothed[] = true
     return nothing
 end
+
 
 """
 	update!(sim)
@@ -238,7 +239,10 @@ end
 isvoid(domain::AbstractDomain) = domain.type==:Void
 
 
+smooth_dielectric!() = nothing
+smooth_pump!() = nothing
 
+foreach(include,files)
 
 
 
@@ -322,6 +326,13 @@ function Base.show(io::IO,sim::Simulation{N,CLASS}) where {N,CLASS}
 		d < length(sim.domains) ? println(io) : nothing
 	end
 end
+
+@recipe f(v::VectorField, sim::Simulation) = sim, v
+@recipe f(e::VectorField,sim::Simulation,by::Function) = sim,e,by
+@recipe f(sim::Simulation,by::Function,e::VectorField) = sim,e,by
+@recipe f(e::VectorField,by::Function,sim::Simulation) = sim,e,by
+@recipe f(by::Function,sim::Simulation,e::VectorField) = sim,e,by
+@recipe f(by::Function,e::VectorField,sim::Simulation) = sim,e,by
 
 
 end # module

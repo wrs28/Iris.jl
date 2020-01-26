@@ -1,5 +1,25 @@
+module NonlinearEigenproblemsInterface
+
 using NonlinearEigenproblems
 using LinearAlgebra
+using SparseArrays
+using ..Common
+
+import ..AbstractEigenproblem
+import ..AbstractLinearEigenproblem
+import ..AbstractCFEigenproblem
+import ..AbstractNonlinearEigenproblem
+import ..HelmholtzProblem
+import ..MaxwellProblem
+import ..DEFAULT_NONLINEAR_EIGENSOLVER
+import ..INDEX_OFFSET
+import ..HelmholtzNEP
+import ..MaxwellNEP
+import ..DOC_NEP_H
+import ..DOC_NEP_M
+import ..helmholtzeigen
+import ..maxwelleigen
+import ..orthogonalize!
 
 export IrisLinSolverCreator
 
@@ -73,9 +93,9 @@ function iris_eigen_nonlineareigenproblems(
     isempty(args) ? nothing : nep(ω,args...)
     λ::Vector{ComplexF64}, v::Matrix{ComplexF64} = iar_chebyshev(nep; σ=ω,logger=Int(verbose), linsolvercreator=linsolvercreator, kwargs...)
 	if typeof(nep) <: HelmholtzNEP
-		ψ = ScalarField(nep.simulation,v)
+		ψ = ScalarField(nep,v)
 	elseif typeof(nep) <: MaxwellNEP
-		ψ = ElectricField(nep.simulation,v)
+		ψ = ElectricField(nep,v)
 	end
     normalize!(nep.simulation, ψ, nep.nep.A[end-1], size(ψ,1)÷2+INDEX_OFFSET) # Normalize according to (ψ₁,ψ₂)=δ₁₂
 	orthogonalize!(ψ,nep.simulation, λ, nep.nep.A[end-1], nep.ky, nep.kz)
@@ -83,47 +103,52 @@ function iris_eigen_nonlineareigenproblems(
 end
 
 if DEFAULT_NONLINEAR_EIGENSOLVER == :NonlinearEigenproblems
-@doc """
-$doc_nep_h
-`neigs` Number of eigenpairs (`6`);
-`maxit` Maximum iterations (`30`);
-`verbose` (`false`);
-`v` Initial eigenvector approximation (`rand(size(nep,1),1)`)
+	@doc """
+	$DOC_NEP_H
+	`neigs` Number of eigenpairs (`6`);
+	`maxit` Maximum iterations (`30`);
+	`verbose` (`false`);
+	`v` Initial eigenvector approximation (`rand(size(nep,1),1)`)
 
-Advanced keywords:
-`logger` Integer print level (`verbose`);
-`tolerance` Convergence tolerance (`eps()*10000`);
-`lupack` LU solver (`$DEFAULT_LUPACK`);
-`linsolvercreator` Define linear solver (`IrisLinSolverCreator(lupack)`);
-`check_error_every` Check for convergence every this number of iterations (`1`);
-`γ` Eigenvalue scaling in `λ=γs+Ω` (`1`);
-`orthmethod` Orthogonalization method, see `IterativeSolvers` (`DGKS`);
-`errmeasure` See `NonlinearEigenproblems` documentation;
-`compute_y0_method` How to find next vector in Krylov space, see `NonlinearEigenproblems` docs (`ComputeY0ChebAuto`)
-a (`-1`);
-b (`1`);
-""" ->
-helmholtzeigen(nep::HelmholtzNEP,args...;kwargs...) = iris_eigen_nonlineareigenproblems(nep,args...;kwargs...)
+	Advanced keywords:
+	`logger` Integer print level (`verbose`);
+	`tolerance` Convergence tolerance (`eps()*10000`);
+	`lupack` LU solver (`$DEFAULT_LUPACK`);
+	`linsolvercreator` Define linear solver (`IrisLinSolverCreator(lupack)`);
+	`check_error_every` Check for convergence every this number of iterations (`1`);
+	`γ` Eigenvalue scaling in `λ=γs+Ω` (`1`);
+	`orthmethod` Orthogonalization method, see `IterativeSolvers` (`DGKS`);
+	`errmeasure` See `NonlinearEigenproblems` documentation;
+	`compute_y0_method` How to find next vector in Krylov space, see `NonlinearEigenproblems` docs (`ComputeY0ChebAuto`)
+	a (`-1`);
+	b (`1`);
+	""" ->
+	helmholtzeigen(nep::HelmholtzNEP,args...;kwargs...) = iris_eigen_nonlineareigenproblems(nep,args...;kwargs...)
 
-@doc """
-$doc_nep_m
-`neigs` Number of eigenpairs (`6`);
-`maxit` Maximum iterations (`30`);
-`verbose` (`false`);
-`v` Initial eigenvector approximation (`rand(size(nep,1),1)`)
+	@doc """
+	$DOC_NEP_M
+	`neigs` Number of eigenpairs (`6`);
+	`maxit` Maximum iterations (`30`);
+	`verbose` (`false`);
+	`v` Initial eigenvector approximation (`rand(size(nep,1),1)`)
 
-Advanced keywords:
-`logger` Integer print level (`verbose`);
-`tolerance` Convergence tolerance (`eps()*10000`);
-`lupack` LU solver (`$DEFAULT_LUPACK`);
-`linsolvercreator` Define linear solver (`IrisLinSolverCreator(lupack)`);
-`check_error_every` Check for convergence every this number of iterations (`1`);
-`γ` Eigenvalue scaling in `λ=γs+Ω` (`1`);
-`orthmethod` Orthogonalization method, see `IterativeSolvers` (`DGKS`);
-`errmeasure` See `NonlinearEigenproblems` documentation;
-`compute_y0_method` How to find next vector in Krylov space, see `NonlinearEigenproblems` docs (`ComputeY0ChebAuto`)
-a (`-1`);
-b (`1`);
-""" ->
-maxwelleigen(nep::MaxwellNEP,args...;kwargs...) = iris_eigen_nonlineareigenproblems(nep,args...;kwargs...)
+	Advanced keywords:
+	`logger` Integer print level (`verbose`);
+	`tolerance` Convergence tolerance (`eps()*10000`);
+	`lupack` LU solver (`$DEFAULT_LUPACK`);
+	`linsolvercreator` Define linear solver (`IrisLinSolverCreator(lupack)`);
+	`check_error_every` Check for convergence every this number of iterations (`1`);
+	`γ` Eigenvalue scaling in `λ=γs+Ω` (`1`);
+	`orthmethod` Orthogonalization method, see `IterativeSolvers` (`DGKS`);
+	`errmeasure` See `NonlinearEigenproblems` documentation;
+	`compute_y0_method` How to find next vector in Krylov space, see `NonlinearEigenproblems` docs (`ComputeY0ChebAuto`)
+	a (`-1`);
+	b (`1`);
+	""" ->
+	maxwelleigen(nep::MaxwellNEP,args...;kwargs...) = iris_eigen_nonlineareigenproblems(nep,args...;kwargs...)
 end
+
+end
+
+
+using .NonlinearEigenproblemsInterface

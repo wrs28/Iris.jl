@@ -18,11 +18,7 @@ using Test
             r = rand(ComplexF64,20,length(ωs))
             pos = Vector{Point{1}}(undef,20)
             for i ∈ 1:20 pos[i] = Point(randn(Float64,1)...) end
-            start = Point(zeros(Int,1)...)
-            stop = Point(ones(Int,1)...)
-            start_inds = rand(Int,1)
-            stop_inds = rand(Int,1)
-            e = ScalarField(pos,r,start,stop,start_inds,stop_inds)
+            e = ScalarField(pos,r)
             @test_nowarn susceptability(d,ω,ωs,e)
             d.D₀ = .1
             d.ωa = ω
@@ -36,11 +32,7 @@ using Test
             r = rand(ComplexF64,M*n,nmodes)
             pos = Vector{Point{N}}(undef,n)
             for i ∈ 1:n pos[i] = Point(randn(Float64,N)...) end
-            start = Point(zeros(Int,N)...)
-            stop = Point(ones(Int,N)...)
-            start_inds = rand(Int,N)
-            stop_inds = rand(Int,N)
-            e = ElectricField(pos,r,start,stop,start_inds,stop_inds)
+            e = ElectricField(pos,r)
             @test_nowarn susceptability(d,ω,ωs,e)
             d.D₀ = .1
             d.ωa = ω

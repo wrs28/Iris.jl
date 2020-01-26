@@ -1,3 +1,13 @@
+module Laplacians1D
+
+using ..Lattices
+using ..Points
+using SparseArrays
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra: I
+import ..Laplacian
+
 ################################################################################
 # CARTESIAN
 """
@@ -92,3 +102,7 @@ end
 ################################################################################
 # SPHERICAL
 Laplacian{Symmetric}(lattice::Lattice{1,Spherical}, α::Vector{ComplexF64}, α_half::Vector{ComplexF64}, nnm, nnp, indices, interior, surface) = throw("not implemented for 1D Spherical yet")
+
+end
+
+using .Laplacians1D

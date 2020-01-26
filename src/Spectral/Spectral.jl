@@ -17,14 +17,14 @@ or directly with [`ArnoldiMethod`](https://github.com/haampie/ArnoldiMethod.jl),
 """
 module Spectral
 
-export MaxwellLEP
-export MaxwellCF
-export MaxwellNEP
-export maxwelleigen
 export HelmholtzLEP
 export HelmholtzCF
 export HelmholtzNEP
 export helmholtzeigen
+export MaxwellLEP
+export MaxwellCF
+export MaxwellNEP
+export maxwelleigen
 
 dimensions = (
 		"1D/Spectral1D.jl",
@@ -33,17 +33,20 @@ dimensions = (
         )
 
 interfaces = (
-	"Interfaces/ArnoldiMethod.jl",
+	# "Interfaces/ArnoldiMethod.jl",
 	"Interfaces/Arpack.jl",
-	"Interfaces/KrylovKit.jl",
+	# "Interfaces/KrylovKit.jl",
 	"Interfaces/LinearAlgebra.jl",
 	"Interfaces/NonlinearEigenproblems.jl"
 	)
 
 using ..Common
+using LinearAlgebra
+using NonlinearEigenproblems
 using SparseArrays
 
 import ..Common.INDEX_OFFSET
+import ..Common.DEFAULT_LINEAR_EIGENSOLVER
 
 """
 	AbstractEigenproblem{N}
@@ -72,6 +75,9 @@ abstract type HelmholtzProblem end
 	MaxwellProblem
 """
 abstract type MaxwellProblem end
+
+helmholtzeigen() = nothing
+maxwelleigen() = nothing
 
 ################################################################################
 # Linear Eigenvalue Problem
@@ -130,14 +136,14 @@ end
 foreach(include,dimensions)
 
 # add convenience constructors for ElectricField
-# for ep ∈ (HelmholtzLEP,HelmholtzCF,HelmholtzNEP)
-# 	@eval begin
-# 		Common.ScalarField(mep::$(ep)) = ScalarField(mep.simulation)
-# 		Common.ScalarField(arg,mep::$(ep)) = ScalarField(mep.simulation,arg)
-# 		Common.ScalarField(mep::$(ep),arg) = ScalarField(mep.simulation,arg)
-# 	end
-# end
-# for ep ∈ (MaxwellLEP,MaxwellCF,MaxwellNEP)
+for ep ∈ (HelmholtzLEP,HelmholtzCF,HelmholtzNEP)
+	@eval begin
+		Common.ScalarField(hep::$(ep)) = ScalarField(hep.simulation.x)
+		Common.ScalarField(arg,hep::$(ep)) = ScalarField(hep.simulation.x,arg)
+		Common.ScalarField(hep::$(ep),arg) = ScalarField(hep.simulation.x,arg)
+	end
+end
+for ep ∈ (MaxwellLEP,MaxwellCF,MaxwellNEP)
 # 	@eval begin
 # 		# """
 # 		# 	ElectricField(::$($ep),[m=1]) -> ElectricField
@@ -149,73 +155,11 @@ foreach(include,dimensions)
 # 		Common.ElectricField(arg,mep::$(ep)) = ElectricField(mep.simulation,arg)
 # 		Common.ElectricField(mep::$(ep),arg) = ElectricField(mep.simulation,arg)
 # 	end
-# end
+end
 
 import ..Common.DEFAULT_LINEAR_EIGENSOLVER
 import ..Common.DEFAULT_NONLINEAR_EIGENSOLVER
 
-doc_lep_h = "
-	helmholtzeigen(lep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
-
-Linear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ScalarField`.
-
-Optional `ωs::Vector` and `ψs::ScalarField` must be provided together, and define
-nonlinearity-inducing background fields.
-
-Keywords:"
-
-doc_lep_m = "
-	maxwelleigen(lep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
-
-Linear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ElectricField`.
-
-Optional `ωs::Vector` and `ψs::ElectricField` must be provided together, and define
-nonlinearity-inducing background fields.
-
-Keywords:"
-
-
-doc_cf_h = "
-	helmholtzeigen(cf, Ω, [ωs, ψs; η=0, kwargs...]) -> H, u
-
-Linear eigen-susceptibilities `H` closest to `η`, eigenfields `u::ScalarField`.
-Optional `ωs::Vector` and `ψs::ScalarField` must be provided together, and define
-nonlinearity-inducing background fields.
-
-Keywords:
-`η` Target CF eigenvalue (`0`);"
-
-doc_cf_m = "
-	maxwelleigen(cf, Ω, [ωs, ψs; η=0, kwargs...]) -> H, u
-
-Linear eigen-susceptibilities `H` closest to `η`, eigenfields `u::ElectricField`.
-Optional `ωs::Vector` and `ψs::ElectricField` must be provided together, and define
-nonlinearity-inducing background fields.
-
-Keywords:
-`η` Target CF eigenvalue (`0`);"
-
-
-doc_nep_h = "
-	helmholtzeigen(nep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
-
-Nonlinear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ScalarField`.
-Optional `ωs::Vector` and `ψs::ScalarField` must be provided together, and define
-nonlinearity-inducing background fields.
-
-Keywords:"
-
-doc_nep_m = "
-	maxwelleigen(nep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
-
-Nonlinear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ElectricField`.
-Optional `ωs::Vector` and `ψs::ElectricField` must be provided together, and define
-nonlinearity-inducing background fields.
-
-Keywords:"
-
-# include interfaces
-foreach(include,interfaces)
 
 ################################################################################
 # linear
@@ -262,11 +206,11 @@ end
 # CF
 
 """
-    HelmholtzCF(::Simulation{1}) -> lep
+    HelmholtzCF(::Simulation) -> lep
 """
 HelmholtzCF(args...; kwargs...) = HelmholtzCF(Helmholtz(args...; kwargs...))
 """
-    MaxwellCF(::Simulation{1}; ky=0, kz=0) -> lep
+    MaxwellCF(::Simulation; ky=0, kz=0) -> lep
 """
 MaxwellCF(args...; kwargs...) = MaxwellCF(Maxwell(args...; kwargs...))
 
@@ -390,7 +334,7 @@ end
 function _computeF!(F::SparseMatrixCSC,sim::Simulation,ω)
 	for i ∈ 1:size(F,1)
 		j = mod1(i,length(sim))
-		if iszero(sim.nondispersive_domain_indices[j])
+		if iszero(sim.dispersive_domain_indices[j])
 			F.nzval[i] = 0
 		else
 			F.nzval[i] = sim.F[j]
@@ -402,8 +346,8 @@ function _computeF!(F::Vector{T},sim::Simulation,ω) where T<:AbstractSparseMatr
 	for d ∈ eachindex(F)
 		for i ∈ 1:size(F[1],1)
 			j = mod1(i,length(sim))
-			if sim.nondispersive_domain_indices[j] == d
-				F[d].nzval[i] = sim.F[j]
+			if sim.dispersive_domain_indices[j] == d
+				F[d].nzval[i] = sim.Fs[d][j]
 			else
 				F[d].nzval[i] = 0
 			end
@@ -421,7 +365,7 @@ function _computeF!(F::SparseMatrixCSC, sim::Simulation, ω, ωs::Array, ψs::El
 			if iszero(χ.D0)
 				F.nzval[i] = 0
 			else
-				if iszero(sim.nondispersive_domain_indices[j])
+				if iszero(sim.dispersive_domain_indices[j])
 					F.nzval[i] = 0
 				else
 					F.nzval[i] = sim.F[j]*χ.hp1⁻¹[i]
@@ -440,7 +384,7 @@ function _computeF!(F::Vector{T}, sim::Simulation, ω, ωs::Array, ψs::Electric
 				if iszero(χ.D0)
 					F[d].nzval[i] = 0
 				else
-					if sim.nondispersive_domain_indices[j] == d
+					if sim.dispersive_domain_indices[j] == d
 						F[d].nzval[i] = sim.F[j]*χ.hp1⁻¹[i]
 					else
 						F[d].nzval[i] = 0
@@ -458,16 +402,16 @@ end
 const ORTHOGONALIZE_OVERLAP_THRESHOLD = .1
 
 """
-	orthoganlize!(ψ,sim,η,B,ky,kz,[ind])
+	orthogonalize!(ψ,sim,η,B,ky,kz,[ind])
 
 Check for nearly degenerate eigenpairs, if overlap integral exceeds $ORTHOGONALIZE_OVERLAP_THRESHOLD,
 orthoganlize and renormalize.
 """
-function orthogonalize!(u::VectorField{1,1},sim::Simulation{1},η,B,args...)
+function orthogonalize!(u::VectorField{N,1},sim::Simulation{N},η,B,args...) where N
 	for i ∈ eachindex(η)
 		for j ∈ 1:(i-1)
 			if abs(2(η[i]-η[j])/(η[i]+η[j])) < 1e-3
-				δ = sum(u[:,i].*u[:,j].*diag(B))*sim.dx
+				δ = sum(u[:,i].*u[:,j].*diag(B))*_measure(sim)
 				if abs(δ) > ORTHOGONALIZE_OVERLAP_THRESHOLD
 					β = 1/sqrt(1-δ^2)
 					α = -δ*β
@@ -479,11 +423,11 @@ function orthogonalize!(u::VectorField{1,1},sim::Simulation{1},η,B,args...)
 	return nothing
 end
 
-function orthogonalize!(u::VectorField{1,3},sim::Simulation{1},η,B,ky,kz,args...)
+function orthogonalize!(u::VectorField{N,3},sim::Simulation{N},η,B,ky,kz,args...) where N
 	for i ∈ eachindex(η)
 		for j ∈ 1:(i-1)
 			if abs(2(η[i]-η[j])/(η[i]+η[j])) < 1e-3
-				δ = sum(u[:,i].*u[:,j].*diag(B))*sim.dx
+				δ = sum(u[:,i].*u[:,j].*diag(B))*_measure(sim)
 				if abs(δ) > ORTHOGONALIZE_OVERLAP_THRESHOLD
 					if all(iszero,(ky,kz))
 						u.z[:,j] .= 0
@@ -595,5 +539,70 @@ function Base.show(io::IO,nep::AbstractNonlinearEigenproblem{N}) where N
     printstyled(io,", to evaluate operator)",color=PRINTED_COLOR_INSTRUCTION)
 end
 
+
+################################################################################
+
+DOC_LEP_H = "
+	helmholtzeigen(lep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
+
+Linear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ScalarField`.
+
+Optional `ωs::Vector` and `ψs::ScalarField` must be provided together, and define
+nonlinearity-inducing background fields.
+
+Keywords:"
+
+DOC_LEP_M = "
+	maxwelleigen(lep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
+
+Linear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ElectricField`.
+
+Optional `ωs::Vector` and `ψs::ElectricField` must be provided together, and define
+nonlinearity-inducing background fields.
+
+Keywords:"
+
+
+DOC_CF_H = "
+	helmholtzeigen(cf, Ω, [ωs, ψs; η=0, kwargs...]) -> H, u
+
+Linear eigen-susceptibilities `H` closest to `η`, eigenfields `u::ScalarField`.
+Optional `ωs::Vector` and `ψs::ScalarField` must be provided together, and define
+nonlinearity-inducing background fields.
+
+Keywords:
+`η` Target CF eigenvalue (`0`);"
+
+DOC_CF_M = "
+	maxwelleigen(cf, Ω, [ωs, ψs; η=0, kwargs...]) -> H, u
+
+Linear eigen-susceptibilities `H` closest to `η`, eigenfields `u::ElectricField`.
+Optional `ωs::Vector` and `ψs::ElectricField` must be provided together, and define
+nonlinearity-inducing background fields.
+
+Keywords:
+`η` Target CF eigenvalue (`0`);"
+
+
+DOC_NEP_H = "
+	helmholtzeigen(nep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
+
+Nonlinear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ScalarField`.
+Optional `ωs::Vector` and `ψs::ScalarField` must be provided together, and define
+nonlinearity-inducing background fields.
+
+Keywords:"
+
+DOC_NEP_M = "
+	maxwelleigen(nep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
+
+Nonlinear eigenvalues `ω` closest to `Ω`, eigenfields `ψ::ElectricField`.
+Optional `ωs::Vector` and `ψs::ElectricField` must be provided together, and define
+nonlinearity-inducing background fields.
+
+Keywords:"
+
+# include interfaces
+foreach(include,interfaces)
 
 end # module

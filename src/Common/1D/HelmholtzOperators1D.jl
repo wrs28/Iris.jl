@@ -1,3 +1,15 @@
+module HelmholtzOperators1D
+
+using ..VectorFields
+using ..Simulations
+using ..Dispersions
+using SparseArrays
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra: I
+import ..Helmholtz
+import ..helmholtz_susceptability!
+
 function Helmholtz(
             sim::TSIM;
             m::Int = 1) where TSIM<:Simulation{1,Symmetric}
@@ -7,7 +19,7 @@ function Helmholtz(
 
     Σs = _compute_Σs(sim)
     f = sim.self_energy.f
-    D² = laplacian - Σs[1]*f[1](0,ka) - Σs[2]*f[2](0,ka) - Σs[3]
+    D² = laplacian + Σs[1]*f[1](0,ka) + Σs[2]*f[2](0,ka) + Σs[3]
 
     αε = sim.laplacian.complex_scaling*spdiagm(0=>sim.ε)
     αεpFχ = copy(αε)
@@ -36,7 +48,7 @@ end
         col = i
         @fastmath @inbounds @simd for j ∈ nzrange(h.D², i)
             row = rows[j]
-            vals[j] = h.laplacian[row,col] - h.Σs[1][row,col]*fL - h.Σs[2][row,col]*fR - h.Σs[3][row,col]
+            vals[j] = h.laplacian[row,col] + h.Σs[1][row,col]*fL + h.Σs[2][row,col]*fR + h.Σs[3][row,col]
         end
     end
 
@@ -57,9 +69,11 @@ end
 ################################################################################
 
 function _compute_Σs(sim::Simulation{1})
-    Σ0L = sim.self_energy.Σ0[1]
-    Σ0R = sim.self_energy.Σ0[2]
-    # Σ1L = sim.self_energy.Σ1[1]
-    # Σ1R = sim.self_energy.Σ1[2]
-    return (Σ0L, Σ0R, sim.self_energy.Σ2)
+    Σ0L = -sim.self_energy.Σ0[1]
+    Σ0R = -sim.self_energy.Σ0[2]
+    return (Σ0L, Σ0R, -sim.self_energy.Σ2)
 end
+
+end
+
+using .HelmholtzOperators1D

@@ -17,6 +17,7 @@ dimensional_files = (
 
 using ..Points
 using Interpolations
+using RecipesBase
 
 """
     VectorFields{N,M} <: AbstractMatrix{ComplexF64}
@@ -31,7 +32,12 @@ struct VectorField{N,M} <: AbstractMatrix{ComplexF64} # N = Dimension, M = numbe
     start_inds::Vector{Int}
     stop_inds::Vector{Int}
 
-    function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix, start::Point{N}, stop::Point{N}, start_inds::Vector, stop_inds::Vector) where {N,M,TP<:Point{N}}
+    # function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix), start::Point{N}, stop::Point{N}, start_inds::Vector, stop_inds::Vector) where {N,M,TP<:Point{N}}
+    function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix) where {N,M,TP<:Point{N}}
+        start = Point(ntuple(i->minimum(map(p->p[i],pos)), N))::Point{N}
+        stop  = Point(ntuple(i->maximum(map(p->p[i],pos)), N))::Point{N}
+        start_inds = map(i->findfirst(isequal(start[i]),map(p->p[i],pos))::Int, 1:N)
+        stop_inds = map(i->findfirst(isequal(stop[i]),map(p->p[i],pos))::Int, 1:N)
         size(val,1)==M*length(pos) || throw("provided matrix has size(matrix,1)=$(size(val,1))≠$M*length(pos)=$(M*length(pos))")
         return new{N,M}(pos,val,start,stop,start_inds,stop_inds)
     end
@@ -48,7 +54,8 @@ end
 `start_inds` and `stop_inds` give the indices
 """
 VectorField{M}(pos::Vector{TP},args...) where {M,TP<:Point{N}} where N = VectorField{N,M}(pos,args...)
-VectorField{N,M}(pos::Vector{TP},val::AbstractVector,args...) where {N,M,TP<:Point{N}} = VectorField{N,M}(pos,reshape(val,length(val),1),args...)
+VectorField{N,M}(pos::Vector{TP},val::AbstractVector) where {N,M,TP<:Point{N}} = VectorField{N,M}(pos,reshape(val,length(val),1))
+VectorField{N,M}(pos::Vector{TP}, m::Integer) where {N,M,TP<:Point{N}} = VectorField{N,M}(pos,zeros(ComplexF64,M*length(pos),m))
 
 """
     VectorField(field,vals) -> newfield
@@ -56,7 +63,7 @@ VectorField{N,M}(pos::Vector{TP},val::AbstractVector,args...) where {N,M,TP<:Poi
 `newfield` has field values `vals` on the same sites as `field`
 """
 VectorField(f::VectorField{N,M},vals::AbstractVecOrMat) where {N,M} = VectorField{M}(f,vals)
-VectorField{M}(f::VectorField{N,M},vals::AbstractVecOrMat) where {N,M} = VectorField{N,M}(f.positions,vals,f.start,f.stop,f.start_inds,f.stop_inds)
+VectorField{M}(f::VectorField{N,M},vals::AbstractVecOrMat) where {N,M} = VectorField{N,M}(f.positions,vals)
 
 """
     update!(field,vals)
@@ -280,5 +287,9 @@ end
 #     printstyled(io,".z",color=PRINTED_COLOR_VARIABLE)
 #     printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
 # end
+
+
+@recipe f(e::VectorField; by=abs2) = e, by
+@recipe f(by::Function, e::VectorField) = e,by
 
 end #module

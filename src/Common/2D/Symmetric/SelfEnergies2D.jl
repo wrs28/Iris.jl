@@ -1,3 +1,14 @@
+module SelfEnergy2DSymmetric
+
+using ..BoundaryConditions
+using ..Domains
+using ..Points
+using SparseArrays
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra: I
+import ..SelfEnergy
+
 function SelfEnergy{Symmetric}(domain::LatticeDomain{2,Symmetric,Cartesian}, αx_half::Vector, αy_half::Vector)
 
     Nx = length(αx_half)-1
@@ -131,7 +142,7 @@ function SelfEnergy{Symmetric}(domain::LatticeDomain{2,Symmetric,Cartesian}, αx
     return SelfEnergy{2,Symmetric,4,typeof(fs)}((-Σ0L,-Σ0R,-Σ0B,-Σ0T),(Σ1L,Σ1R,Σ1B,Σ1T),Σ2,fs)
 end
 
-struct FΣ2D
+struct FΣ2D <: Function
     dx::Float64
     sign::Int
 end
@@ -153,3 +164,7 @@ function (fm::FΣ2D)(ω::Matrix,ka,ky,kz)
         return exp(fm.sign*1im*kx*fm.dx)
     end
 end
+
+end
+
+using .SelfEnergy2DSymmetric

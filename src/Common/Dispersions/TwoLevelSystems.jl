@@ -216,7 +216,7 @@ end
             Dgμ2Gν = Dgμ*2Gν
             Dgμ2Gν² = Dgμ2Gν*Gν
             @inbounds @simd ivdep for i ∈ eachindex(tls.chi)
-                k = mod1(i,length(tls.chi))
+                k = i#mod1(i,length(tls.chi))
                 hp1⁻² = tls.hp1⁻¹[i]^2
                 tls.dχdψr[i,μ,ν], tls.dχdψi[i,μ,ν] = -Dgμ2Gν*hp1⁻².*reim(ψs[i,ν])
                 tls.dχdω[i,μ,ν] = -(μ==ν)*Dgμ²*tls.hp1⁻¹[i]/tls.γp +

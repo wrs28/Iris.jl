@@ -1,3 +1,14 @@
+module SelfEnergy1D
+
+using ..BoundaryConditions
+using ..Domains
+using ..Points
+using SparseArrays
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra: I
+import ..SelfEnergy
+
 function SelfEnergy{Symmetric}(domain::LatticeDomain{1,Symmetric}, α_half)
 
     N = length(α_half)-1
@@ -67,11 +78,11 @@ function SelfEnergy{Symmetric}(domain::LatticeDomain{1,Symmetric}, α_half)
     return SelfEnergy{1,Symmetric,2,typeof(fs)}((-Σ0L,-Σ0R),(Σ1L,Σ1R),Σ2,(fL,fR))
 end
 
-struct FΣ1D
+struct FΣ1D <: Function
     dx::Float64
     sign::Int
 end
-function (fm::FΣ1D)(ω::Number,ka,ky=0,kz=0)
+function (fm::FΣ1D)(ω::Number,ka=0,ky=0,kz=0)
     if iszero(fm.sign)
         return complex(1.0,0)
     else
@@ -81,7 +92,7 @@ function (fm::FΣ1D)(ω::Number,ka,ky=0,kz=0)
         return exp(fm.sign*1im*kx*fm.dx)
     end
 end
-function (fm::FΣ1D)(ω::Matrix,ka,ky,kz)
+function (fm::FΣ1D)(ω::Matrix,ka=0,ky=0,kz=0)
     if iszero(fm.sign)
         return one(convert(Matrix{ComplexF64},ω))
     else
@@ -89,3 +100,7 @@ function (fm::FΣ1D)(ω::Matrix,ka,ky,kz)
         return exp(fm.sign*1im*kx*fm.dx)
     end
 end
+
+end
+
+using .SelfEnergy1D

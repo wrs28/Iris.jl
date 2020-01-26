@@ -1,3 +1,20 @@
+module Domains1D
+
+
+using ..Boundaries
+using ..DielectricFunctions
+using ..PumpFunctions
+using ..Dispersions
+using ..Lattices
+using ..Points
+using ..Shapes
+using RecipesBase
+
+import ..Symmetric, ..Unsymmetric
+import LinearAlgebra.norm
+
+import ..LatticeDomain
+
 function LatticeDomain(
             boundary::Boundary{1},
             lattice::Lattice{1},
@@ -42,3 +59,7 @@ function Base.propertynames(::LatticeDomain{1}, private=false)
         return (:boundary, :lattice, :shape, :n, :ε, :type, :name, :x)
     end
 end
+
+end
+
+using .Domains1D
