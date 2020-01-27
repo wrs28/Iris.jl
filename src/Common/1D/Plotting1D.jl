@@ -1,29 +1,58 @@
+import ..Common.SHAPE_FILL_ALPHA
+import ..Common.SHAPE_COLOR
+
 # Simulation
-@recipe function f(sim::Simulation{1})
+@recipe function f(sim::Simulation{1},subplots=[1,2,3])
     x = map(a->a.vec[1],sim.x)
-    perm = sortperm(x)
-    x = x[perm]
-    n = sqrt.(sim.ε[perm])
+    n = sqrt.(sim.ε)
 
     layout --> (3,1)
     legend --> false
 
+	for i ∈ 1:2
+		if !(typeof(sim.boundary.bls[i])<:noBL)
+			for j ∈  subplots
+				@series begin
+					subplot := j
+					seriestype --> :path
+					alpha --> 0
+					if typeof(sim.boundary.bls[i])<:PML
+						fillcolor --> :blue
+					elseif typeof(sim.boundary.bls[i])<:cPML
+						fillcolor --> :red
+					end
+					fillrange --> 0
+					fillalpha --> SHAPE_FILL_ALPHA
+					([sim.boundary.bls[i].start,
+					  sim.boundary.bls[i].stop,
+					  sim.boundary.bls[i].stop,
+					  sim.boundary.bls[i].start,
+					  sim.boundary.bls[i].start],
+
+					  [-1000, -1000, 1000, 1000, -1000])
+				end
+			end
+		end
+	end
     @series begin
 		title --> L"{\rm Scattering\ Structure}"
 		ylabel --> L"{\rm real}(n)"
-        subplot := 1
+        subplot := subplots[1]
+		ylims --> (min(1,minimum(real(n))), max(1,maximum(real(n)))) .+ (-.1,.1)
         x, real(n)
     end
     @series begin
 		ylabel --> L"{\rm imag}(n)"
-        subplot := 2
+        subplot := subplots[2]
+		ylims --> (-1,1).*max(1,maximum(abs.(imag(n)))) .+ (-.1,.1)
         x, imag(n)
     end
     @series begin
 		xlabel --> L"x"
 		ylabel --> L"{\rm pump\ F}"
-		subplot := 3
-        x, sim.F[perm]
+		subplot := subplots[3]
+		ylims --> (-1,1).*max(1,maximum(abs.(sim.F))) .+ (-.1,.1)
+        x, sim.F
     end
 end
 
@@ -148,7 +177,7 @@ end
 	    @series begin
 			title --> latexstring("{\\rm Field}\\ $μ")
 	        ylabel --> L"\Psi"
-	        subplot := μ
+	        subplot --> μ
 	        x, by.(e(μ).val[perm])
 	    end
 	end

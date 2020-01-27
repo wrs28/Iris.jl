@@ -296,6 +296,9 @@ remove_sites!(site::NTuple{N,Array},removed) where N = map(z->deleteat!(z,findal
 remove_sites!(site,removed) = deleteat!(site,findall(removed))
 
 
+VectorField{M}(sim::Simulation{N}, args...) where {N,M} = VectorField{N,M}(sim.x, args...)
+VectorField{N,M}(sim::Simulation{N}, args...) where {N,M} = VectorField{N,M}(sim.x, args...)
+
 ################################################################################
 #Pretty Printing
 
