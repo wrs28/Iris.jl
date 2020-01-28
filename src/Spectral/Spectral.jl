@@ -20,10 +20,10 @@ module Spectral
 export HelmholtzLEP
 export HelmholtzCF
 export HelmholtzNEP
-export helmholtzeigen
 export MaxwellLEP
 export MaxwellCF
 export MaxwellNEP
+export helmholtzeigen
 export maxwelleigen
 
 dimensions = (
@@ -57,24 +57,16 @@ abstract type AbstractEigenproblem{N} end
 	AbstractLinearEigenproblem{N} <: AbstractEigenproblem{N}
 """
 abstract type AbstractLinearEigenproblem{N} <: AbstractEigenproblem{N} end
+
 """
 	AbstractCFEigenproblem{N} <: AbstractEigenproblem{N}
 """
 abstract type AbstractCFEigenproblem{N} <: AbstractEigenproblem{N} end
+
 """
 	AbstractNonlinearEigenproblem{N} <: AbstractEigenproblem{N}
 """
 abstract type AbstractNonlinearEigenproblem{N} <: AbstractEigenproblem{N} end
-
-"""
-	HelmholtzProblem
-"""
-abstract type HelmholtzProblem end
-
-"""
-	MaxwellProblem
-"""
-abstract type MaxwellProblem end
 
 helmholtzeigen() = nothing
 maxwelleigen() = nothing

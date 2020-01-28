@@ -17,11 +17,11 @@ module Iris
 
 using Reexport
 
-include("Common/Common.jl")
+include("Common/Common.jl") # helmholtz 1D and 2D + tests
 @reexport using .Common
 import .Common: Symmetric, Unsymmetric
 
-include("Spectral/Spectral.jl")
+include("Spectral/Spectral.jl") # 1D helmholtz open and closed + tests
 @reexport using .Spectral
 
 include("Floquet/Floquet.jl")
