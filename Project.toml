@@ -2,7 +2,7 @@ name = "Iris"
 uuid = "573aa7f4-91c9-40a8-9c96-241bf90c799c"
 authors = ["William R Sweeney <wrsweeney2@gmail.com>"]
 repo = "https://github.com/wrs28/Iris.jl.git"
-version = "0.3.0"
+version = "0.2.0"
 
 [deps]
 ArnoldiMethod = "ec485272-7323-5ecc-a04f-4719b315124d"
