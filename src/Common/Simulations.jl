@@ -65,7 +65,7 @@ struct Simulation{N,CLASS,T,TLDOM,TNDOM,TDDOM,TSE}
 	self_energy::TSE
 	α::NTuple{N,Vector{ComplexF64}}
 	σ::NTuple{N,Vector{ComplexF64}}
-	x_half::NTuple{N,Vector{Point{N}}}
+	x_half::NTuple{N,Vector{Point{N,Cartesian}}}
 	σ_half::NTuple{N,Vector{ComplexF64}}
 	ω₀::Float64
 	k₁₀::Float64
@@ -295,6 +295,8 @@ remove_sites!(sites::Tuple,removed) = map(z->remove_sites!(z,removed),sites)
 remove_sites!(site::NTuple{N,Array},removed) where N = map(z->deleteat!(z,findall(removed)),site)
 remove_sites!(site,removed) = deleteat!(site,findall(removed))
 
+
+################################################################################
 
 VectorField{M}(sim::Simulation{N}, args...) where {N,M} = VectorField{N,M}(sim.x, args...)
 VectorField{N,M}(sim::Simulation{N}, args...) where {N,M} = VectorField{N,M}(sim.x, args...)

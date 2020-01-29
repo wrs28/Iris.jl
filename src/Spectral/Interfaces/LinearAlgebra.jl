@@ -9,8 +9,6 @@ import ..AbstractEigenproblem
 import ..AbstractLinearEigenproblem
 import ..AbstractCFEigenproblem
 import ..AbstractNonlinearEigenproblem
-import ..HelmholtzProblem
-import ..MaxwellProblem
 import ..DEFAULT_LINEAR_EIGENSOLVER
 import ..HelmholtzLEP
 import ..MaxwellLEP

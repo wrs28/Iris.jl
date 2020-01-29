@@ -24,22 +24,22 @@ using RecipesBase
 
 `N`is the dimension, `M` is the number of field components
 """
-struct VectorField{N,M} <: AbstractMatrix{ComplexF64} # N = Dimension, M = number of field components
+struct VectorField{N,M,T} <: AbstractMatrix{T} # N = Dimension, M = number of field components
     positions::Vector{Point{N,Cartesian}}
-    values::Matrix{ComplexF64}
+    values::Matrix{T}
     start::Point{N,Cartesian}
     stop::Point{N,Cartesian}
     start_inds::Vector{Int}
     stop_inds::Vector{Int}
 
     # function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix), start::Point{N}, stop::Point{N}, start_inds::Vector, stop_inds::Vector) where {N,M,TP<:Point{N}}
-    function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix) where {N,M,TP<:Point{N}}
+    function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix{T}) where {N,M,TP<:Point{N},T}
         start = Point(ntuple(i->minimum(map(p->p[i],pos)), N))::Point{N}
         stop  = Point(ntuple(i->maximum(map(p->p[i],pos)), N))::Point{N}
         start_inds = map(i->findfirst(isequal(start[i]),map(p->p[i],pos))::Int, 1:N)
         stop_inds = map(i->findfirst(isequal(stop[i]),map(p->p[i],pos))::Int, 1:N)
         size(val,1)==M*length(pos) || throw("provided matrix has size(matrix,1)=$(size(val,1))≠$M*length(pos)=$(M*length(pos))")
-        return new{N,M}(pos,val,start,stop,start_inds,stop_inds)
+        return new{N,M,T}(pos,val,start,stop,start_inds,stop_inds)
     end
 end
 
@@ -53,9 +53,9 @@ end
 `start` and `stop` are `Point{N}`'s that define the smallest and largest corners of the hyperrectangle in `N`-dimsensions that all the elements of `pos` reside in
 `start_inds` and `stop_inds` give the indices
 """
-VectorField{M}(pos::Vector{TP},args...) where {M,TP<:Point{N}} where N = VectorField{N,M}(pos,args...)
+VectorField{M}(pos::Vector{TP}, args...) where {M,TP<:Point{N}} where N = VectorField{N,M}(pos, args...)
 VectorField{N,M}(pos::Vector{TP},val::AbstractVector) where {N,M,TP<:Point{N}} = VectorField{N,M}(pos,reshape(val,length(val),1))
-VectorField{N,M}(pos::Vector{TP}, m::Integer) where {N,M,TP<:Point{N}} = VectorField{N,M}(pos,zeros(ComplexF64,M*length(pos),m))
+VectorField{N,M}(pos::Vector{TP}, m::Integer, ::Type{T}=ComplexF64) where {N,M,TP<:Point{N},T} = VectorField{N,M}(pos,zeros(T,M*length(pos),m))
 
 """
     VectorField(field,vals) -> newfield

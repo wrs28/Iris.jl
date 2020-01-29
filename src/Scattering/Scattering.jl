@@ -106,7 +106,9 @@ MaxwellNLS{N} = NonLinearScatteringProblem{N,3}
 LinearAlgebra.lu(ls::LinearScatteringProblem, lupack::AbstractLUPACK=DEFAULT_LUPACK) = lu(ls.operator.A,lupack)
 
 """
-    scattering!(::LinearScatteringProblem, [lupack=$(DEFAULT_LUPACK)])
+    scattering!(ls, [lupack=$(DEFAULT_LUPACK)])
+
+Solve linear scattering problem `ls` with LU package `lupack`.
 """
 scattering!(mls::LinearScatteringProblem, lupack::AbstractLUPACK=DEFAULT_LUPACK) = scattering!(mls,lu(mls,lupack))
 
@@ -126,16 +128,21 @@ function scattering!(mls::LinearScatteringProblem, alu::Common.LUfact{TS}) where
     return nothing
 end
 
-scattering!(nls::NonLinearScatteringProblem; kwargs...) = fixedpoint(nls; kwargs...)
-
 foreach(include,interfaces)
 
 ################################################################################
 # nonlinear scattering NLsolve extension
+"""
+    scattering!(nls, [init; kwargs...)
+
+Solve nonlinear scattering problem `nls` with (optional) initial guess `init`.
+See `NLsolve.nlsolve` for keyword arguments.
+"""
+scattering!(nls::NonLinearScatteringProblem, args...; kwargs...) = fixedpoint(nls, args...; m=1, kwargs...)
 
 function NLsolve.fixedpoint(nls::NonLinearScatteringProblem{N}, init::VectorField{N}=nls.ψ; kwargs...) where N
     nls.fixedpoint[] = true
-    return nlsolve(nls, init; kwargs..., method=:anderson)
+    return nlsolve(nls, init; m=1, kwargs..., method=:anderson)
 end
 
 function NLsolve.nlsolve(nls::NonLinearScatteringProblem{N,M}; kwargs...) where {N,M}
@@ -145,7 +152,7 @@ function NLsolve.nlsolve(nls::NonLinearScatteringProblem{N,M}; kwargs...) where 
         mls = MaxwellLS(nls.sim,nls.ω,nls.a)
     end
     scattering!(mls, nls.lupack)
-    return nlsolve(nls, mls.solution.total; kwargs...)
+    return nlsolve(nls, mls.solution.total; m=1, kwargs...)
 end
 
 function NLsolve.nlsolve(nls::NonLinearScatteringProblem{N}, ψ_init::VectorField{N}; kwargs...) where N
@@ -533,11 +540,9 @@ function Base.propertynames(nls::NonLinearScatteringProblem, private=false)
     end
 end
 
-################################################################################
-
-foreach(include,files)
 
 ################################################################################
+# nonlinear transformation between field and re,im vector for nonlinear scattering
 
 function ψ_to_x(ψ::VectorField)
     x = Vector{Float64}(undef,2prod(size(ψ)))
@@ -574,6 +579,10 @@ x_to_ψ!(nls::NonLinearScatteringProblem,x) = x_to_ψ!(nls.ψ,x)
     end
     return nothing
 end
+
+################################################################################
+
+foreach(include,files)
 
 ################################################################################
 # Pretty Printing

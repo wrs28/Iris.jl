@@ -9,7 +9,7 @@ const DEFAULT_BL = :noBL # default boundary layer (specified as symbol or string
 const LUPACK = :USolver # default LU package, must be one of USolver, MSolver, PSolver (specified as symbol or string)
 const INDEX_OFFSET = 7 # position index offset from midpoint where field is real (SPECTRAL), or real and non-vanishing (LASING/SCPA)
 const EQUIVALENT_SOURCE_RELATIVE_CUTOFF = 1e-8 # relative tolerance condition for dropping components of equivalent current
-const TIME_TO_SPACE_STEP_RATIO = 0.9
+const DEFAULT_CFL_NUMBER = 0.9
 const DEFAULT_LINEAR_EIGENSOLVER = :Arpack
 const DEFAULT_NONLINEAR_EIGENSOLVER = :NonlinearEigenproblems
 const NUM_SUBPIXELS = 5
@@ -87,9 +87,9 @@ relative tolerance condition for dropping components of equivalent current: `$EQ
 EQUIVALENT_SOURCE_RELATIVE_CUTOFF
 
 """
-space-to-time step ratio in time domain simulations: `$TIME_TO_SPACE_STEP_RATIO`
+Courant-Friedrichs-Lewy number (N*space-to-time step ratio in time domain simulations in `N` dimensions): `$DEFAULT_CFL_NUMBER`
 """
-TIME_TO_SPACE_STEP_RATIO
+DEFAULT_CFL_NUMBER
 
 """
 `$DEFAULT_LINEAR_EIGENSOLVER`

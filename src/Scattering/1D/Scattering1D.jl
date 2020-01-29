@@ -122,8 +122,8 @@ function EquivalentSource{M}(sim::Simulation{1}, ω::Number, a::Vector; start::N
         stop_in  = min(stop, sim.boundary.bls[2].start - 5sim.dx - 3sim.dx)
         stop_out = min(stop, sim.boundary.bls[2].start - 5sim.dx + 3sim.dx)
     end
-    incoming_mask = Interval(max(field.start,start_in),min(field.stop,stop_in))
-    outgoing_mask = Interval(max(field.start,start_out),min(field.stop,stop_out))
+    incoming_mask = Interval(max(field.start-sim.dx/2,start_in),min(field.stop+sim.dx/2,stop_in))
+    outgoing_mask = Interval(max(field.start-sim.dx/2,start_out),min(field.stop+sim.dx/2,stop_out))
     kx = 2asin(sqrt(ω^2 - ky^2 - kz^2)*sim.dx/2)/sim.dx
     channelflux = fill(hypot(kx,ky,kz),2)
     return EquivalentSource(incoming_mask,outgoing_mask,field,sim,ω,a,channelflux)

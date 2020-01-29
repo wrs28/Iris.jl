@@ -204,7 +204,7 @@ fixedpoint
                     J[(μ-1)n+i,nm+(ν-1)n+index], J[nm+(μ-1)n+i,nm+(ν-1)n+index] = reim(ω²μϕ*ms.helmholtz.dFχdω[i,μ,ν]*ψμ[i])
                 end
                 if μ == ν
-                    δω = 1e-8
+                    δω = 1e-9
                     ∂∇²ψ∂ω = reduce(+,map((f,σ) -> σ*(f(ms.ωs[μ]+δω)-f(ms.ωs[μ]-δω))*ψμ./(2δω*ψμ[index]),ms.simulation.self_energy.f,ms.helmholtz.Σs[1:end-1]))
                     @fastmath @inbounds for i ∈ 1:n
                         tr, ti = reim(2ωμϕ*(ms.helmholtz.αεpFχ.nzval[i]*ψμ[i]))
