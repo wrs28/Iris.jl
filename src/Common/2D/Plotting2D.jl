@@ -11,7 +11,7 @@ import ..Symmetric
 	x = [lattice[i,0].x for i ∈ imin:imax]
 	y = [lattice[0,j].y for j ∈ jmin:jmax]
 
-	n = reshape(sqrt.(sim.ε[:]),length(x),:)
+	n = permutedims(reshape(sqrt.(sim.ε[:]),length(x),length(y)))
 
     layout --> (1,3)
     legend --> false
@@ -47,7 +47,7 @@ import ..Symmetric
 		subplot := 3
 		zcolor --> sim.F[:]
 		clims --> (-climf,climf)
-        x, y, reshape(sim.F[:],length(x),:)
+        y, x, reshape(sim.F[:],length(x),:)
     end
 end
 

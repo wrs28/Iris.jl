@@ -1,4 +1,4 @@
-module TimeDomain1D
+module TimeDomain2D
 
 export _αβ
 
@@ -25,10 +25,11 @@ import ..propagate!
 """
 HelmholtzWaveFields
 
-function HelmholtzWaveFields(sim::Simulation{1,Common.Symmetric})
+function HelmholtzWaveFields(sim::Simulation{2,Common.Symmetric})
     φ = (ScalarField(sim.x, 1, Float64), ScalarField(sim.x, 1, Float64))
-    ∇Φ = ScalarField(sim.x_half[1], 1, Float64)
-    return HelmholtzWaveFields(φ, ((∇Φ,deepcopy(∇Φ)),))
+    ∇Φₓ = ScalarField(sim.x_half[1], 1, Float64)
+    ∇Φᵤ = ScalarField(sim.x_half[2], 1, Float64)
+    return HelmholtzWaveFields(φ, ((∇Φₓ,deepcopy(∇Φₓ)),(∇Φᵤ,deepcopy(∇Φᵤ))))
 end
 
 
@@ -36,7 +37,7 @@ end
     HelmholtzFDTD(sim; source=0, dt=sim.dx*$DEFAULT_CFL_NUMBER, plotoptions...) -> fdtd
 """
 function HelmholtzFDTD(
-            sim::Simulation{1,Common.Symmetric};
+            sim::Simulation{2,Common.Symmetric};
             source = HelmholtzPointSource(sim, 0, 0, 0, 0),
             dt::Real = sim.dx*DEFAULT_CFL_NUMBER,
             kwargs...)
@@ -44,7 +45,7 @@ function HelmholtzFDTD(
     return HelmholtzFDTD(sim, dt, source; kwargs...)
 end
 
-function _αβ(sim::Simulation{1,Common.Symmetric}, dt::Real)
+function _αβ(sim::Simulation{2,Common.Symmetric}, dt::Real)
     σ = real(sim.σ[1])
     α = [(1 .- σ*dt/2)./(1 .+ σ*dt/2), dt ./(1 .+ σ*dt/2)./sim.ε]
 
@@ -57,7 +58,7 @@ end
 """
     HelmholtzPointSource(sim, xoft) -> ps
 """
-function HelmholtzPointSource(sim::Simulation{1,Common.Symmetric}, xoft, ωoft, aoft=1, ϕoft=0) where F
+function HelmholtzPointSource(sim::Simulation{2,Common.Symmetric}, xoft, ωoft, aoft=1, ϕoft=0) where F
     σ = 4sim.dx
     N = sqrt(2π)*σ
     return HelmholtzPointSource(xoft, ωoft, aoft, ϕoft, σ^2, N)
@@ -66,7 +67,7 @@ end
 """
     propagate!(fdtd, [n=1; animate=false, verbose=false])
 """
-@inline function propagate!(fdtd::HelmholtzFDTD{1,2}, n::Integer=1; animate::Bool=false, verbose::Bool=false)
+@inline function propagate!(fdtd::HelmholtzFDTD{2,2}, n::Integer=1; animate::Bool=false, verbose::Bool=false)
     dt = fdtd.dt
 
     φ = getfield(fdtd.fields,:φ)
@@ -118,14 +119,14 @@ end
 ################################################################################
 # Plotting
 
-@recipe function f(field::HelmholtzWaveFields{1,2}, by::Function)
+@recipe function f(field::HelmholtzWaveFields{2,2}, by::Function)
     @series begin field.φ, by end
 end
 
-@recipe function f(fdtd::HelmholtzFDTD{1,2}, by::Function)
+@recipe function f(fdtd::HelmholtzFDTD{2,2}, by::Function)
     @series begin fdtd.fields, by end
 end
 
 end # module
 
-using .TimeDomain1D
+using .TimeDomain2D

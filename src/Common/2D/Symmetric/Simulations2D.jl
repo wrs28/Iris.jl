@@ -194,6 +194,11 @@ end
 function Base.getproperty(sim::Simulation{2}, sym::Symbol)
 	if sym==:lattice_domain
 		return getfield(sim,:lattice_domains)[1]
+	elseif sym==:latticesize
+		indices = getfield(sim,:lattice_domains)[1].indices
+		imin, imax = extrema(map(ld->ld[1],indices))
+		jmin, jmax = extrema(map(ld->ld[2],indices))
+		return imax-imin+1, jmax-jmin+1
 	elseif Base.sym_in(sym,(:k10,:k1₀))
 		return getfield(sim,:k₁₀)
 	elseif Base.sym_in(sym,(:k20,:k2₀))

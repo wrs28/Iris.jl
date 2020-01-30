@@ -74,9 +74,8 @@ end
 	ylims --> (lower_lim,upper_lim)
 	for μ ∈ 1:m
 	    @series begin
-			title --> latexstring("{\\rm Field}\\ $μ")
-	        ylabel --> L"\Psi"
-	        subplot --> μ
+			subplot --> μ
+			m>1 ? title --> latexstring("{\\rm Field}\\ $μ") : nothing
 	        x, by.(e(μ).val)
 	    end
 	end

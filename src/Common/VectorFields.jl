@@ -18,19 +18,21 @@ dimensional_files = (
 using ..Points
 using Interpolations
 using RecipesBase
+using StaticArrays
 
 """
     VectorFields{N,M} <: AbstractMatrix{ComplexF64}
 
 `N`is the dimension, `M` is the number of field components
 """
-struct VectorField{N,M,T} <: AbstractMatrix{T} # N = Dimension, M = number of field components
+struct VectorField{N,M,T,TC} <: AbstractMatrix{T} # N = Dimension, M = number of field components
     positions::Vector{Point{N,Cartesian}}
     values::Matrix{T}
     start::Point{N,Cartesian}
     stop::Point{N,Cartesian}
     start_inds::Vector{Int}
     stop_inds::Vector{Int}
+    components::SVector{M,TC}
 
     # function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix), start::Point{N}, stop::Point{N}, start_inds::Vector, stop_inds::Vector) where {N,M,TP<:Point{N}}
     function VectorField{N,M}(pos::Vector{TP}, val::AbstractMatrix{T}) where {N,M,TP<:Point{N},T}
@@ -38,8 +40,11 @@ struct VectorField{N,M,T} <: AbstractMatrix{T} # N = Dimension, M = number of fi
         stop  = Point(ntuple(i->maximum(map(p->p[i],pos)), N))::Point{N}
         start_inds = map(i->findfirst(isequal(start[i]),map(p->p[i],pos))::Int, 1:N)
         stop_inds = map(i->findfirst(isequal(stop[i]),map(p->p[i],pos))::Int, 1:N)
-        size(val,1)==M*length(pos) || throw("provided matrix has size(matrix,1)=$(size(val,1))≠$M*length(pos)=$(M*length(pos))")
-        return new{N,M,T}(pos,val,start,stop,start_inds,stop_inds)
+        n = size(val,1)
+        components = map(i -> view(val,(i-1)n÷M+1:(i)n÷M,:), 1:M)
+        n==M*length(pos) || throw("provided matrix has size(matrix,1)=$(size(val,1))≠$M*length(pos)=$(M*length(pos))")
+
+        return new{N,M,T,eltype(components)}(pos,val,start,stop,start_inds,stop_inds,components)
     end
 end
 
@@ -78,9 +83,8 @@ update!(f::VectorField,vals::AbstractVecOrMat) = copyto!(f.values,vals)
 view of `i`-th component of `field::VectorField`
 """
 function component(i::Integer,f::VectorField{N,M}; verbose::Bool=true) where {N,M}
-    1 ≤ i ≤ M || (if verbose @error("attempt to access i=$i component of $M-component field") end; BoundsError())
-    n = size(f,1)
-    return view(getfield(f,:values),(i-1)n÷M+1:(i)n÷M,:)
+    1 ≤ i ≤ M || (if throw("attempt to access i=$i component of $M-component field") end)
+    return f.components[i]
 end
 
 Base.conj(f::VectorField) = VectorField(f,conj(f.values))

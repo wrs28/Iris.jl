@@ -123,7 +123,7 @@ function smooth!(sim::Simulation, num_sub_pixel::Integer = NUM_SUBPIXELS)
     smooth_dielectric!(sim, num_sub_pixel)
 	smooth_pump!(sim, num_sub_pixel)
 	sim.smoothed[] = true
-    return nothing
+    return sim
 end
 
 

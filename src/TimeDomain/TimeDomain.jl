@@ -5,17 +5,22 @@ module TimeDomain
 
 files = (
          "1D/TimeDomain1D.jl",
-         # "2D/TimeDomain2D.jl",
+         "2D/TimeDomain2D.jl",
          # "3D/TimeDomain3D.jl",
         )
 
+export Constant
 export HelmholtzFDTD
 export HelmholtzBlochFDTD
+export HelmholtzPointSource
 export propagate!
+export initialize!
 
 using ..Common
 using Formatting
+using Plots
 using RecipesBase
+
 import ..Common.DEFAULT_CFL_NUMBER
 import LinearAlgebra: mul!
 
@@ -32,6 +37,14 @@ propagate!() = nothing
 struct HelmholtzWaveFields{N,M} <: AbstractFields{N,M} # N is dimension, M is memory depth
     φ::NTuple{M,VectorField{N,1,Float64}}
     ∇Φ::NTuple{N,NTuple{M,VectorField{N,1,Float64}}}
+end
+
+function Base.getproperty(hwf::HelmholtzWaveFields{N,2}, sym::Symbol) where N
+    if Base.sym_in(sym,(:φ,:ϕ,:phi,:psi,:ψ))
+        return getfield(hwf,sym)[1]
+    else
+        return getfield(hwf,sym)
+    end
 end
 
 # struct HelmholtzMatterFields{N} <: AbstractFields{N,2}
@@ -83,6 +96,24 @@ end
 ################################################################################
 # HelmholtzFDTD
 
+struct AnimationOptions{TB,TO}
+    animation::Animation
+    interval::Int
+    start::Int
+    by::TB
+    ylims::Vector{Float64}
+    plotoptions::TO
+end
+
+function AnimationOptions(;
+            interval::Integer=100,
+            start::Integer=1,
+            by::Function=real,
+            ylims::Vector=Float64[0,0],
+            plotoptions...)
+    AnimationOptions(Animation(), interval, start, by, ylims, plotoptions)
+end
+
 struct HelmholtzFDTD{N,M,TS} <: AbstractFDTD{N,M} # N is dimension, M is memory depth
     fields::HelmholtzWaveFields{N,M}
     grad::Gradient{N}
@@ -93,22 +124,92 @@ struct HelmholtzFDTD{N,M,TS} <: AbstractFDTD{N,M} # N is dimension, M is memory 
     source::TS
     α::Vector{Vector{Float64}}
     β::Vector{Vector{Float64}}
+    options::AnimationOptions
 end
 
-_getnumsteps(::AbstractFields{N,M}) where {N,M} = M
+function HelmholtzFDTD(
+            sim::Simulation{N,Common.Symmetric},
+            dt::Real,
+            sc::TS;
+            kwargs...
+            ) where {N,TS}
 
-"""
-    HelmholtzFDTD(sim; dt=sim.dx*$DEFAULT_CFL_NUMBER)
-"""
-function HelmholtzFDTD(sim::Simulation{N,Common.Symmetric}, dt::Real) where N
     fields = HelmholtzWaveFields(sim)
     grad = Gradient(sim)
     div = Divergence(sim)
     n = Int[0]
     t = Float64[dt/2]
-    sc = 0
     α, β = _αβ(sim, dt)
-    return HelmholtzFDTD{N,_getnumsteps(fields),typeof(sc)}(fields, grad, div, n, t, dt, sc, α, β)
+    return HelmholtzFDTD{N,_memorydepth(fields),TS}(fields, grad, div, n, t, dt, sc, α, β, AnimationOptions(kwargs...))
+end
+
+function Base.getproperty(fdtd::HelmholtzFDTD, sym::Symbol)
+    if Base.sym_in(sym,(:φ,:ϕ,:phi,:ψ,:psi))
+        return getproperty(getfield(fdtd,:fields),:φ)
+    else
+        return getfield(fdtd,sym)
+    end
+end
+
+function Base.propertynames(::HelmholtzFDTD, private=false)
+    if private
+        return (:φ, fieldnames(HelmholtzFDTD)...)
+    else
+        return (:φ, :dt, :n, :options, :t)
+    end
+end
+
+
+struct HelmholtzPointSource{FX,FW,FA,FP}
+    xoft::FX    # position of time
+    ωoft::FW    # frequency of time
+    aoft::FA    # amplitude of time
+    ϕoft::FP    # phase of time
+    σ²::Float64
+    N::Float64
+
+    function HelmholtzPointSource(xoft, ωoft, aoft, ϕoft, σ²::Real, N::Real)
+        typeof(xoft)<:Real ? xoft = Constant(xoft) : nothing
+        typeof(ωoft)<:Real ? ωoft = Constant(ωoft) : nothing
+        typeof(aoft)<:Real ? aoft = Constant(aoft) : nothing
+        typeof(ϕoft)<:Real ? ϕoft = Constant(ϕoft) : nothing
+        return new{typeof(xoft),typeof(ωoft),typeof(aoft),typeof(ϕoft)}(xoft,ωoft,aoft,ϕoft,σ²,N)
+    end
+end
+
+function (ps::HelmholtzPointSource)(x::Point,t::Real)
+    x0 = ps.xoft(t)
+    typeof(x0)<:Point ? nothing : x0 = Point(x0...)
+    ω = ps.ωoft(t)
+    a = ps.aoft(t)
+    ϕ = ps.ϕoft(t)
+    r² = (x-x0).r^2
+    return -a*sin(ϕ + ω*t) * exp(-r²/2ps.σ²)/ps.N/ω
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", ps::HelmholtzPointSource)
+    printstyled(io,"HelmholtzPointSource: "; color=PRINTED_COLOR_DARK)
+    println(io)
+    printstyled(io,"\tx(t)\t"; color=PRINTED_COLOR_VARIABLE)
+    show(io,mime,ps.xoft)
+    printstyled(io,"\n\tω(t)\t"; color=PRINTED_COLOR_VARIABLE)
+    show(io,mime,ps.ωoft)
+    printstyled(io,"\n\ta(t)\t"; color=PRINTED_COLOR_VARIABLE)
+    show(io,mime,ps.aoft)
+    printstyled(io,"\n\tϕ(t)\t"; color=PRINTED_COLOR_VARIABLE)
+    show(io,mime,ps.ϕoft)
+end
+
+struct Constant<:Function c::Float64 end
+
+(C::Constant)(t::Real) = C.c
+
+Base.iszero(ps::HelmholtzPointSource) = iszero(ps.aoft)
+Base.iszero(C::Constant) = iszero(C.c)
+
+function Base.show(io::IO, ::MIME"text/plain", C::Constant)
+    printstyled(io,C.c; color=PRINTED_COLOR_NUMBER)
+    print(io," (constant)")
 end
 
 ################################################################################
@@ -195,12 +296,15 @@ end
 ################################################################################
 
 Base.eltype(af::AbstractFields) = Float64
-Base.length(af::AbstractFields) = length(af.φ[1])
+Base.length(af::AbstractFields) = length(af.φ)
 Base.ndims(af::AbstractFields{N}) where N = N
 
 Base.eltype(fdtd::AbstractFDTD) = Float64
 Base.length(fdtd::AbstractFDTD) = length(fdtd.fields)
 Base.ndims(fdtd::AbstractFDTD{N}) where N = N
+
+_memorydepth(::AbstractFields{N,M}) where {N,M} = M
+_memorydepth(::AbstractFDTD{N,M}) where {N,M} = M
 
 ################################################################################
 # Pretty Printing
@@ -208,8 +312,10 @@ Base.ndims(fdtd::AbstractFDTD{N}) where N = N
 import ..Common.PRINTED_COLOR_DARK
 import ..Common.PRINTED_COLOR_LIGHT
 import ..Common.PRINTED_COLOR_NUMBER
+import ..Common.PRINTED_COLOR_VARIABLE
 
-function Base.show(io::IO,af::AbstractFields{N}) where N
+function Base.show(io::IO,af::AbstractFields{N,M}) where {N,M}
+    print(io,"$(N)D ")
     if typeof(af)<:HelmholtzWaveFields
         printstyled(io,"HelmholtzFields",color=PRINTED_COLOR_DARK)
     elseif typeof(af)<:HelmholtzBlochFields
@@ -217,39 +323,54 @@ function Base.show(io::IO,af::AbstractFields{N}) where N
     end
     print(io," (")
     printstyled(io, length(af), color=PRINTED_COLOR_NUMBER)
-    print(io," points)")
+    print(io," points, depth ")
+    printstyled(io, M, color=PRINTED_COLOR_NUMBER)
+    print(io,")")
 end
 
-function Base.show(io::IO,fdtd::AbstractFDTD{N}) where N
+function Base.show(io::IO,fdtd::AbstractFDTD{N,M}) where {N,M}
     print(io,"$(N)D ")
     if typeof(fdtd)<:HelmholtzFDTD
         printstyled(io,"HelmholtzFDTD",color=PRINTED_COLOR_LIGHT)
     end
     print(io," (")
     printstyled(io, length(fdtd), color=PRINTED_COLOR_NUMBER)
-    print(io," points, step ")
-    printstyled(io,"n=$(fdtd.n[1])", color=PRINTED_COLOR_NUMBER)
+    print(io," points, depth ")
+    printstyled(io, M, color=PRINTED_COLOR_NUMBER)
+    printstyled(io,", step ")
+    printstyled(io,"$(fdtd.n[1])", color=PRINTED_COLOR_NUMBER)
     print(io,", time ")
     printstyled(io,"t=",fmt("1.2e",fdtd.t[1]), color=PRINTED_COLOR_NUMBER)
     print(io,")")
 end
 
+function Base.show(io::IO, options::AnimationOptions)
+    printstyled(io, "AnimationOptions: ", color=PRINTED_COLOR_DARK)
+    print(io, "\n\tinterval\t")
+    printstyled(io, options.interval; color=PRINTED_COLOR_NUMBER)
+    print(io, "\n\tstart   \t")
+    printstyled(io, options.start; color=PRINTED_COLOR_NUMBER)
+    print(io, "\n\tplot by \t")
+    printstyled(io, options.by; color=PRINTED_COLOR_NUMBER)
+    print(io, "\n\tylims   \t")
+    printstyled(IOContext(io,:type_info=>Vector), options.ylims; color=PRINTED_COLOR_NUMBER)
+    print(io, "\n\toptions \t")
+    printstyled(io, options.plotoptions.data, color=PRINTED_COLOR_NUMBER)
+end
+
 ################################################################################
 # Plotting
 
-@recipe function f(field::AbstractFields, by::Function)
-    @series begin field.φ[1], by end
-end
+@recipe f(af::AbstractFields; by=abs2) = af, by
+@recipe f(by::Function, af::AbstractFields) = af, by
 
-@recipe function f(fdtd::AbstractFDTD, by::Function)
-    @series begin fdtd.fields, by end
-end
+@recipe f(fdtd::AbstractFDTD; by=abs2) = fdtd, by
+@recipe f(by::Function, fdtd::AbstractFDTD) = fdtd, by
 
-@recipe f(v::AbstractFields; by=abs2) = v, by
-@recipe f(by::Function,e::AbstractFields) = e,by
-
-@recipe f(v::AbstractFDTD; by=abs2) = v, by
-@recipe f(by::Function,e::AbstractFDTD) = e,by
+"""
+    gif(fdtd, [filename; fps])
+"""
+gif(fdtd::AbstractFDTD; kwargs...) = gif(fdtd.options.animation; kwargs...)
 
 ################################################################################
 
