@@ -56,6 +56,34 @@ using Test
         end
     end
 end
+@testset "CF Eigenvalue Problem" begin
+    @testset "Helmholtz 1D" begin
+        @testset "PML" begin
+            cavity = Interval(-.5,.5)
+            pump = Interval(-.5,0)
+            bnd = Boundary(Interval(-1,1),PML)
+            dom = NondispersiveDomain(cavity,3)
+            pump = DispersiveDomain(Interval(-.8,.8),TwoLevelSystem())
+            lat = Cartesian(.001)
+            latdom = LatticeDomain(bnd,lat)
+            sim = Simulation(10,dom,latdom,pump)
+            cf = @test_nowarn HelmholtzCF(sim)
+            η , u = @test_nowarn helmholtzeigen(cf,10;nev=4)
+        end
+        @testset "cPML" begin
+            cavity = Interval(-.5,.5)
+            pump = Interval(-.5,0)
+            bnd = Boundary(Interval(-1,1),cPML)
+            dom = NondispersiveDomain(cavity,3)
+            pump = DispersiveDomain(Interval(-.8,.8),TwoLevelSystem())
+            lat = Cartesian(.001)
+            latdom = LatticeDomain(bnd,lat)
+            sim = Simulation(10,dom,latdom,pump)
+            cf = @test_nowarn HelmholtzCF(sim)
+            η , u = @test_nowarn helmholtzeigen(cf,10;nev=4)
+        end
+    end
+end
 @testset "Nonlinear Eigenvalue Problem" begin
     @testset "Helmholtz 1D" begin
         @testset "PML" begin

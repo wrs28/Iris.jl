@@ -1,7 +1,5 @@
 """
-	module Spectral
-
-For the computation of various linear and nonlinear eigenvalue problems.
+Various linear and nonlinear eigenvalue problems.
 
   * LEP: *L*inear *E*igenvalue *P*roblem, i.e. no bulk dispersion, fixed boundary conditions (can use with PMLs/cPMLs for resonance or RSM calculations)
   * CF: *C*onstant *F*lux states, i.e. at a given frequency, find eigen-susceptibilities and associated eigenfunctions. Can use either matched boundaries or PMLs. The CF problem is a particular kind of linear eigenvalue problem, though here it is treated separately.
@@ -26,6 +24,9 @@ export MaxwellNEP
 export helmholtzeigen
 export maxwelleigen
 
+using ..Common
+using NonlinearEigenproblems
+
 dimensions = (
 		"1D/Spectral1D.jl",
         # "2D/Spectral2D.jl",
@@ -40,13 +41,7 @@ interfaces = (
 	"Interfaces/NonlinearEigenproblems.jl"
 	)
 
-using ..Common
-using LinearAlgebra
-using NonlinearEigenproblems
-using SparseArrays
-
-import ..Common.INDEX_OFFSET
-import ..Common.DEFAULT_LINEAR_EIGENSOLVER
+# defin abstract containers
 
 """
 	AbstractEigenproblem{N}
@@ -72,11 +67,13 @@ helmholtzeigen() = nothing
 maxwelleigen() = nothing
 
 ################################################################################
-# Linear Eigenvalue Problem
+# Define Eigenproblem Structures for Maxwell & Helmholtz
+
+using SparseArrays
 
 LEPs = (:Helmholtz,:Maxwell)
 leps = (:helmholtz,:maxwell)
-rep = (1,3)
+rep = (1,3) # num of times to repeat F for helmholtz v. maxwell
 for (L,l,r) ∈ zip(LEPs,leps,rep)
 	@eval begin
 		"""
@@ -117,24 +114,30 @@ for (L,l,r) ∈ zip(LEPs,leps,rep)
 
 		    $(Symbol(L,"NEP"))($l::$L{N},NEP,F_inds) where N = new{N,typeof($l),typeof(NEP)}($l,NEP,NEP.A[F_inds],Ref(false))
 		end
-
-		problemtype(lep::$(Symbol(L,"LEP"))) = $(Symbol(L,"Problem"))
-		problemtype(lep::$(Symbol(L,"CF"))) = $(Symbol(L,"Problem"))
-		problemtype(lep::$(Symbol(L,"NEP"))) = $(Symbol(L,"Problem"))
 	end
 end
+
+################################################################################
 
 # include dimensions
 foreach(include,dimensions)
 
-# add convenience constructors for ElectricField
+################################################################################
+# add convenience constructors for VectorFields
+
+# ScalarFields for Helmholtz
 for ep ∈ (HelmholtzLEP,HelmholtzCF,HelmholtzNEP)
 	@eval begin
+		Common.VectorField(hep::$(ep)) = ScalarField(hep)
+		Common.VectorField(arg,hep::$(ep)) = ScalarField(hep,arg)
+		Common.VectorField(hep::$(ep),arg) = ScalarField(hep,arg)
 		Common.ScalarField(hep::$(ep)) = ScalarField(hep.simulation.x)
 		Common.ScalarField(arg,hep::$(ep)) = ScalarField(hep.simulation.x,arg)
 		Common.ScalarField(hep::$(ep),arg) = ScalarField(hep.simulation.x,arg)
 	end
 end
+
+# ElectricFields for Maxwell
 for ep ∈ (MaxwellLEP,MaxwellCF,MaxwellNEP)
 # 	@eval begin
 # 		# """
@@ -149,28 +152,30 @@ for ep ∈ (MaxwellLEP,MaxwellCF,MaxwellNEP)
 # 	end
 end
 
-import ..Common.DEFAULT_LINEAR_EIGENSOLVER
-import ..Common.DEFAULT_NONLINEAR_EIGENSOLVER
-
-
 ################################################################################
-# linear
+# LEP
 
 """
-    HelmholtzLEP(::Simulation{1}) -> lep
+    HelmholtzLEP(sim) -> lep
+
+`sim` is a `Simulation`, `lep` can be passed to `helmholtzeigen`
 """
 HelmholtzLEP(args...; kwargs...) = HelmholtzLEP(Helmholtz(args...; kwargs...))
+
 """
-    MaxwellLEP(::Simulation{1}; ky=0, kz=0) -> lep
+    MaxwellLEP(sim; ky=0, kz=0) -> lep
+
+`sim` is a `Simulation`, `lep` can be passed to `maxwelleigen`
 """
 MaxwellLEP(args...; kwargs...) = MaxwellLEP(Maxwell(args...; kwargs...))
 
+# generate Ax=λBx matrices, with or without saturation for Helmholtz
 """
     lep(ω) -> ∇², -ε-χ(ω)
 
 	lep(ω,ωs,ψs) -> ∇², -ε-χ(ω,ωs,ψs)
 
-`ωs` is an array of frequencies, `ψs` is a ScalarField containing one field for
+`ωs` is an array of frequencies, `ψs` is a `ScalarField` containing one field for
 each element of `ωs`
 """
 function (lep::HelmholtzLEP)(ω, args...)
@@ -179,12 +184,13 @@ function (lep::HelmholtzLEP)(ω, args...)
     return lep.helmholtz.D², -lep.helmholtz.αεpFχ
 end
 
+# generate Ax=λBx matrices, with or without saturation for Maxwell
 """
     lep(ω) -> ∇×∇×, ε+χ(ω)
 
 	lep(ω,ωs,ψs) -> ∇×∇×, ε+χ(ω,ωs,ψs)
 
-`ωs` is an array of frequencies, `ψs` is an ElectricField containing one field for
+`ωs` is an array of frequencies, `ψs` is an `ElectricField` containing one field for
 each element of `ωs`
 """
 function (lep::MaxwellLEP)(ω, args...)
@@ -260,8 +266,7 @@ end
 
 
 ################################################################################
-# nonlinear ep
-
+# NEP
 # see dimensional files for dimension-specific constructors
 
 """
@@ -269,15 +274,18 @@ end
 
 	nep(ω,ωs,ψs) -> A
 
-full helmholtz operator `A` at frequency `ω` for nonlinear eigenproblem `nep`
+Full helmholtz operator `A` at frequency `ω` for nonlinear eigenproblem `nep`.
+Problem saturated by `ωs::Vector` and `ψs::ScalarField`, if provided.
 """
 function (mnep::HelmholtzNEP)(ω,args...)
+	# saturate if extra args are provided
 	if !isempty(args)
-		mnep.helmholtz(ω,args...) #
+		mnep.helmholtz(ω,args...)
 		mnep.saturated[] = true
 	else
 		mnep.saturated[] = false
 	end
+	# compute F, including saturation
 	_computeF!(mnep.Fs, mnep.simulation, ω, args...)
 	return compute_Mder(mnep.nep,ω)
 end
@@ -287,21 +295,24 @@ end
 
 	nep(ω,ωs,ψs) -> A
 
-full maxwell operator `A` at frequency `ω` for nonlinear eigenproblem `nep`
+Full maxwell operator `A` at frequency `ω` for nonlinear eigenproblem `nep`.
+Problem saturated by `ωs::Vector` and `ψs::ScalarField`, if provided.
 """
 function (mnep::MaxwellNEP)(ω,args...)
+	# saturate if extra args are provided
 	if !isempty(args)
 		mnep.maxwell(ω,args...) #
 		mnep.saturated[] = true
 	else
 		mnep.saturated[] = false
 	end
+	# compute F, including saturation
 	_computeF!(mnep.Fs, mnep.simulation, ω, args...)
 	return compute_Mder(mnep.nep,ω)
 end
 
 ################################################################################
-# getproperty and propertynames
+# getproperty and propertynames for LEP, CF, NEP
 
 for (L,l) ∈ zip(LEPs,leps)
 	for ep ∈ (:LEP,:CF,:NEP)
@@ -322,10 +333,11 @@ end
 ################################################################################
 # saturate F
 
-# no modification to F if no background field
+# CF: No saturation, reset to sim.F
 function _computeF!(F::SparseMatrixCSC,sim::Simulation,ω)
 	for i ∈ 1:size(F,1)
 		j = mod1(i,length(sim))
+		# either field is zero if no dispersive domain, or RESET to sim.F value
 		if iszero(sim.dispersive_domain_indices[j])
 			F.nzval[i] = 0
 		else
@@ -334,6 +346,8 @@ function _computeF!(F::SparseMatrixCSC,sim::Simulation,ω)
 	end
 	return nothing
 end
+
+# NEP: No saturation, reset to sim.Fs
 function _computeF!(F::Vector{T},sim::Simulation,ω) where T<:AbstractSparseMatrix
 	for d ∈ eachindex(F)
 		for i ∈ 1:size(F[1],1)
@@ -348,8 +362,8 @@ function _computeF!(F::Vector{T},sim::Simulation,ω) where T<:AbstractSparseMatr
 	return nothing
 end
 
-# modify F (not in simulation, but in cf object), according to background field
-function _computeF!(F::SparseMatrixCSC, sim::Simulation, ω, ωs::Array, ψs::ElectricField)
+# CF: Saturate F (in cf.F, not in sim.F) according to background fields
+function _computeF!(F::SparseMatrixCSC, sim::Simulation, ω, ωs::Array, ψs::VectorField)
 	for i ∈ 1:size(F,1)
 		j = mod1(i,length(sim))
 		if typeof(sim.χ[j])<:TwoLevelSystem
@@ -367,7 +381,9 @@ function _computeF!(F::SparseMatrixCSC, sim::Simulation, ω, ωs::Array, ψs::El
 	end
 	return nothing
 end
-function _computeF!(F::Vector{T}, sim::Simulation, ω, ωs::Array, ψs::ElectricField) where T<:AbstractSparseMatrix
+
+# NEP: Saturate F (not in sim.F) according to background fields
+function _computeF!(F::Vector{T}, sim::Simulation, ω, ωs::Array, ψs::VectorField) where T<:AbstractSparseMatrix
 	for d ∈ eachindex(F)
 		for i ∈ 1:size(F[1],1)
 			j = mod1(i,length(sim))
@@ -389,9 +405,10 @@ function _computeF!(F::Vector{T}, sim::Simulation, ω, ωs::Array, ψs::Electric
 end
 
 ################################################################################
-# orthogonalize
+# ORTHOGONALIZE
 
-const ORTHOGONALIZE_OVERLAP_THRESHOLD = .1
+using LinearAlgebra
+import ..Common.ORTHOGONALIZE_OVERLAP_THRESHOLD
 
 """
 	orthogonalize!(ψ,sim,η,B,ky,kz,[ind])
@@ -399,7 +416,7 @@ const ORTHOGONALIZE_OVERLAP_THRESHOLD = .1
 Check for nearly degenerate eigenpairs, if overlap integral exceeds $ORTHOGONALIZE_OVERLAP_THRESHOLD,
 orthoganlize and renormalize.
 """
-function orthogonalize!(u::VectorField{N,1},sim::Simulation{N},η,B,args...) where N
+function orthogonalize!(u::ScalarField{N},sim::Simulation{N},η,B,args...) where N
 	for i ∈ eachindex(η)
 		for j ∈ 1:(i-1)
 			if abs(2(η[i]-η[j])/(η[i]+η[j])) < 1e-3
@@ -415,7 +432,7 @@ function orthogonalize!(u::VectorField{N,1},sim::Simulation{N},η,B,args...) whe
 	return nothing
 end
 
-function orthogonalize!(u::VectorField{N,3},sim::Simulation{N},η,B,ky,kz,args...) where N
+function orthogonalize!(u::ElectricField{N},sim::Simulation{N},η,B,ky,kz,args...) where N
 	for i ∈ eachindex(η)
 		for j ∈ 1:(i-1)
 			if abs(2(η[i]-η[j])/(η[i]+η[j])) < 1e-3
@@ -437,7 +454,6 @@ function orthogonalize!(u::VectorField{N,3},sim::Simulation{N},η,B,ky,kz,args..
 	return nothing
 end
 
-
 ################################################################################
 # Pretty Printing
 
@@ -449,13 +465,12 @@ import ..Common.PRINTED_COLOR_WARN
 # LEP
 function Base.show(io::IO,lep::AbstractLinearEigenproblem{N}) where N
     print(io,N,"D ")
-	lep.saturated[] ? printstyled(io,"saturated ",color=PRINTED_COLOR_WARN) : print(io,"unsaturated ")
+	lep.saturated[] ? printstyled(io,"saturated ",color=PRINTED_COLOR_WARN) : nothing#print(io,"unsaturated ")
 	if typeof(lep) <: MaxwellLEP
 	    printstyled(io,"MaxwellLEP ",color=PRINTED_COLOR_DARK)
 	elseif typeof(lep) <: HelmholtzLEP
 	    printstyled(io,"HelmholtzLEP ",color=PRINTED_COLOR_DARK)
 	end
-    print(io,"Linear Eigenproblem ")
     printstyled(io,"(pass to ",color=PRINTED_COLOR_INSTRUCTION)
 	if typeof(lep) <: MaxwellLEP
 	    printstyled(io,"maxwelleigen",color=PRINTED_COLOR_VARIABLE)
@@ -480,13 +495,12 @@ end
 # CF
 function Base.show(io::IO,cf::AbstractCFEigenproblem{N}) where N
     print(io,N,"D ")
-	cf.saturated[] ? printstyled(io,"saturated ",color=PRINTED_COLOR_WARN) : print(io,"unsaturated ")
+	cf.saturated[] ? printstyled(io,"saturated ",color=PRINTED_COLOR_WARN) : nothing#print(io,"unsaturated ")
 	if typeof(cf) <: MaxwellCF
 		printstyled(io,"MaxwellCF ",color=PRINTED_COLOR_DARK)
 	elseif typeof(cf) <: HelmholtzCF
 		printstyled(io,"HelmholtzCF ",color=PRINTED_COLOR_DARK)
 	end
-    print(io,"CF Eigenproblem ")
     printstyled(io,"(pass to ",color=PRINTED_COLOR_INSTRUCTION)
 	if typeof(cf) <: MaxwellCF
 		printstyled(io,"maxwelleigen",color=PRINTED_COLOR_VARIABLE)
@@ -511,14 +525,13 @@ end
 # NEP
 function Base.show(io::IO,nep::AbstractNonlinearEigenproblem{N}) where N
     print(io,N,"D ")
-	nep.saturated[] ? printstyled(io,"saturated ",color=PRINTED_COLOR_WARN) : print(io,"unsaturated ")
+	nep.saturated[] ? printstyled(io,"saturated ",color=PRINTED_COLOR_WARN) : nothing#print(io,"unsaturated ")
 	if typeof(nep) <: MaxwellNEP
 	    printstyled(io,"MaxwellNEP ",color=PRINTED_COLOR_DARK)
 	elseif typeof(nep) <: HelmholtzNEP
 		printstyled(io,"HelmholtzNEP ",color=PRINTED_COLOR_DARK)
 	end
-    print(io,"Nonlinear Eigenproblem for use with ")
-    printstyled(io,"(pass to ")
+    printstyled(io,"(pass to ", color=PRINTED_COLOR_INSTRUCTION)
 	if typeof(nep) <: MaxwellNEP
 	    printstyled(io,"maxwelleigen",color=PRINTED_COLOR_VARIABLE)
 	elseif typeof(nep) <: HelmholtzNEP
@@ -528,11 +541,21 @@ function Base.show(io::IO,nep::AbstractNonlinearEigenproblem{N}) where N
     printstyled(io,"iar_chebyshev",color=PRINTED_COLOR_VARIABLE)
     printstyled(io,", or call w/ arg ",color=PRINTED_COLOR_INSTRUCTION)
     printstyled(io,"ω",color=PRINTED_COLOR_VARIABLE)
-    printstyled(io,", to evaluate operator)",color=PRINTED_COLOR_INSTRUCTION)
+	printstyled(io,",[",color=PRINTED_COLOR_INSTRUCTION)
+    printstyled(io,"ωs",color=PRINTED_COLOR_VARIABLE)
+    printstyled(io,",",color=PRINTED_COLOR_INSTRUCTION)
+    printstyled(io,"ψs",color=PRINTED_COLOR_VARIABLE)
+    printstyled(io,"]->",color=PRINTED_COLOR_INSTRUCTION)
+    printstyled(io,"A",color=PRINTED_COLOR_VARIABLE)
+	printstyled(io,", where ",color=PRINTED_COLOR_INSTRUCTION)
+    printstyled(io,"Aψ=0",color=PRINTED_COLOR_VARIABLE)
+    printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
 end
 
 
 ################################################################################
+# DOCSTRINGS
+# to be paired with default interface for `helmholtzeigen` and `maxwelleigen`
 
 DOC_LEP_H = "
 	helmholtzeigen(lep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
@@ -543,6 +566,7 @@ Optional `ωs::Vector` and `ψs::ScalarField` must be provided together, and def
 nonlinearity-inducing background fields.
 
 Keywords:"
+
 
 DOC_LEP_M = "
 	maxwelleigen(lep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
@@ -565,6 +589,7 @@ nonlinearity-inducing background fields.
 Keywords:
 `η` Target CF eigenvalue (`0`);"
 
+
 DOC_CF_M = "
 	maxwelleigen(cf, Ω, [ωs, ψs; η=0, kwargs...]) -> H, u
 
@@ -585,6 +610,7 @@ nonlinearity-inducing background fields.
 
 Keywords:"
 
+
 DOC_NEP_M = "
 	maxwelleigen(nep, Ω, [ωs, ψs; kwargs...]) -> ω, ψ
 
@@ -594,7 +620,13 @@ nonlinearity-inducing background fields.
 
 Keywords:"
 
-# include interfaces
+################################################################################
+# Interfaces
+
+import ..Common.DEFAULT_LINEAR_EIGENSOLVER
+import ..Common.DEFAULT_NONLINEAR_EIGENSOLVER
+import ..Common.INDEX_OFFSET
+
 foreach(include,interfaces)
 
 end # module

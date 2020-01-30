@@ -1,13 +1,12 @@
 module TimeDomain1D
 
-export _αβ
-
 using ..Common
 using ..DivGradCurls
 using Plots
 using ProgressMeter
 using RecipesBase
 
+import ..Common.AbstractComplexBL
 import ..Common.DEFAULT_CFL_NUMBER
 import LinearAlgebra: mul!
 
@@ -17,6 +16,9 @@ import ..HelmholtzPointSource
 import ..HelmholtzWaveFields
 import ..HelmholtzFDTD
 import ..propagate!
+import .._αβ
+import .._whichdimspml
+import .._ndimpml
 
 
 # HelmholtzField constructor from simulation
@@ -27,8 +29,8 @@ HelmholtzWaveFields
 
 function HelmholtzWaveFields(sim::Simulation{1,Common.Symmetric})
     φ = (ScalarField(sim.x, 1, Float64), ScalarField(sim.x, 1, Float64))
-    ∇Φ = ScalarField(sim.x_half[1], 1, Float64)
-    return HelmholtzWaveFields(φ, ((∇Φ,deepcopy(∇Φ)),))
+    ∇Φ = ((ScalarField(sim.x_half[1], 1, Float64),), (ScalarField(sim.x_half[1], 1, Float64),))
+    return HelmholtzWaveFields(φ, ∇Φ)
 end
 
 
@@ -36,12 +38,33 @@ end
     HelmholtzFDTD(sim; source=0, dt=sim.dx*$DEFAULT_CFL_NUMBER, plotoptions...) -> fdtd
 """
 function HelmholtzFDTD(
-            sim::Simulation{1,Common.Symmetric};
-            source = HelmholtzPointSource(sim, 0, 0, 0, 0),
-            dt::Real = sim.dx*DEFAULT_CFL_NUMBER,
+            sim::Simulation{1,Common.Symmetric},
+            source = HelmholtzPointSource(sim, 1e100, 0);
+            dt::Real = 1/(1/sim.dx)*DEFAULT_CFL_NUMBER,
             kwargs...)
 
-    return HelmholtzFDTD(sim, dt, source; kwargs...)
+    return HelmholtzFDTD(sim, source, dt; kwargs...)
+end
+
+
+function _ndimpml(sim::Simulation{1})
+    bls = sim.boundary.bls
+    if typeof(bls[1])<:AbstractComplexBL || typeof(bls[2])<:AbstractComplexBL
+        ndim = 1
+    else
+        ndim = 0
+    end
+    return ndim
+end
+
+
+function _whichdimspml(sim::Simulation{1})
+    M = _ndimpml(sim)
+    if M == 0
+        return ()
+    else
+        return (1,)
+    end
 end
 
 function _αβ(sim::Simulation{1,Common.Symmetric}, dt::Real)
@@ -57,10 +80,10 @@ end
 """
     HelmholtzPointSource(sim, xoft) -> ps
 """
-function HelmholtzPointSource(sim::Simulation{1,Common.Symmetric}, xoft, ωoft, aoft=1, ϕoft=0) where F
+function HelmholtzPointSource(sim::Simulation{1,Common.Symmetric}, xoft, aoft, ωoft=1, ϕoft=0) where F
     σ = 4sim.dx
     N = sqrt(2π)*σ
-    return HelmholtzPointSource(xoft, ωoft, aoft, ϕoft, σ^2, N)
+    return HelmholtzPointSource(xoft, aoft, ωoft, ϕoft, σ^2, N)
 end
 
 """
@@ -121,9 +144,15 @@ end
 @recipe function f(field::HelmholtzWaveFields{1,2}, by::Function)
     @series begin field.φ, by end
 end
+@recipe function f(sim::Simulation{1}, field::HelmholtzWaveFields{1,2}, by::Function)
+    @series begin sim, field.φ, by end
+end
 
 @recipe function f(fdtd::HelmholtzFDTD{1,2}, by::Function)
     @series begin fdtd.fields, by end
+end
+@recipe function f(sim::Simulation{1}, fdtd::HelmholtzFDTD{1,2}, by::Function)
+    @series begin fdtd.simulation, fdtd.fields, by end
 end
 
 end # module

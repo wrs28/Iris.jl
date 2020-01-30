@@ -25,18 +25,19 @@ import ..Common.DEFAULT_CFL_NUMBER
 import LinearAlgebra: mul!
 
 abstract type AbstractFields{N,M} end
-abstract type AbstractFDTD{N,M} end
+abstract type AbstractFDTD{N,M,P} end
 
 include("DivGradCurls.jl")
 
 propagate!() = nothing
+_αβ() = nothing
 
 ################################################################################
 # Define Field Structures
 
 struct HelmholtzWaveFields{N,M} <: AbstractFields{N,M} # N is dimension, M is memory depth
     φ::NTuple{M,VectorField{N,1,Float64}}
-    ∇Φ::NTuple{N,NTuple{M,VectorField{N,1,Float64}}}
+    ∇Φ::NTuple{M,NTuple{N,VectorField{N,1,Float64}}}
 end
 
 function Base.getproperty(hwf::HelmholtzWaveFields{N,2}, sym::Symbol) where N
@@ -114,7 +115,7 @@ function AnimationOptions(;
     AnimationOptions(Animation(), interval, start, by, ylims, plotoptions)
 end
 
-struct HelmholtzFDTD{N,M,TS} <: AbstractFDTD{N,M} # N is dimension, M is memory depth
+struct HelmholtzFDTD{N,M,P,TS,TSIM} <: AbstractFDTD{N,M,P} # N is dimension, M is memory depth
     fields::HelmholtzWaveFields{N,M}
     grad::Gradient{N}
     div::Divergence{N}
@@ -124,13 +125,15 @@ struct HelmholtzFDTD{N,M,TS} <: AbstractFDTD{N,M} # N is dimension, M is memory 
     source::TS
     α::Vector{Vector{Float64}}
     β::Vector{Vector{Float64}}
+    pmldims::NTuple{P,Int}
     options::AnimationOptions
+    simulation::TSIM
 end
 
 function HelmholtzFDTD(
             sim::Simulation{N,Common.Symmetric},
-            dt::Real,
-            sc::TS;
+            sc::TS,
+            dt::Real;
             kwargs...
             ) where {N,TS}
 
@@ -140,7 +143,8 @@ function HelmholtzFDTD(
     n = Int[0]
     t = Float64[dt/2]
     α, β = _αβ(sim, dt)
-    return HelmholtzFDTD{N,_memorydepth(fields),TS}(fields, grad, div, n, t, dt, sc, α, β, AnimationOptions(kwargs...))
+    pmldims = _whichdimspml(sim)
+    return HelmholtzFDTD{N,_memorydepth(fields),_ndimpml(sim),TS,typeof(sim)}(fields, grad, div, n, t, dt, sc, α, β, pmldims, AnimationOptions(kwargs...), sim)
 end
 
 function Base.getproperty(fdtd::HelmholtzFDTD, sym::Symbol)
@@ -162,18 +166,18 @@ end
 
 struct HelmholtzPointSource{FX,FW,FA,FP}
     xoft::FX    # position of time
-    ωoft::FW    # frequency of time
     aoft::FA    # amplitude of time
+    ωoft::FW    # frequency of time
     ϕoft::FP    # phase of time
     σ²::Float64
     N::Float64
 
-    function HelmholtzPointSource(xoft, ωoft, aoft, ϕoft, σ²::Real, N::Real)
+    function HelmholtzPointSource(xoft, aoft, ωoft, ϕoft, σ²::Real, N::Real)
         typeof(xoft)<:Real ? xoft = Constant(xoft) : nothing
-        typeof(ωoft)<:Real ? ωoft = Constant(ωoft) : nothing
         typeof(aoft)<:Real ? aoft = Constant(aoft) : nothing
+        typeof(ωoft)<:Real ? ωoft = Constant(ωoft) : nothing
         typeof(ϕoft)<:Real ? ϕoft = Constant(ϕoft) : nothing
-        return new{typeof(xoft),typeof(ωoft),typeof(aoft),typeof(ϕoft)}(xoft,ωoft,aoft,ϕoft,σ²,N)
+        return new{typeof(xoft),typeof(aoft),typeof(ωoft),typeof(ϕoft)}(xoft,aoft,ωoft,ϕoft,σ²,N)
     end
 end
 
@@ -306,6 +310,9 @@ Base.ndims(fdtd::AbstractFDTD{N}) where N = N
 _memorydepth(::AbstractFields{N,M}) where {N,M} = M
 _memorydepth(::AbstractFDTD{N,M}) where {N,M} = M
 
+_ndimpml(::AbstractFDTD{N,M,P}) where {N,M,P} = P
+_whichdimspml(fdtd::AbstractFDTD) = _whichdimspml(fdtd.simulation)
+
 ################################################################################
 # Pretty Printing
 
@@ -364,8 +371,20 @@ end
 @recipe f(af::AbstractFields; by=abs2) = af, by
 @recipe f(by::Function, af::AbstractFields) = af, by
 
+@recipe f(sim::Simulation, af::AbstractFields; by=abs2) = sim, af, by
+@recipe f(af::AbstractFields, sim::Simulation; by=abs2) = sim, af, by
+@recipe f(sim::Simulation, by::Function, af::AbstractFields) = sim, af, by
+@recipe f(by::Function, sim::Simulation, af::AbstractFields) = sim, af, by
+@recipe f(by::Function, af::AbstractFields, sim::Simulation) = sim, af, by
+
 @recipe f(fdtd::AbstractFDTD; by=abs2) = fdtd, by
 @recipe f(by::Function, fdtd::AbstractFDTD) = fdtd, by
+
+@recipe f(sim::Simulation, fdtd::AbstractFDTD; by=abs2) = simulation, fdtd, by
+@recipe f(fdtd::AbstractFDTD, sim::Simulation; by=abs2) = simulation, fdtd, by
+@recipe f(sim::Simulation, by::Function, fdtd::AbstractFDTD) = simulation, fdtd, by
+@recipe f(by::Function, sim::Simulation, fdtd::AbstractFDTD) = simulation, fdtd, by
+@recipe f(by::Function, fdtd::AbstractFDTD, sim::Simulation) = simulation, fdtd, by
 
 """
     gif(fdtd, [filename; fps])

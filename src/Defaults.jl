@@ -13,6 +13,7 @@ const DEFAULT_CFL_NUMBER = 0.9
 const DEFAULT_LINEAR_EIGENSOLVER = :Arpack
 const DEFAULT_NONLINEAR_EIGENSOLVER = :NonlinearEigenproblems
 const NUM_SUBPIXELS = 5
+const ORTHOGONALIZE_OVERLAP_THRESHOLD = .1
 
 # 2D unsymmetric shape defaults
 const NL_NORMAL_ALGORITHM = :LD_MMA # NLopt algorithm used to find the normal, tangent, and distance to shape perimeter

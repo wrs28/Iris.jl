@@ -68,20 +68,20 @@ end
 ################################################################################
 # extend mul!
 
-function LinearAlgebra.mul!(Y::VectorField{N,N}, A::Gradient{N}, B::ScalarField{N}) where N
+function LinearAlgebra.mul!(Y::NTuple{N,ScalarField{N}}, A::Gradient{N}, B::ScalarField{N}) where N
     for i ∈ 1:N
-        mul!(component(i,Y), A.components[i], B.values)
+        mul!(Y[i], A.components[i], B.values)
     end
     return Y
 end
 
-function LinearAlgebra.mul!(Y::ScalarField{N}, A::Divergence{N}, B::VectorField{N,N}) where N
+function LinearAlgebra.mul!(Y::ScalarField{N}, A::Divergence{N}, B::NTuple{N,ScalarField{N}}) where N
     if N==1
-        mul!(Y.values, A.gradient.components[1], B.values)
+        mul!(Y.values, A.gradient.components[1], B[1].values)
     else
         fill!(Y.values,0)
         for i ∈ 1:N
-            mul!(Y.values, A.gradient.components[i], component(i,B),1,1)
+            mul!(Y.values, A.gradient.components[i], B[i],1,1)
         end
     end
     return Y

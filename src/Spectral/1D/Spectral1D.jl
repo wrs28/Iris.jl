@@ -1,3 +1,6 @@
+"""
+One-dimensional NEP
+"""
 module Spectral1D
 
 using ..Common
@@ -8,7 +11,9 @@ import ..HelmholtzNEP
 import ..MaxwellNEP
 
 """
-    HelmholtzNEP(::Simulation{1}) -> nep
+    HelmholtzNEP(sim) -> nep
+
+`sim` is a `Simulation`
 """
 function HelmholtzNEP(
             sim::Simulation{1,C,T};
@@ -26,6 +31,7 @@ function HelmholtzNEP(
     nep = SPMF_NEP(As,fs;kwargs...)
     return HelmholtzNEP(M,nep,6:length(As))
 end
+
 
 """
     MaxwellNEP(::Simulation{1}; ky=0, kz=0) -> nep
@@ -58,6 +64,11 @@ function _compute_Fsfχs(sim::Simulation{1},m::Integer)
     for d ∈ eachindex(Fs) Fs[d] = spdiagm(0=>repeat(sim.Fs[d],m)) end
     return Fs,fχs
 end
+
+end # module
+
+using .Spectral1D
+
 
 
 
@@ -172,7 +183,3 @@ end
 # 		end
 # 	end
 # end
-
-end # module
-
-using .Spectral1D
