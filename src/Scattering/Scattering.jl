@@ -138,11 +138,11 @@ foreach(include,interfaces)
 Solve nonlinear scattering problem `nls` with (optional) initial guess `init`.
 See `NLsolve.nlsolve` for keyword arguments.
 """
-scattering!(nls::NonLinearScatteringProblem, args...; kwargs...) = fixedpoint(nls, args...; m=1, kwargs...)
+scattering!(nls::NonLinearScatteringProblem, args...; kwargs...) = fixedpoint(nls, args...; kwargs...)
 
 function NLsolve.fixedpoint(nls::NonLinearScatteringProblem{N}, init::VectorField{N}=nls.ψ; kwargs...) where N
     nls.fixedpoint[] = true
-    return nlsolve(nls, init; m=1, kwargs..., method=:anderson)
+    return nlsolve(nls, init; m=0, kwargs..., method=:anderson)
 end
 
 function NLsolve.nlsolve(nls::NonLinearScatteringProblem{N,M}; kwargs...) where {N,M}
