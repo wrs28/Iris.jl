@@ -8,6 +8,7 @@ export HelmholtzNLS
 export MaxwellLS
 export MaxwellNLS
 export scattering!
+export spa
 
 files = (
     "1D/Scattering1D.jl",
@@ -30,29 +31,26 @@ import ..Common.AbstractComplexBL
 import ..Common.EQUIVALENT_SOURCE_RELATIVE_CUTOFF
 import ..Common.DEFAULT_LUPACK
 
-# include("SPA_Scattering.jl")
-# using .SPA_Scattering
-
 ################################################################################
 # DEFINE STRUCTURES
 
-mutable struct ScatteringSolution{N,M} # general container for scattering solutions
-    total::VectorField{N,M}
-    incident::VectorField{N,M}
-    scattered::VectorField{N,M}
+mutable struct ScatteringSolution{N,M,V} # general container for scattering solutions
+    total::V
+    incident::V
+    scattered::V
     ω::Float64
     a::Vector{ComplexF64}
 
-    ScatteringSolution(t::T,i::T,s::T,ω::Number,a::AbstractVector) where T<:VectorField{N,M} where {N,M} = new{N,M}(t,i,s,ω,a)
+    ScatteringSolution(t::T,i::T,s::T,ω::Number,a::AbstractVector) where T<:VectorField{N,M} where {N,M} = new{N,M,T}(t,i,s,ω,a)
 end
 # convenience constructor
 ScatteringSolution{M}(sim::Simulation,ω::Number,a) where M = ScatteringSolution(VectorField{M}(sim,1),VectorField{M}(sim,1),VectorField{M}(sim,1),ω,a)
 
 
-mutable struct EquivalentSource{N,M,TW,TA,TSI,TSO,TSIM} # container for source, see dimensional files for details
+mutable struct EquivalentSource{N,M,TW,TA,TSI,TSO,TV,TSIM} # container for source, see dimensional files for details
     incoming_mask::TSI
     outgoing_mask::TSO
-    field::VectorField{N,M}
+    field::TV
     simulation::TSIM
     ω::TW
     a::TA
@@ -66,29 +64,35 @@ mutable struct EquivalentSource{N,M,TW,TA,TSI,TSO,TSIM} # container for source, 
                 ω::TW,
                 a::TA,
                 channelflux::Vector) where {N,M,TSIM<:Simulation{N},TA,TW}
-        return new{N,M,TW,TA,typeof(incoming_mask),typeof(outgoing_mask),TSIM}(
+        return new{N,M,TW,TA,typeof(incoming_mask),typeof(outgoing_mask),typeof(field),TSIM}(
                                     incoming_mask, outgoing_mask,field,sim,ω,a,channelflux)
     end
 end
 
 abstract type AbstractScatteringProblem{N,M} end
 
-struct LinearScatteringProblem{N,M,TM,TS} <: AbstractScatteringProblem{N,M}
+struct LinearScatteringProblem{N,M,TM,TS,TSOL} <: AbstractScatteringProblem{N,M}
     operator::TM
     equivalent_source::TS
     j::SparseMatrixCSC{ComplexF64,Int}
-    solved::Ref{Bool}
-    converged::Ref{Bool}
-    solution::ScatteringSolution{N,M}
+    solved::Base.RefValue{Bool}
+    converged::Base.RefValue{Bool}
+    solution::TSOL
 end
 
-struct NonLinearScatteringProblem{N,M,TLS,TLU} <: AbstractScatteringProblem{N,M} # nonlinear scattering container
+struct NonLinearScatteringProblem{N,M,TLS,TSOL,TLU} <: AbstractScatteringProblem{N,M} # nonlinear scattering container
     linearscatter::TLS
-    ψ::VectorField{N,M}
+    ψ::TSOL
     residual::Matrix{ComplexF64}
     x::Vector{Float64}
-    fixedpoint::Ref{Bool}
+    fixedpoint::Base.RefValue{Bool}
     lupack::TLU
+    results::Vector{NLsolve.SolverResults{Float64,Float64,Array{Float64,1},Array{Float64,1}}}
+
+    function NonLinearScatteringProblem{N,M,TLS,TSOL,TLU}(ls, ψ, residual, x, fixedpoint, lupack) where {N,M,TLS,TSOL,TLU}
+        results = NLsolve.SolverResults{Float64,Float64,Array{Float64,1},Array{Float64,1}}[]
+        return new{N,M,TLS,TSOL,TLU}(ls, ψ, residual, x, fixedpoint, lupack, results)
+    end
 end
 
 HelmholtzLS{N} = LinearScatteringProblem{N,1}
@@ -110,22 +114,21 @@ LinearAlgebra.lu(ls::LinearScatteringProblem, lupack::AbstractLUPACK=DEFAULT_LUP
 
 Solve linear scattering problem `ls` with LU package `lupack`.
 """
-scattering!(mls::LinearScatteringProblem, lupack::AbstractLUPACK=DEFAULT_LUPACK) = scattering!(mls,lu(mls,lupack))
+scattering!(ls::LinearScatteringProblem, lupack::AbstractLUPACK=DEFAULT_LUPACK) = scattering!(ls,lu(ls,lupack))
 
-function scattering!(mls::LinearScatteringProblem, alu::Common.LUfact{TS}) where TS
+function scattering!(ls::LinearScatteringProblem, alu::Common.LUfact{TS}) where TS
     if TS<:PSolver
-        ldiv!(mls.solution.total.val, alu, Matrix(reshape(j,size(j,1),1)))
+        ldiv!(ls.solution.total.val, alu, Matrix(reshape(ls.j,size(ls.j,1),1)))
     else
-        ldiv!(mls.solution.total.val, alu, mls.j)
+        ldiv!(ls.solution.total.val, alu, ls.j)
     end
-    for i ∈ eachindex(mls.equivalent_source.field)
-        # k = mod1(i,length(mls.j)÷3)
-        mls.solution.incident[i] = mls.equivalent_source.field[i]#*mls.equivalent_source.incoming_mask(mls.equivalent_source.field.pos[k])
-        mls.solution.scattered[i] = mls.solution.total[i] - mls.solution.incident[i]
+    @inbounds for i ∈ eachindex(ls.equivalent_source.field)
+        ls.solution.incident[i] = ls.equivalent_source.field[i]
+        ls.solution.scattered[i] = ls.solution.total[i] - ls.solution.incident[i]
     end
-    mls.solved[] = true
-    mls.converged[] = true
-    return nothing
+    ls.solved[] = true
+    ls.converged[] = true
+    return ls.solution
 end
 
 foreach(include,interfaces)
@@ -137,24 +140,39 @@ foreach(include,interfaces)
 
 Solve nonlinear scattering problem `nls` with (optional) initial guess `init`.
 See `NLsolve.nlsolve` for keyword arguments.
-"""
-scattering!(nls::NonLinearScatteringProblem, args...; kwargs...) = fixedpoint(nls, args...; kwargs...)
+Uses fixed point method.
 
+Note: keyword `m=0` default differs from `NLsolve`'s.
+"""
+function scattering!(nls::NonLinearScatteringProblem, args...; kwargs...)
+    fixedpoint(nls, args...; kwargs...)
+    return nls.solution
+end
+
+"""
+    fixedpoint(nls, [init=nls.ψ; m=0, kwargs...]) -> results
+"""
 function NLsolve.fixedpoint(nls::NonLinearScatteringProblem{N}, init::VectorField{N}=nls.ψ; kwargs...) where N
     nls.fixedpoint[] = true
     return nlsolve(nls, init; m=0, kwargs..., method=:anderson)
 end
 
+"""
+    nlsolve(nls, [init; m=0, kwargs...]) -> results
+"""
 function NLsolve.nlsolve(nls::NonLinearScatteringProblem{N,M}; kwargs...) where {N,M}
     if M==1
-        mls = HelmholtzLS(nls.sim,nls.ω,nls.a)
+        ls = HelmholtzLS(nls.sim,nls.ω,nls.a)
     elseif M==3
-        mls = MaxwellLS(nls.sim,nls.ω,nls.a)
+        ls = MaxwellLS(nls.sim,nls.ω,nls.a)
     end
-    scattering!(mls, nls.lupack)
-    return nlsolve(nls, mls.solution.total; m=1, kwargs...)
+    scattering!(ls, nls.lupack)
+    return nlsolve(nls, ls.solution.total; m=0, kwargs...)
 end
 
+"""
+    nlsolve(nls, [init; m=0, kwargs...]) -> results
+"""
 function NLsolve.nlsolve(nls::NonLinearScatteringProblem{N}, ψ_init::VectorField{N}; kwargs...) where N
     nls.fixedpoint[] = (get(kwargs,:method,:trust_region)==:anderson) ? true : false
     x_init = ψ_to_x(ψ_init)
@@ -163,15 +181,14 @@ function NLsolve.nlsolve(nls::NonLinearScatteringProblem{N}, ψ_init::VectorFiel
     df = OnceDifferentiable(nls,nls,nls,x_init,F0,J0)
     results = nlsolve(df, x_init; kwargs...)
     x_to_ψ!(nls,results.zero)
-    # @inbounds
-    for i ∈ eachindex(nls.ψ)
-        # k = mod1(i,length(F0)÷6)
+    @inbounds for i ∈ eachindex(nls.ψ)
         nls.solution.total[i] = nls.ψ[i]
-        nls.solution.incident[i] = nls.equivalent_source.field[i]#*nls.equivalent_source.mask(nls.equivalent_source.field.pos[k])
+        nls.solution.incident[i] = nls.equivalent_source.field[i]
         nls.solution.scattered[i] = nls.solution.total[i] - nls.solution.incident[i]
     end
     nls.solved[] = true
-    nls.converged[] = results.f_converged || results.x_converged
+    nls.converged[] = converged(results)
+    push!(getfield(nls,:results), results)
     return results
 end
 
@@ -449,14 +466,6 @@ function Base.getproperty(sct::ScatteringSolution, sym::Symbol)
     end
 end
 
-function Base.propertynames(::ScatteringSolution, private=false)
-    if private
-        return fieldnames(ScatteringSolution)
-    else
-        return (:total,:scattered,:incoming,:ω,:a)
-    end
-end
-
 
 function Base.getproperty(es::EquivalentSource, sym::Symbol)
     if sym==:sim
@@ -476,9 +485,9 @@ function Base.getproperty(ls::LinearScatteringProblem, sym::Symbol)
         return getfield(getfield(ls,:equivalent_source),:a)
     elseif Base.sym_in(sym,(:M,:H,:maxwell,:helmholtz))
         return getfield(ls,:operator)
-    elseif Base.sym_in(sym,(:source,))
+    elseif Base.sym_in(sym,(:source,:src))
         return getfield(ls,:equivalent_source)
-    elseif Base.sym_in(sym,(:sol,:ψ))
+    elseif Base.sym_in(sym,(:sol,))
         return getfield(ls,:solution)
     else
         return getfield(ls,sym)
@@ -515,7 +524,7 @@ function Base.getproperty(nls::NonLinearScatteringProblem,sym::Symbol)
         return getproperty(getfield(nls,:linearscatter),:ω)
     elseif sym==:a
         return getproperty(getfield(nls,:linearscatter),:a)
-    elseif Base.sym_in(sym,(:M,:maxwell,:H,:helmholtz))
+    elseif Base.sym_in(sym,(:M,:maxwell,:H,:helmholtz,:operator))
         return getproperty(getfield(nls,:linearscatter),:operator)
     elseif Base.sym_in(sym,(:source,:equivalent_source))
         return getproperty(getfield(nls,:linearscatter),:equivalent_source)
@@ -527,6 +536,8 @@ function Base.getproperty(nls::NonLinearScatteringProblem,sym::Symbol)
         return getproperty(getfield(nls,:linearscatter),:solved)
     elseif sym==:converged
         return getproperty(getfield(nls,:linearscatter),:converged)
+    elseif sym==:results
+        return getfield(nls,:results)[1]
     else
         return getfield(nls,sym)
     end
@@ -536,7 +547,11 @@ function Base.propertynames(nls::NonLinearScatteringProblem, private=false)
     if private
         return fieldnames(NonLinearScatteringProblem)
     else
-        return propertynames(nls.linearscatter,false)
+        if nls.solved[]
+            return (:results, propertynames(nls.linearscatter,false)...)
+        else
+            return propertynames(nls.linearscatter,false)
+        end
     end
 end
 
@@ -549,31 +564,28 @@ function ψ_to_x(ψ::VectorField)
     ψ_to_x!(x,ψ)
     return x
 end
+
 ψ_to_x!(nls::NonLinearScatteringProblem, ψ::VectorField) = ψ_to_x!(nls.x,ψ)
+
 @inline function ψ_to_x!(x,ψ::VectorField)
     n,m = size(ψ)
     nm = n*m
     for μ ∈ 1:m
-        # @inbounds @simd
-        for i ∈ 1:n
+        @inbounds for i ∈ 1:n
             x[(μ-1)n+i], x[nm+(μ-1)n+i] = reim(ψ[i,μ])
         end
     end
     return nothing
 end
 
-# function x_to_ψ(sim::Simulation,x,m)
-#     ψ = ElectricField(sim.x,m)
-#     x_to_ψ!(ψ,x)
-#     return ψ
-# end
+
 x_to_ψ!(nls::NonLinearScatteringProblem,x) = x_to_ψ!(nls.ψ,x)
+
 @inline function x_to_ψ!(ψ::VectorField,x)
     n,m = size(ψ)
     nm = n*m
     for μ ∈ 1:m
-        # @inbounds @simd
-        for i ∈ 1:n
+        @inbounds for i ∈ 1:n
             ψ[i,μ] = complex(x[(μ-1)n+i],x[nm+(μ-1)n+i])
         end
     end
@@ -629,16 +641,16 @@ function Base.show(io::IO,nls::LinearScatteringProblem)
     if !nls.solved[]
         printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"unsolved",color=PRINTED_COLOR_WARN)
-        printstyled(io,", for use in ",color=PRINTED_COLOR_INSTRUCTION)
+        printstyled(io,", use in ",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"scattering!",color=PRINTED_COLOR_VARIABLE)
-        printstyled(io," or with ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"IterativeSolvers",color=PRINTED_COLOR_VARIABLE)
+        # printstyled(io," or with ",color=PRINTED_COLOR_INSTRUCTION)
+        # printstyled(io,"IterativeSolvers",color=PRINTED_COLOR_VARIABLE)
         printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
     elseif nls.converged[]
         printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"solved",color=PRINTED_COLOR_GOOD)
-        printstyled(io,", solution in field ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"ψ",color=:cyan)
+        printstyled(io,", see field ",color=PRINTED_COLOR_INSTRUCTION)
+        printstyled(io,"solution",color=:cyan)
         printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
     else
         print(io," (")
@@ -664,14 +676,14 @@ function Base.show(io::IO,nls::NonLinearScatteringProblem)
     if !nls.solved[]
         printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"unsolved",color=PRINTED_COLOR_WARN)
-        printstyled(io,", for use in ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"nlsolve",color=PRINTED_COLOR_VARIABLE)
+        printstyled(io,", use in ",color=PRINTED_COLOR_INSTRUCTION)
+        printstyled(io,"scattering!",color=PRINTED_COLOR_VARIABLE)
         printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
     elseif nls.converged[]
         printstyled(io," (",color=PRINTED_COLOR_INSTRUCTION)
         printstyled(io,"solved",color=PRINTED_COLOR_GOOD)
-        printstyled(io,", solution in field ",color=PRINTED_COLOR_INSTRUCTION)
-        printstyled(io,"ψ",color=:cyan)
+        printstyled(io,", see field ",color=PRINTED_COLOR_INSTRUCTION)
+        printstyled(io,"solution",color=:cyan)
         printstyled(io,")",color=PRINTED_COLOR_INSTRUCTION)
     else
         print(io," (")
@@ -716,5 +728,9 @@ end
 @recipe f(by::Function, ms::ScatteringSolution, sim::Simulation) = sim, ms, by
 
 include("1D/Plotting1D.jl")
+
+################################################################################
+
+include("SPA.jl")
 
 end # module

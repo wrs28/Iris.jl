@@ -44,7 +44,7 @@ function HelmholtzLS(sim::Simulation{1}, ω::Real, a::Vector; start::Real=-Inf, 
     es = EquivalentSource{1}(sim, ω, a; start=start, stop=stop)
     j = es(M.D²,0,0)
     sol = ScatteringSolution{1}(sim,ω,a)
-    return LinearScatteringProblem{1,1,typeof(M),typeof(es)}(M,es,j,Ref(false),Ref(false),sol)
+    return LinearScatteringProblem{1,1,typeof(M),typeof(es),typeof(sol)}(M,es,j,Ref(false),Ref(false),sol)
 end
 
 
@@ -62,7 +62,7 @@ function MaxwellLS(sim::Simulation{1}, ω::Real, a::Vector; start::Real=-Inf, st
     es = EquivalentSource{3}(sim, ω, a; start=start, stop=stop, ky=ky, kz=kz)
     j = es(M.D²,ky,kz)
     sol = ScatteringSolution{3}(sim,ω,a)
-    return LinearScatteringProblem{1,3,typeof(M),typeof(es)}(M,es,j,Ref(false),Ref(false),sol)
+    return LinearScatteringProblem{1,3,typeof(M),typeof(es),typeof(sol)}(M,es,j,Ref(false),Ref(false),sol)
 end
 
 
@@ -80,7 +80,7 @@ function HelmholtzNLS(sim::Simulation{1}, ω::Real, a::Vector, lupack::AbstractL
     res = similar(ψ)
     x = ψ_to_x(ψ)
     sol = ScatteringSolution{1}(sim,ω,a)
-    return NonLinearScatteringProblem{1,1,typeof(ls),typeof(lupack)}(ls,ψ,res,x,Ref(false),lupack)
+    return NonLinearScatteringProblem{1,1,typeof(ls),typeof(ψ),typeof(lupack)}(ls,ψ,res,x,Ref(false),lupack)
 end
 
 """
@@ -97,7 +97,7 @@ function MaxwellNLS(sim::Simulation{1}, ω::Real, a::Vector, lupack::AbstractLUP
     res = similar(ψ)
     x = ψ_to_x(ψ)
     sol = ScatteringSolution{3}(sim,ω,a)
-    return NonLinearScatteringProblem{1,3,typeof(ls),typeof(lupack)}(ls,ψ,res,x,Ref(false),lupack)
+    return NonLinearScatteringProblem{1,3,typeof(ls),typeof(ψ),typeof(lupack)}(ls,ψ,res,x,Ref(false),lupack)
 end
 
 ################################################################################

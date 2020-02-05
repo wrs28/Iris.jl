@@ -129,8 +129,9 @@ end
 Γ(tls::TwoLevelSystem,ω) = abs2(γ(tls,ω))
 
 H!(tls::TwoLevelSystem) = nothing
-@inline function H!(tls::TwoLevelSystem,ωs::Vector,ψs::ScalarField)
-    N,M = size(ψs)
+
+@inline function H!(tls::TwoLevelSystem, ωs::Vector, ψs::ScalarField)
+    N, M = size(ψs)
     isdefined(tls,:h) ? nothing : tls.h = zeros(Float64,N)
     isdefined(tls,:hp1⁻¹) ? nothing : tls.hp1⁻¹ = similar(tls.h)
     isdefined(tls,:chi) ? nothing : tls.chi = Vector{ComplexF64}(undef,N)
@@ -150,15 +151,13 @@ H!(tls::TwoLevelSystem) = nothing
     @inbounds @simd for i ∈ 1:N tls.h[i] = 0 end
     @inbounds for μ ∈ eachindex(ωs)
         G = Γ(tls,ωs[μ])
-        @inbounds for i ∈ 1:N
-            j = mod1(i,N)
-            tls.h[i] += G*abs2(ψs[j,μ])
-        end
+        @inbounds for i ∈ 1:N tls.h[i] += G*abs2(ψs[i,μ]) end
     end
     @fastmath @inbounds @simd for i ∈ 1:N tls.hp1⁻¹[i] = 1/(1+tls.h[i]) end
     return nothing
 end
-@inline function H!(tls::TwoLevelSystem,ωs::Vector,ψs::ElectricField)
+
+@inline function H!(tls::TwoLevelSystem, ωs::Vector, ψs::ElectricField)
     N,M = size(ψs)
     isdefined(tls,:h) ? nothing : tls.h = zeros(Float64,N)
     isdefined(tls,:hp1⁻¹) ? nothing : tls.hp1⁻¹ = similar(tls.h)
@@ -193,7 +192,7 @@ end
 χ(tls::TwoLevelSystem,ω) = tls.D₀*γ(tls,ω)
 
 
-@inline function χ!(tls::TwoLevelSystem,ω,ωs::Vector,ψs::ScalarField)
+@inline function χ!(tls::TwoLevelSystem, ω, ωs::Vector, ψs::ScalarField)
     index = size(ψs,1)÷2+INDEX_OFFSET
     if index ≥ size(ψs,1)
         @warn "INDEX_OFFSET=$INDEX_OFFSET inconsistent with number of sites $(size(ψs,1))"

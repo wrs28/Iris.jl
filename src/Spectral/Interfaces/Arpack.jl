@@ -31,7 +31,7 @@ function Arpack.eigs(
 	# get A, B matrices from lep
     A, B = lep(ω, args...)
 	# solve B\A for eigenpair
-    ω², ψ, nconv, niter, nmult, resid = eigs(spdiagm(0=>1 ./diag(B))*A; kwargs..., sigma=ω^2)
+    ω²::Vector{ComplexF64}, ψ::Matrix{ComplexF64}, nconv, niter, nmult, resid = eigs(spdiagm(0=>1 ./diag(B))*A; kwargs..., sigma=ω^2)
 	# wrap ψ as a VectorField, depending on Helmhotz vs Maxwell
 	if typeof(lep) <: HelmholtzLEP
 		Ψ = ScalarField(lep,ψ)
@@ -69,8 +69,10 @@ function Arpack.eigs(
 	# get A, B from cf
     A, B = cf(ω, args...)
 	# note Arpack can't handle B which is not positive semidefinite
+		lmul!(-1,A)
+		lmul!(-1,B)
 		n = length(cf.simulation)
-		sgn = sparse(I*1.0,n,n)
+		sgn = sparse(I*1,n,n)
 		rows = rowvals(B)
 		vals = nonzeros(B)
 		@inbounds for col ∈ 1:n
@@ -81,15 +83,14 @@ function Arpack.eigs(
 			end
 		end
 	# now do actual solve
-    ηs, u, nconv, niter, nmult, resid = eigs(sgn*A, B; kwargs..., sigma=η)
+    ηs::Vector{ComplexF64}, u::Matrix{ComplexF64}, nconv, niter, nmult, resid = eigs(sgn*A, B; kwargs..., sigma=η)
 	# wrap u as a VectorField, depending on Helmhotz vs Maxwell
 	if typeof(cf) <: HelmholtzCF
 		U = ScalarField(cf, u)
 	elseif typeof(cf) <: MaxwellCF
 		U = ElectricField(cf, u)
 	end
-	# flipping sign in eigs gives negative evals
-    return -ηs, U, nconv, niter, nmult, resid
+    return ηs, U, nconv, niter, nmult, resid
 end
 
 

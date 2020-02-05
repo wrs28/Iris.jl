@@ -42,4 +42,7 @@ include("SaturableCPA/SaturableCPA.jl") # ✅ 1D helmholtz tests
 include("TimeDomain/TimeDomain.jl")
 @reexport using .TimeDomain
 
+include("Examples/Examples.jl")
+@reexport using .Examples
+
 end # module

@@ -82,9 +82,9 @@ for (L,l,r) ∈ zip(LEPs,leps,rep)
 		`N`-dimensional $($(string(L))) Linear Eigenvalue Problem
 		"""
 		struct $(Symbol(L,"LEP")){N,T} <: AbstractLinearEigenproblem{N}
-		    $l::T
+		    operator::T
 			αεpFχ::SparseMatrixCSC{ComplexF64,Int}
-			saturated::Ref{Bool}
+			saturated::Base.RefValue{Bool}
 
 		    $(Symbol(L,"LEP"))($l::$L{N}) where N = new{N,typeof($l)}($l,$l.αεpFχ,Ref(false))
 		end
@@ -95,9 +95,9 @@ for (L,l,r) ∈ zip(LEPs,leps,rep)
 		`N`-dimensional $($(string(L))) Constant Flux problem
 		"""
 		struct $(Symbol(L,"CF")){N,T} <: AbstractCFEigenproblem{N}
-		    $l::T
+		    operator::T
 			F::SparseMatrixCSC{Float64,Int}
-			saturated::Ref{Bool}
+			saturated::Base.RefValue{Bool}
 		    $(Symbol(L,"CF"))($l::$L{N}) where N = new{N,typeof($l)}($l,spdiagm(0=>repeat($l.simulation.F,$r)),Ref(false))
 		end
 
@@ -107,10 +107,10 @@ for (L,l,r) ∈ zip(LEPs,leps,rep)
 		`N`-dimensional $($(string(L))) Constant Flux problem
 		"""
 		struct $(Symbol(L,"NEP")){N,T,TNEP} <: AbstractNonlinearEigenproblem{N}
-		    $l::T
+		    operator::T
 		    nep::TNEP
 			Fs::Vector{SparseMatrixCSC{ComplexF64,Int}}
-			saturated::Ref{Bool}
+			saturated::Base.RefValue{Bool}
 
 		    $(Symbol(L,"NEP"))($l::$L{N},NEP,F_inds) where N = new{N,typeof($l),typeof(NEP)}($l,NEP,NEP.A[F_inds],Ref(false))
 		end
@@ -128,10 +128,10 @@ foreach(include,dimensions)
 # ScalarFields for Helmholtz
 for ep ∈ (HelmholtzLEP,HelmholtzCF,HelmholtzNEP)
 	@eval begin
-		Common.VectorField(hep::$(ep)) = ScalarField(hep)
+		Common.VectorField(hep::$(ep),n::Integer=1) = ScalarField(hep,n)
 		Common.VectorField(arg,hep::$(ep)) = ScalarField(hep,arg)
 		Common.VectorField(hep::$(ep),arg) = ScalarField(hep,arg)
-		Common.ScalarField(hep::$(ep)) = ScalarField(hep.simulation.x)
+		Common.ScalarField(hep::$(ep),n::Integer=1) = ScalarField(hep.simulation.x,n)
 		Common.ScalarField(arg,hep::$(ep)) = ScalarField(hep.simulation.x,arg)
 		Common.ScalarField(hep::$(ep),arg) = ScalarField(hep.simulation.x,arg)
 	end
@@ -287,7 +287,7 @@ function (mnep::HelmholtzNEP)(ω,args...)
 	end
 	# compute F, including saturation
 	_computeF!(mnep.Fs, mnep.simulation, ω, args...)
-	return compute_Mder(mnep.nep,ω)
+	return compute_Mder(mnep.nep,ω)::SparseMatrixCSC{ComplexF64,Int}
 end
 
 """
@@ -308,7 +308,7 @@ function (mnep::MaxwellNEP)(ω,args...)
 	end
 	# compute F, including saturation
 	_computeF!(mnep.Fs, mnep.simulation, ω, args...)
-	return compute_Mder(mnep.nep,ω)
+	return compute_Mder(mnep.nep,ω)::SparseMatrixCSC{ComplexF64,Int}
 end
 
 ################################################################################
@@ -318,17 +318,21 @@ for (L,l) ∈ zip(LEPs,leps)
 	for ep ∈ (:LEP,:CF,:NEP)
 		@eval begin
 			function Base.getproperty(lep::$(Symbol(L,ep)), sym::Symbol)
-				if Base.sym_in(sym,propertynames(getfield(lep,Symbol($(string(l))))))
-			        return getproperty(getfield(lep,Symbol($(string(l)))),sym)
+				if Base.sym_in(sym, propertynames(getfield(lep,:operator)))
+			        return getproperty(getfield(lep,:operator),sym)
+				elseif Base.sym_in(sym, (:helmholtz, :maxwell))
+					return getfield(lep,:operator)
 				else
 					return getfield(lep,sym)
 			    end
 			end
 
-			Base.propertynames(lep::$(Symbol(L,ep)), private=false) = private ? fieldnames($(Symbol(L,ep))) : propertynames(lep.$l)
+			Base.propertynames(lep::$(Symbol(L,ep)), private=false) = private ? fieldnames($(Symbol(L,ep))) : propertynames(lep.operator, false)
 		end
 	end
 end
+
+# Base.propertynames(cf::HelmholtzCF, private=false) = private ? fieldnames(HelmholtzCF) : propertynames(cf.helmholtz)
 
 ################################################################################
 # saturate F

@@ -57,7 +57,7 @@ end
 
 
 # nonlinear + local jacobian
-@inline function helmholtz_susceptability!(h::Helmholtz,ω,ωs::Vector,ψs::ScalarField)
+@inline function helmholtz_susceptability!(h::Helmholtz, ω, ωs::Vector, ψs::ScalarField)
     sim = h.sim
     foreach(d->susceptability(d.χ,ω,ωs,ψs), sim.dispersive_domains)
     @inbounds for μ ∈ eachindex(h.Fχs)

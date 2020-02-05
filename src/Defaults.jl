@@ -4,6 +4,7 @@
 const EXTINCTION = 1e-10 # extinction in PML layer
 const SCALING_ANGLE = .15 # phase in conductivity to accelerate evanscent decay
 const BL_DEPTH = .1 # default depth of cPML or PML layer
+
 const DEFAULT_BC = :noBC # default boundary condition (be specified as symbol or string)
 const DEFAULT_BL = :noBL # default boundary layer (specified as symbol or string)
 const LUPACK = :USolver # default LU package, must be one of USolver, MSolver, PSolver (specified as symbol or string)
@@ -14,6 +15,7 @@ const DEFAULT_LINEAR_EIGENSOLVER = :Arpack
 const DEFAULT_NONLINEAR_EIGENSOLVER = :NonlinearEigenproblems
 const NUM_SUBPIXELS = 5
 const ORTHOGONALIZE_OVERLAP_THRESHOLD = .1
+const SPA_ACCEPTANCE_PHASE = 25*π/180 # largest phase deviation from real axis considered as "real" for single pole approximation
 
 # 2D unsymmetric shape defaults
 const NL_NORMAL_ALGORITHM = :LD_MMA # NLopt algorithm used to find the normal, tangent, and distance to shape perimeter
