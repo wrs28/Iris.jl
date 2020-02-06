@@ -30,11 +30,9 @@ that given in `nls.ψ`.
 `nev=1` | number of CF states used in refinement, making it a "few pole approximation".
 `verbose` | if `true`, shows traces for CF nonlinear refinement
 """
-function spa(nls::HelmholtzNLS; refine::Bool=false, nev::Integer=1, verbose::Bool=false)
+function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev::Integer=1, kwargs...)
     sim = nls.simulation
 
-    # check that nonlinear solution exists
-        nls.converged[] || throw("must solve NonLinearScatteringProblem first")
     # generate CF states
         cf = HelmholtzCF(sim)
         η, u = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev)
@@ -42,53 +40,96 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, nev::Integer=1, verbose::Boo
     # initialize CFAmplitude structure with CF eigenpairs
         cfa1 = CFAmplitudeVector(nls, η, u)
         cfa2 = CFAmplitudeVector(nls, η, u)
+        cfa3 = CFAmplitudeVector(nls, η, u)
+        cfa4 = CFAmplitudeVector(nls, η, u)
 
-    # single-pole approximations
-        phase = (angle(sum(sim.F.* abs2.(u[:,1]) .* u[:,1] .* nls.ψ[:])) - angle(sum(sim.F.*u[:,1].^3 .*conj(nls.ψ[:]))))/2
-        τ = nls.ψ[:]*cis(-phase)
+    # check that nonlinear solution exists
+    if nls.converged[]
+        # single-pole approximations
+            phase = (angle(sum(sim.F.* abs2.(u[:,1]) .* u[:,1] .* nls.ψ[:])) - angle(sum(sim.F.*u[:,1].^3 .*conj(nls.ψ[:]))))/2
+            τ = nls.ψ[:]*cis(-phase)
 
-        A = η[1]*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .* u[:,1].^2)*sim.dx
-        B = (η[1] + cfa1.γ*cfa1.D₀)*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .*u[:,1] .* τ)*sim.dx
-        C = η[1]*cfa1.Γ*sum(sim.F .* u[:,1].^3 .*τ)*sim.dx
-        E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .* τ.^2)*sim.dx
-        G = (η[1] - cfa1.γ*cfa1.D₀) + η[1]*cfa1.Γ*sum(sim.F .* u[:,1].^2 .* τ.^2)*sim.dx
+            A = η[1]*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .* u[:,1].^2)*sim.dx
+            B = (η[1] + cfa1.γ*cfa1.D₀)*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .*u[:,1] .* τ)*sim.dx
+            C = η[1]*cfa1.Γ*sum(sim.F .* u[:,1].^3 .*τ)*sim.dx
+            E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .* τ.^2)*sim.dx
+            G = (η[1] - cfa1.γ*cfa1.D₀) + η[1]*cfa1.Γ*sum(sim.F .* u[:,1].^2 .* τ.^2)*sim.dx
 
-        Σ = (B+C)/A
-        Π = (E+G)/A
-        cfa1.Σ, cfa1.Π = Σ, Π
-        cfa2.Σ, cfa2.Π = Σ, Π
+            Σ = (B+C)/A
+            Π = (E+G)/A
+            cfa1.Σ, cfa1.Π = Σ, Π
+            cfa2.Σ, cfa2.Π = Σ, Π
 
-    small_phaseΣ = abs(angle(Σ)) < SPA_ACCEPTANCE_PHASE || abs(angle(Σ)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(Σ)+π) < SPA_ACCEPTANCE_PHASE
-    small_phaseΠ = abs(angle(Π)) < SPA_ACCEPTANCE_PHASE || abs(angle(Π)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(Π)+π) < SPA_ACCEPTANCE_PHASE
+        small_phaseΣ = abs(angle(Σ)) < SPA_ACCEPTANCE_PHASE || abs(angle(Σ)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(Σ)+π) < SPA_ACCEPTANCE_PHASE
+        small_phaseΠ = abs(angle(Π)) < SPA_ACCEPTANCE_PHASE || abs(angle(Π)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(Π)+π) < SPA_ACCEPTANCE_PHASE
+        if small_phaseΣ && small_phaseΠ
+            cfa1.multivalued[] = real(Σ/2)^2 > real(Π)
+            cfa2.multivalued[] = real(Σ/2)^2 > real(Π)
+        else
+            cfa1.multivalued[] = false
+            cfa2.multivalued[] = false
+        end
+        cfa1.estimate = -cis(phase)*abs( (Σ/2) + sqrt((Σ/2)^2 - Π) )
+        cfa2.estimate = -cis(phase)*abs( (Σ/2) - sqrt((Σ/2)^2 - Π) )
 
-    if small_phaseΣ && small_phaseΠ
-        cfa1.multivalued[] = real(Σ/2)^2 > real(Π)
-        cfa2.multivalued[] = real(Σ/2)^2 > real(Π)
-    else
-        cfa1.multivalued[] = false
-        cfa2.multivalued[] = false
+        if forcerefine || (refine && cfa1.multivalued[])
+            #cfa1
+                cfa1.refined[] = true
+                cfa2.refined[] = true
+                x = a_to_x(cfa1,nev)
+                res = nlsolve(cfa1, x; kwargs...)
+                cfa1.converged[] = converged(res)
+                x_to_a!(cfa1,res.zero)
+
+            append!(cfa2.a0,cfa1.a)
+
+            #cfa2
+                x = a_to_x(cfa2,nev)
+                res = nlsolve(cfa2, x; kwargs...)
+                cfa2.converged[] = converged(res)
+                x_to_a!(cfa2,res.zero)
+        end
+
+        ρ = sqrt((E-G)/(A+C*(C-B)/E))
+        θ = phase + acos((C-B)*ρ/2/E)
+        cfa3.Σ, cfa3.Π = ρ, θ
+        θ = phase - acos((C-B)*ρ/2/E)
+        cfa4.Σ, cfa4.Π = ρ, θ
+
+        small_phaseρ = abs(angle(ρ)) < SPA_ACCEPTANCE_PHASE || abs(angle(ρ)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(ρ)+π) < SPA_ACCEPTANCE_PHASE
+        small_phaseθ = abs((C-B)*ρ/2/E) ≤ 1#abs(angle(θ)) < SPA_ACCEPTANCE_PHASE || abs(angle(θ)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(θ)+π) < SPA_ACCEPTANCE_PHASE
+        if small_phaseρ && small_phaseθ
+            cfa3.multivalued[] = true
+            cfa4.multivalued[] = true
+        else
+            cfa3.multivalued[] = false
+            cfa4.multivalued[] = false
+        end
+        cfa3.estimate = cis(real(cfa3.θ))*real(cfa3.ρ)
+        cfa4.estimate = cis(real(cfa4.θ))*real(cfa4.ρ)
+
+        if forcerefine || (refine && cfa3.multivalued[])
+            #cfa3
+                cfa3.refined[] = true
+                cfa4.refined[] = true
+
+                x = a_to_x(cfa3,nev)
+                res = nlsolve(cfa3, x; kwargs...)
+                cfa3.converged[] = converged(res)
+                x_to_a!(cfa3,res.zero)
+
+            append!(cfa4.a0,cfa3.a)
+
+            #cfa4
+                x = a_to_x(cfa4,nev)
+                res = nlsolve(cfa4, x; kwargs...)
+                cfa4.converged[] = converged(res)
+                x_to_a!(cfa4,res.zero)
+        end
+    elseif get(kwargs,:show_trace,false)
+        @warn "must solve NonLinearScatteringProblem first"
     end
-
-    cfa1.estimate = -cis(phase)*abs( (Σ/2) + sqrt((Σ/2)^2 - Π) )
-    cfa2.estimate = -cis(phase)*abs( (Σ/2) - sqrt((Σ/2)^2 - Π) )
-
-    if refine
-        cfa1.refined[] = true
-        cfa2.refined[] = true
-
-        x = a_to_x(cfa1,nev)
-        res = nlsolve(cfa1, x; show_trace=verbose)
-        cfa1.converged[] = converged(res)
-        x_to_a!(cfa1,res.zero)
-
-        append!(cfa2.a0,cfa1.a)
-
-        x = a_to_x(cfa2,nev)
-        res = nlsolve(cfa2, x; show_trace=verbose)
-        cfa2.converged[] = converged(res)
-        x_to_a!(cfa2,res.zero)
-    end
-    return cfa1, cfa2
+    return cfa1, cfa2, cfa3, cfa4
 end
 
 ################################################################################
@@ -185,9 +226,9 @@ end
 
 
 function Base.getproperty(cfa::CFAmplitudeVector, sym::Symbol)
-    if Base.sym_in(sym,(:Σ,:σ,:sigma,:Sigma,:s,:S))
+    if Base.sym_in(sym,(:Σ,:σ,:sigma,:Sigma,:s,:S,:ρ,:rho,:r))
         return getfield(cfa,:Σ)[]
-    elseif Base.sym_in(sym,(:Π,:π,:Pi,:pi,:P,:p))
+    elseif Base.sym_in(sym,(:Π,:π,:Pi,:pi,:P,:p,:θ,:ϑ,:theta))
         return getfield(cfa,:Π)[]
     elseif sym == :estimate
         return getfield(cfa,:estimate)[]
@@ -253,7 +294,7 @@ function Base.show(io::IO,cfa::CFAmplitudeVector)
     if cfa.multivalued[]
         printstyled(io,"multi-valued ", color=PRINTED_COLOR_WARN)
     else
-        printstyled(io,"single-valued ", color=PRINTED_COLOR_GOOD)
+        printstyled(io,"single-valued ", color=PRINTED_COLOR_INSTRUCTION)
     end
     show(IOContext(io,:compact=>true),cfa.a)
 end
@@ -270,7 +311,7 @@ function Base.show(io::IO,mime::MIME"text/plain",cfa::CFAmplitudeVector)
     if cfa.multivalued[]
         printstyled(io,"multi-valued ", color=PRINTED_COLOR_WARN)
     else
-        printstyled(io,"single-valued ", color=PRINTED_COLOR_GOOD)
+        printstyled(io,"single-valued ", color=PRINTED_COLOR_INSTRUCTION)
     end
     print(io,"(SPA estimate of ")
     printstyled(io,"a[1]",color=PRINTED_COLOR_VARIABLE)
