@@ -10,6 +10,7 @@ using LinearAlgebra
 using NLsolve
 using ProgressMeter
 using RecipesBase
+using Statistics
 
 import ..HelmholtzNLS
 import ..HelmholtzCF
@@ -36,6 +37,7 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
     # generate CF states
         cf = HelmholtzCF(sim)
         η, u = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev)
+        F = Vector(diag(cf.F))
 
     # initialize CFAmplitude structure with CF eigenpairs
         cfa1 = CFAmplitudeVector(nls, η, u)
@@ -46,31 +48,48 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
     # check that nonlinear solution exists
     if nls.converged[]
         # single-pole approximations
-            phase = (angle(sum(sim.F.* abs2.(u[:,1]) .* u[:,1] .* nls.ψ[:])) - angle(sum(sim.F.*u[:,1].^3 .*conj(nls.ψ[:]))))/2
-            τ = nls.ψ[:]*cis(-phase)
+            phase1 = angle(sum(F.* abs2.(u[:,1]) .* u[:,1] .* nls.solution.total[:]))
+            phase2 = -angle(sum(F.*u[:,1].^3 .*conj(nls.solution.total[:])))
+            phase = mean([phase1,phase2])
+            τ = cis(-phase)*nls.solution.total[:]
 
-            A = η[1]*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .* u[:,1].^2)*sim.dx
-            B = (η[1] + cfa1.γ*cfa1.D₀)*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .*u[:,1] .* τ)*sim.dx
-            C = η[1]*cfa1.Γ*sum(sim.F .* u[:,1].^3 .*τ)*sim.dx
-            E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(sim.F .* abs2.(u[:,1]) .* τ.^2)*sim.dx
-            G = (η[1] - cfa1.γ*cfa1.D₀) + η[1]*cfa1.Γ*sum(sim.F .* u[:,1].^2 .* τ.^2)*sim.dx
+            A = η[1]*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* u[:,1].^2)*sim.dx
+            B = (η[1] + cfa1.γ*cfa1.D₀)*cfa1.Γ*sum(F .* abs2.(u[:,1]) .*u[:,1] .* τ)*sim.dx
+            C = η[1]*cfa1.Γ*sum(F .* u[:,1].^3 .* conj(τ))*sim.dx
+            # C = η[1]*cfa1.Γ*sum(F .* u[:,1].^3 .* τ)*sim.dx
+            E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* abs2.(τ))*sim.dx
+            # E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* τ.^2)*sim.dx
+            G = (η[1] - cfa1.γ*cfa1.D₀) + η[1]*cfa1.Γ*sum(F .* u[:,1].^2 .* abs2.(τ))*sim.dx
+            # G = (η[1] - cfa1.γ*cfa1.D₀) + η[1]*cfa1.Γ*sum(F .* u[:,1].^2 .* τ.^2)*sim.dx
 
-            Σ = (B+C)/A
-            Π = (E+G)/A
-            cfa1.Σ, cfa1.Π = Σ, Π
-            cfa2.Σ, cfa2.Π = Σ, Π
+            β = abs(sin(angle(B/A)))
+            κ = abs(sin(angle(C/A)))
+            γ = abs(sin(angle(G/A)))
+            ϵ = abs(sin(angle(E/A)))
+            δ = abs(sin(SPA_ACCEPTANCE_PHASE))
+            condition0 = β≤δ && κ≤δ && γ≤δ && ϵ≤δ
 
-        small_phaseΣ = abs(angle(Σ)) < SPA_ACCEPTANCE_PHASE || abs(angle(Σ)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(Σ)+π) < SPA_ACCEPTANCE_PHASE
-        small_phaseΠ = abs(angle(Π)) < SPA_ACCEPTANCE_PHASE || abs(angle(Π)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(Π)+π) < SPA_ACCEPTANCE_PHASE
-        if small_phaseΣ && small_phaseΠ
-            cfa1.multivalued[] = real(Σ/2)^2 > real(Π)
-            cfa2.multivalued[] = real(Σ/2)^2 > real(Π)
+            Σ = real((B+C)/A)
+            Π = real((E+G)/A)
+            Δ = real((Σ/2)^2)-real(Π)
+
+            condition1 = Δ > 0
+            condition2 = Σ*Π > 0
+
+        if condition0 && condition1 && condition2
+            cfa1.multivalued[] = Δ > 2maximum(abs∘imag,[(B+C)/A,(E+G)/A])
+            cfa2.multivalued[] = cfa1.multivalued[]
         else
             cfa1.multivalued[] = false
             cfa2.multivalued[] = false
         end
-        cfa1.estimate = -cis(phase)*abs( (Σ/2) + sqrt((Σ/2)^2 - Π) )
-        cfa2.estimate = -cis(phase)*abs( (Σ/2) - sqrt((Σ/2)^2 - Π) )
+
+        cfa1.estimate = -cis(phase)*( abs(Σ/2) + sqrt(Δ+0.0im) )*sign(Σ)
+        # if Π < 0
+            cfa2.estimate = -cis(phase)*abs(-abs(Σ/2) + sqrt(Δ+0.0im) )*sign(Σ)
+        # else
+            # cfa2.estimate = -cis(phase)*( abs(Σ/2) - sqrt(Δ) )
+        # end
 
         if forcerefine || (refine && cfa1.multivalued[])
             #cfa1
@@ -81,7 +100,7 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
                 cfa1.converged[] = converged(res)
                 x_to_a!(cfa1,res.zero)
 
-            append!(cfa2.a0,cfa1.a)
+            converged(res) ? append!(cfa2.a0,cfa1.a) : nothing
 
             #cfa2
                 x = a_to_x(cfa2,nev)
@@ -118,7 +137,7 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
                 cfa3.converged[] = converged(res)
                 x_to_a!(cfa3,res.zero)
 
-            append!(cfa4.a0,cfa3.a)
+            converged(res) ? append!(cfa4.a0,cfa3.a) : nothing
 
             #cfa4
                 x = a_to_x(cfa4,nev)
@@ -126,7 +145,7 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
                 cfa4.converged[] = converged(res)
                 x_to_a!(cfa4,res.zero)
         end
-    elseif get(kwargs,:show_trace,false)
+    else#if get(kwargs,:show_trace,false)
         @warn "must solve NonLinearScatteringProblem first"
     end
     return cfa1, cfa2, cfa3, cfa4
