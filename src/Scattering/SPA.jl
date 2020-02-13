@@ -10,7 +10,6 @@ using LinearAlgebra
 using NLsolve
 using ProgressMeter
 using RecipesBase
-using Statistics
 
 import ..HelmholtzNLS
 import ..HelmholtzCF
@@ -31,12 +30,13 @@ that given in `nls.ψ`.
 `nev=1` | number of CF states used in refinement, making it a "few pole approximation".
 `verbose` | if `true`, shows traces for CF nonlinear refinement
 """
-function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev::Integer=1, kwargs...)
+function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev::Integer=1, takemeout=false, kwargs...)
     sim = nls.simulation
 
     # generate CF states
         cf = HelmholtzCF(sim)
         η, u = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev)
+
         F = Vector(diag(cf.F))
 
     # initialize CFAmplitude structure with CF eigenpairs
@@ -47,118 +47,176 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
 
     # check that nonlinear solution exists
     if nls.converged[]
-        # single-pole approximations
-            phase1 = angle(sum(F.* abs2.(u[:,1]) .* u[:,1] .* nls.solution.total[:]))
-            phase2 = -angle(sum(F.*u[:,1].^3 .*conj(nls.solution.total[:])))
-            phase = mean([phase1,phase2])
+        # single-cf approximations
+            phase = angle(sum(F.* abs2.(u[:,1]) .* u[:,1] .* nls.solution.total[:]))
             τ = cis(-phase)*nls.solution.total[:]
 
             A = η[1]*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* u[:,1].^2)*sim.dx
-            B = (η[1] + cfa1.γ*cfa1.D₀)*cfa1.Γ*sum(F .* abs2.(u[:,1]) .*u[:,1] .* τ)*sim.dx
+            B = (η[1] + cfa1.γ*cfa1.D₀)*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* u[:,1] .* τ)*sim.dx
             C = η[1]*cfa1.Γ*sum(F .* u[:,1].^3 .* conj(τ))*sim.dx
-            # C = η[1]*cfa1.Γ*sum(F .* u[:,1].^3 .* τ)*sim.dx
-            E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* abs2.(τ))*sim.dx
-            # E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* τ.^2)*sim.dx
-            G = (η[1] - cfa1.γ*cfa1.D₀) + η[1]*cfa1.Γ*sum(F .* u[:,1].^2 .* abs2.(τ))*sim.dx
-            # G = (η[1] - cfa1.γ*cfa1.D₀) + η[1]*cfa1.Γ*sum(F .* u[:,1].^2 .* τ.^2)*sim.dx
+            E = cfa1.γ*cfa1.D₀*cfa1.Γ*sum(F .* abs2.(u[:,1]) .* τ.^2)*sim.dx
+            G = -cfa1.γ*cfa1.D₀ + η[1]*sum(sim.F .* u[:,1].^2)*sim.dx # yes, this one supposed to be sim.F
 
-            β = abs(sin(angle(B/A)))
-            κ = abs(sin(angle(C/A)))
-            γ = abs(sin(angle(G/A)))
-            ϵ = abs(sin(angle(E/A)))
-            δ = abs(sin(SPA_ACCEPTANCE_PHASE))
-            condition0 = β≤δ && κ≤δ && γ≤δ && ϵ≤δ
+            small_angle_condition = abs(sin(angle(G/A))) ≤ abs(sin(SPA_ACCEPTANCE_PHASE))
 
-            Σ = real((B+C)/A)
-            Π = real((E+G)/A)
-            Δ = real((Σ/2)^2)-real(Π)
+            b = real(B/A)
+            c = real(C/A)
+            e = real(E/A)
+            g = real(G/A)
 
-            condition1 = Δ > 0
-            condition2 = Σ*Π > 0
+            Σ = (b+c); cfa1.Σ = Σ; cfa2.Σ = Σ
+            Π = (e+g); cfa1.Π = Π; cfa2.Π = Π
+            Δ = (Σ/2)^2 - Π; cfa1.Δ = Δ; cfa2.Δ = Δ
 
-        if condition0 && condition1 && condition2
-            cfa1.multivalued[] = Δ > 2maximum(abs∘imag,[(B+C)/A,(E+G)/A])
-            cfa2.multivalued[] = cfa1.multivalued[]
+            cfa1.scf_estimate = -cis(phase)*(Σ/2 - sqrt(complex(Δ)))
+            cfa2.scf_estimate = -cis(phase)*(Σ/2 + sqrt(complex(Δ)))
+
+            # can't exect to resolve better than imaginary parts of these, since in theory they should vanish
+            discriminant_condition = Δ > 2maximum(abs∘imag,[(B+C)/A,(E+G)/A])
+
+        if discriminant_condition && small_angle_condition
+            cfa1.multivalued = true
+            cfa2.multivalued = true
         else
-            cfa1.multivalued[] = false
-            cfa2.multivalued[] = false
+            cfa1.multivalued = false
+            cfa2.multivalued = false
         end
 
-        cfa1.estimate = -cis(phase)*( abs(Σ/2) + sqrt(Δ+0.0im) )*sign(Σ)
-        # if Π < 0
-            cfa2.estimate = -cis(phase)*abs(-abs(Σ/2) + sqrt(Δ+0.0im) )*sign(Σ)
-        # else
-            # cfa2.estimate = -cis(phase)*( abs(Σ/2) - sqrt(Δ) )
-        # end
+        # single pole approximations
+            # cfa1
+            ρ, θ = abs(cfa1.scf_estimate), angle(cfa1.scf_estimate)
+            spa1 = SPAsolver(cfa1)
+            try # try spa, if works record results, otherwise declare single-valued
+                res = nlsolve(spa1,[ρ,θ]; method=:anderson, m=1, iterations=100, ftol=1e-6)
+                if converged(res)
+                    cfa1.converged = true
+                    cfa1.multivalued = true
+                    cfa1.spa_estimate = res.zero[1]*cis(res.zero[2])
+                else
+                    cfa1.converged = false
+                    cfa1.multivalued = false
+                end
+            catch
+                cfa1.converged = false
+                cfa1.multivalued = false
+            end
+            if takemeout
+            function f!(Fg,x)
+                a = Vector{ComplexF64}(undef,length(x)÷2)
+                for i ∈ eachindex(a) a[i] = complex(x[2(i-1)+1],x[2(i-1)+2]) end
+                fill!(cfa1.a,0)
+                copyto!(cfa1.a,a)
+                ψ = cfa1(length(a))
+                # Fg[1],Fg[2] = reim(A*abs2(a)+cis(phase)*B*conj(a)+cis(-phase)*C*a+cis(2phase)*E*conj(a)/a+G)
+                hψ = 1 .+ cfa1.Γ .* abs2.(ψ.values)
+                hφ = 1 .+ cfa1.Γ .* abs2.(cfa1.φ.values)
+                q = zeros(ComplexF64,size(u,1))
+                for i ∈ eachindex(a) q += a[i]*η[i]*cfa1.u[:,i] end
+                for i ∈ eachindex(a)
+                    A = sum(sim.F .* ψ.values  .* cfa1.u.values[:,i])*sim.dx*cfa1.γ*cfa1.D₀
+                    B = sum(F .* cfa1.φ[:] .* cfa1.u.values[:,i] .* hψ)*sim.dx*cfa1.γ*cfa1.D₀
+                    H = sum(hψ .* F.* q .* u[:,i])*sim.dx
+                    Fg[2(i-1)+1], Fg[2(i-1)+2] = reim((-H+A-B)/norm(a))
+                end
+            end
+            x = Vector{Float64}(undef,2nev)
+            for i ∈ 1:nev x[2(i-1)+1], x[2(i-1)+2] = reim(cfa1.a[i]) end
+            return nlsolve(f!,x)
+        end
 
-        if forcerefine || (refine && cfa1.multivalued[])
+            #cfa2
+            ρ, θ = abs(cfa2.scf_estimate), angle(cfa2.scf_estimate)
+            spa2 = SPAsolver(cfa2)
+            try # try spa, if works record results, otherwise declare single-valued
+                res = nlsolve(spa2,[ρ,θ]; method=:anderson, m=1, iterations=100, ftol=1e-6)
+                if converged(res)
+                    cfa2.converged = true
+                    cfa2.multivalued = true
+                    cfa2.spa_estimate = res.zero[1]*cis(res.zero[2])
+                else
+                    cfa2.converged = false
+                    cfa2.multivalued = false
+                end
+            catch
+                cfa2.converged = false
+                cfa2.multivalued = false
+            end
+
+        if forcerefine || (refine && cfa1.multivalued)
             #cfa1
-                cfa1.refined[] = true
-                cfa2.refined[] = true
+                cfa1.refined = true
                 x = a_to_x(cfa1,nev)
                 res = nlsolve(cfa1, x; kwargs...)
-                cfa1.converged[] = converged(res)
+                cfa1.converged = converged(res)
                 x_to_a!(cfa1,res.zero)
 
             converged(res) ? append!(cfa2.a0,cfa1.a) : nothing
 
             #cfa2
+                cfa2.refined = true
                 x = a_to_x(cfa2,nev)
                 res = nlsolve(cfa2, x; kwargs...)
-                cfa2.converged[] = converged(res)
+                cfa2.converged = converged(res)
                 x_to_a!(cfa2,res.zero)
         end
 
-        ρ = sqrt((E-G)/(A+C*(C-B)/E))
-        θ = phase + acos((C-B)*ρ/2/E)
-        cfa3.Σ, cfa3.Π = ρ, θ
-        θ = phase - acos((C-B)*ρ/2/E)
-        cfa4.Σ, cfa4.Π = ρ, θ
-
-        small_phaseρ = abs(angle(ρ)) < SPA_ACCEPTANCE_PHASE || abs(angle(ρ)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(ρ)+π) < SPA_ACCEPTANCE_PHASE
-        small_phaseθ = abs((C-B)*ρ/2/E) ≤ 1#abs(angle(θ)) < SPA_ACCEPTANCE_PHASE || abs(angle(θ)-π) < SPA_ACCEPTANCE_PHASE || abs(angle(θ)+π) < SPA_ACCEPTANCE_PHASE
-        if small_phaseρ && small_phaseθ
-            cfa3.multivalued[] = true
-            cfa4.multivalued[] = true
+        ρ² = (e-g)/(1+c*(c-b)/e)
+        if ρ² > 0
+            ρ = sqrt(ρ²)
+            cosθ = (c-b)*ρ/2/e
+            if cosθ^2 ≤ 1
+                θ = phase + acos(cosθ)
+                cfa3.Σ, cfa3.Π = ρ, θ
+                θ = phase - acos(cosθ)
+                cfa4.Σ, cfa4.Π = ρ, θ
+                cfa3.scf_estimate = cis(real(cfa3.θ))*real(cfa3.ρ)
+                cfa4.scf_estimate = cis(real(cfa4.θ))*real(cfa4.ρ)
+                cfa3.multivalued = true
+                cfa4.multivalued = true
+            else
+                cfa3.multivalued = false
+                cfa4.multivalued = false
+            end
         else
-            cfa3.multivalued[] = false
-            cfa4.multivalued[] = false
+            cfa3.multivalued = false
+            cfa4.multivalued = false
         end
-        cfa3.estimate = cis(real(cfa3.θ))*real(cfa3.ρ)
-        cfa4.estimate = cis(real(cfa4.θ))*real(cfa4.ρ)
 
-        if forcerefine || (refine && cfa3.multivalued[])
+        if forcerefine || (refine && cfa3.multivalued)
             #cfa3
-                cfa3.refined[] = true
-                cfa4.refined[] = true
-
+                cfa3.refined = true
                 x = a_to_x(cfa3,nev)
                 res = nlsolve(cfa3, x; kwargs...)
-                cfa3.converged[] = converged(res)
+                cfa3.converged = converged(res)
                 x_to_a!(cfa3,res.zero)
 
             converged(res) ? append!(cfa4.a0,cfa3.a) : nothing
 
             #cfa4
+                cfa4.refined = true
                 x = a_to_x(cfa4,nev)
                 res = nlsolve(cfa4, x; kwargs...)
-                cfa4.converged[] = converged(res)
+                cfa4.converged = converged(res)
                 x_to_a!(cfa4,res.zero)
         end
-    else#if get(kwargs,:show_trace,false)
+    else #if get(kwargs,:show_trace,false)
         @warn "must solve NonLinearScatteringProblem first"
     end
+
     return cfa1, cfa2, cfa3, cfa4
 end
+
 
 ################################################################################
 # structures
 
 # structure used in nonlinear CF solve
 struct CFAmplitudeVector{TF}
-    estimate::Base.RefValue{ComplexF64}
-    Σ::Base.RefValue{ComplexF64}
-    Π::Base.RefValue{ComplexF64}
+    scf_estimate::Base.RefValue{ComplexF64}
+    spa_estimate::Base.RefValue{ComplexF64}
+    Σ::Base.RefValue{Float64}
+    Π::Base.RefValue{Float64}
+    Δ::Base.RefValue{Float64}
     a::Vector{ComplexF64}
     a0::Vector{ComplexF64}
     φ::TF
@@ -202,9 +260,9 @@ function CFAmplitudeVector(
 
     ζ = ScalarField(sim,1)
     B = Vector{ComplexF64}(undef, nev)
-    Fφ = sim.F .*φ[:] ./ (1 .+ Γ .* abs2.(φ[:]) )
+    Fφ = sim.F .* φ[:] ./ (1 .+ Γ .* abs2.(φ[:]) )
     @inbounds for i ∈ eachindex(B) B[i] = γ*D₀*sum(Fφ .* u[:,i]) * sim.dx end
-    return CFAmplitudeVector(Ref(complex(0.0)), Ref(complex(0.0)), Ref(complex(0.0)), a, a0, φ, ζ, u, η, B, sim.dx, D₀, γ, Γ, sim.F, Ref(true), Ref(false), Ref(false))
+    return CFAmplitudeVector(Ref(complex(0.0)), Ref(complex(0.0)), Ref(0.0), Ref(0.0), Ref(0.0), a, a0, φ, ζ, u, η, B, sim.dx, D₀, γ, Γ, sim.F, Ref(true), Ref(false), Ref(false))
 end
 
 # create wavefunction φ + ∑ⱼaⱼuⱼ
@@ -249,24 +307,25 @@ function Base.getproperty(cfa::CFAmplitudeVector, sym::Symbol)
         return getfield(cfa,:Σ)[]
     elseif Base.sym_in(sym,(:Π,:π,:Pi,:pi,:P,:p,:θ,:ϑ,:theta))
         return getfield(cfa,:Π)[]
-    elseif sym == :estimate
-        return getfield(cfa,:estimate)[]
+    elseif Base.sym_in(sym,(:Δ,:δ,:d,:D,:delta,:Delta,:discriminant,:Discriminant,:dis,:Dis))
+        return getfield(cfa,:Δ)[]
+    elseif Base.sym_in(sym, (:scf_estimate, :spa_estimate, :converged, :multivalued, :refined))
+        return getfield(cfa,sym)[]
     else
         return getfield(cfa,sym)
     end
 end
 
 function Base.setproperty!(cfa::CFAmplitudeVector, sym::Symbol, x::Number)
-    if sym == :estimate
-        getfield(cfa,:estimate)[] = x
+    if Base.sym_in(sym,(:scf_estimate, :spa_estimate))
+        getfield(cfa,sym)[] = x
         return cfa.a[1] = x
-    elseif Base.sym_in(sym, (:Σ,:Π))
+    elseif Base.sym_in(sym, (:Σ, :Π, :Δ, :converged, :multivalued, :refined))
         getfield(cfa,sym)[] = x
     else
         return setfield!(cfa,sym,x)
     end
 end
-
 
 ################################################################################
 # data loaders
@@ -288,6 +347,38 @@ x_to_a!(cfa::CFAmplitudeVector, x::Vector) = x_to_a!(cfa.a,x)
     return a
 end
 
+
+################################################################################
+
+struct SPAsolver
+    Γ::Float64
+    φ::Vector{ComplexF64}
+    u::Vector{ComplexF64}
+    η::ComplexF64
+    F::Vector{Float64}
+    dx::Float64
+    γ::ComplexF64
+    D₀::Float64
+    h::Vector{Float64}
+end
+
+function SPAsolver(cfa::CFAmplitudeVector)
+    F = cfa.F ./ (1 .+ cfa.Γ .* abs2.(cfa.φ[:]) )
+    SPAsolver(cfa.Γ, cfa.φ.values[:], cfa.u.values[:,1], cfa.η[1], F, cfa.dx, cfa.γ, cfa.D₀, Vector{Float64}(undef,length(F)))
+end
+
+function (spa::SPAsolver)(F::Vector,x::Vector)
+    a = x[1]*cis(x[2])
+    for i ∈ eachindex(spa.h) spa.h[i] = 1/(1 + spa.Γ*abs2( spa.φ[i] + a*spa.u[i])) end
+    I1 = sum(spa.F .* spa.u.^2 .* spa.h)*spa.dx
+    I2 = sum(spa.F .* abs2.(spa.u) .* spa.φ.^2 .* spa.h)*spa.dx*spa.Γ
+    I3 = sum(spa.F .* abs2.(spa.u) .* spa.u .* spa.φ .* spa.h)*spa.dx*spa.Γ
+    b, β = reim((I1 - spa.η/(spa.γ*spa.D₀))/I3)
+    c, κ = reim(-I2/I3)
+    θ = -atan(β+κ,b-c)
+    ρ = (b+c)*cos(θ) - (β-κ)*sin(θ)
+    F[1], F[2] = ρ-x[1], θ-x[2]
+end
 
 ################################################################################
 # Pretty Printing
@@ -312,10 +403,10 @@ function Base.show(io::IO,cfa::CFAmplitudeVector)
     end
     if cfa.multivalued[]
         printstyled(io,"multi-valued ", color=PRINTED_COLOR_WARN)
+        show(IOContext(io,:compact=>true),cfa.a)
     else
-        printstyled(io,"single-valued ", color=PRINTED_COLOR_INSTRUCTION)
+        printstyled(io,"single-valued", color=PRINTED_COLOR_INSTRUCTION)
     end
-    show(IOContext(io,:compact=>true),cfa.a)
 end
 
 function Base.show(io::IO,mime::MIME"text/plain",cfa::CFAmplitudeVector)
@@ -329,18 +420,18 @@ function Base.show(io::IO,mime::MIME"text/plain",cfa::CFAmplitudeVector)
     end
     if cfa.multivalued[]
         printstyled(io,"multi-valued ", color=PRINTED_COLOR_WARN)
+        print(io,"(SPA estimate of ")
+        printstyled(io,"a[1]",color=PRINTED_COLOR_VARIABLE)
+        print(io,": ")
+        printstyled(IOContext(io,:compact=>true), cfa.spa_estimate, color=PRINTED_COLOR_NUMBER)
+        print(io,")")
+        print(io,"\nVector ")
+        printstyled(io,"a",color=PRINTED_COLOR_VARIABLE)
+        print(io,": ")
+        show(IOContext(io,:compact=>true),mime,cfa.a)
     else
-        printstyled(io,"single-valued ", color=PRINTED_COLOR_INSTRUCTION)
+        printstyled(io,"single-valued", color=PRINTED_COLOR_INSTRUCTION)
     end
-    print(io,"(SPA estimate of ")
-    printstyled(io,"a[1]",color=PRINTED_COLOR_VARIABLE)
-    print(io,": ")
-    printstyled(IOContext(io,:compact=>true), cfa.estimate, color=PRINTED_COLOR_NUMBER)
-    print(io,")")
-    print(io,"\nVector ")
-    printstyled(io,"a",color=PRINTED_COLOR_VARIABLE)
-    print(io,": ")
-    show(IOContext(io,:compact=>true),mime,cfa.a)
 end
 
 

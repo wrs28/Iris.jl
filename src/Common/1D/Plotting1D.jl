@@ -6,12 +6,12 @@ import ..Common.SHAPE_COLOR
     x = map(a->a.vec[1],sim.x)
     n = sqrt.(sim.ε)
 
-    layout --> (3,1)
+    layout --> (length(subplots),1)
     legend --> false
 
 	for i ∈ 1:2
 		if !(typeof(sim.boundary.bls[i])<:noBL)
-			for j ∈  subplots
+			for j ∈ subplots
 				@series begin
 					subplot := j
 					seriestype --> :path
@@ -34,26 +34,32 @@ import ..Common.SHAPE_COLOR
 			end
 		end
 	end
-    @series begin
-		title --> L"{\rm Scattering\ Structure}"
-		ylabel --> L"{\rm real}(n)"
-        subplot := subplots[1]
-		ylims --> (min(1,minimum(real(n))), max(1,maximum(real(n)))) .+ (-.1,.1)
-        x, real(n)
-    end
-    @series begin
-		ylabel --> L"{\rm imag}(n)"
-        subplot := subplots[2]
-		ylims --> (-1,1).*max(1,maximum(abs.(imag(n)))) .+ (-.1,.1)
-        x, imag(n)
-    end
-    @series begin
-		xlabel --> L"x"
-		ylabel --> L"{\rm pump\ F}"
-		subplot := subplots[3]
-		ylims --> (-1,1).*max(1,maximum(abs.(sim.F))) .+ (-.1,.1)
-        x, sim.F
-    end
+	if length(subplots) > 0
+	    @series begin
+			title --> L"{\rm Scattering\ Structure}"
+			ylabel --> L"{\rm real}(n)"
+	        subplot := subplots[1]
+			ylims --> (min(1,minimum(real(n))), max(1,maximum(real(n)))) .+ (-.1,.1)
+	        x, real(n)
+	    end
+	end
+	if length(subplots) > 1
+	    @series begin
+			ylabel --> L"{\rm imag}(n)"
+	        subplot := subplots[2]
+			ylims --> (-1,1).*max(1,maximum(abs.(imag(n)))) .+ (-.1,.1)
+	        x, imag(n)
+	    end
+	end
+	if length(subplots) > 2
+	    @series begin
+			xlabel --> L"x"
+			ylabel --> L"{\rm pump\ F}"
+			subplot := subplots[3]
+			ylims --> (-1,1).*max(1,maximum(abs.(sim.F))) .+ (-.1,.1)
+	        x, sim.F
+	    end
+	end
 end
 
 
