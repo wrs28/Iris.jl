@@ -30,14 +30,64 @@ that given in `nls.ψ`.
 `nev=1` | number of CF states used in refinement, making it a "few pole approximation".
 `verbose` | if `true`, shows traces for CF nonlinear refinement
 """
-function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev::Integer=1, takemeout=false, kwargs...)
+function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev::Integer=1, takemeout=false, nev_th::Integer=100, kwargs...)
     sim = nls.simulation
 
     # generate CF states
         cf = HelmholtzCF(sim)
-        η, u = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev)
-
-        F = Vector(diag(cf.F))
+        if nev > nev_th
+            u = ScalarField(sim, rem(nev,2nev_th) + nev)
+            N = nev_th
+            η1, u1 = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev_th)
+            η = fill(η1[1],size(u,2))
+            for i ∈ 1:N u.values[:,i] = u1[:,i] end
+            for i ∈ 1:N η[i] = η1[i] end
+            F = Vector(diag(cf.F))
+            while nev > N
+                η1, u1 = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; η=minimum(real(η)), nev=nev_th)
+                η2, u2 = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; η=maximum(real(η)), nev=nev_th)
+                dinds1 = Int[]
+                dinds2 = Int[]
+                for i ∈ 1:N
+                    for j ∈ eachindex(η1)
+                        if abs(η[i] - η1[j]) < 1e-1
+                            if abs(1-abs(sum(u.values[:,i].*u1.values[:,j].*F)*sim.dx)) < 1e-1
+                                push!(dinds1,j)
+                            end
+                        end
+                    end
+                    for j ∈ eachindex(η2)
+                        if abs(η[i] - η2[j]) < 1e-1
+                            if abs(1-abs(sum(u.values[:,i].*u2.values[:,j].*F)*sim.dx)) < 1e-1
+                                push!(dinds2,j)
+                            end
+                        end
+                    end
+                end
+                kinds1 = setdiff(1:nev_th,dinds1)
+                kinds2 = setdiff(1:nev_th,dinds2)
+                sort!(dinds1)
+                sort!(dinds2)
+                deleteat!(η1,dinds1)
+                deleteat!(η2,dinds2)
+                N1 = length(η1)
+                N2 = length(η2)
+                for i ∈ 1:N1 η[N + i] = η1[i] end
+                for i ∈ 1:N2 η[N + N1 + i] = η2[i] end
+                for i ∈ 1:N1 u.values[:,N+i] = u1.values[:,kinds1[i]] end
+                for i ∈ 1:N2 u.values[:,N+N1+i] = u2.values[:,kinds2[i]] end
+                N += N1 + N2
+            end
+            η = η[1:N]
+            perm = sortperm(η,by=abs)
+            u0 = u
+            u = ScalarField(sim,nev)
+            for i ∈ 1:nev u.values[:,i] = u0.values[:,perm[i]] end
+            η = η[perm[1:nev]]
+        else
+            η, u = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev)
+            F = Vector(diag(cf.F))
+        end
 
     # initialize CFAmplitude structure with CF eigenpairs
         cfa1 = CFAmplitudeVector(nls, η, u)
