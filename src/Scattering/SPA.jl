@@ -36,7 +36,7 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
     # generate CF states
         cf = HelmholtzCF(sim)
         if nev > nev_th
-            u = ScalarField(sim, 2rem(nev,2nev_th) + nev + 1)
+            u = ScalarField(sim, rem(nev,2nev_th) + nev + 1)
             N = nev_th
             η1, u1 = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev_th)
             η = fill(η1[1],size(u,2))
