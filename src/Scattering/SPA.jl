@@ -8,7 +8,6 @@ export spa
 using ...Common
 using LinearAlgebra
 using NLsolve
-using ProgressMeter
 using RecipesBase
 
 import ..HelmholtzNLS
