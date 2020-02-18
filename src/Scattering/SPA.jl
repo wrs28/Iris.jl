@@ -40,6 +40,7 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
             N = nev_th
             η1, u1 = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev_th)
             η = fill(η1[1],size(u,2))
+            println(length(η))
             for i ∈ 1:N u.values[:,i] = u1[:,i] end
             for i ∈ 1:N η[i] = η1[i] end
             F = Vector(diag(cf.F))
