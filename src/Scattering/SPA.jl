@@ -40,7 +40,6 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
             N = nev_th
             η1, u1 = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev_th)
             η = fill(η1[1],size(u,2))
-            @show length(η)
             for i ∈ 1:N u.values[:,i] = u1[:,i] end
             for i ∈ 1:N η[i] = η1[i] end
             F = Vector(diag(cf.F))
@@ -50,14 +49,14 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
                 dinds1 = Int[]
                 dinds2 = Int[]
                 for i ∈ 1:N
-                    for j ∈ eachindex(η1)
+                    for j ∈ 1:nev_th
                         if abs(η[i] - η1[j]) < 1e-1
                             if abs(1-abs(sum(u.values[:,i].*u1.values[:,j].*F)*sim.dx)) < 1e-1
                                 push!(dinds1,j)
                             end
                         end
                     end
-                    for j ∈ eachindex(η2)
+                    for j ∈ 1:nev_th
                         if abs(η[i] - η2[j]) < 1e-1
                             if abs(1-abs(sum(u.values[:,i].*u2.values[:,j].*F)*sim.dx)) < 1e-1
                                 push!(dinds2,j)
@@ -74,9 +73,9 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
                 N1 = length(η1)
                 N2 = length(η2)
                 @show size(η)
-                @show size(N)
-                @show size(N1)
-                @show size(N2)
+                @show N
+                @show N1
+                @show N2
                 for i ∈ 1:N1 η[N + i] = η1[i] end
                 for i ∈ 1:N2 η[N + N1 + i] = η2[i] end
                 for i ∈ 1:N1 u.values[:,N+i] = u1.values[:,kinds1[i]] end
