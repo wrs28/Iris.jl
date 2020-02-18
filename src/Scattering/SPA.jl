@@ -36,7 +36,7 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
     # generate CF states
         cf = HelmholtzCF(sim)
         if nev > nev_th
-            u = ScalarField(sim, rem(nev,2nev_th) + nev + 1)
+            u = ScalarField(sim, 2nev_th + nev + 1)
             N = nev_th
             η1, u1 = helmholtzeigen(cf, nls.ω, [nls.ω], nls.ψ; nev=nev_th)
             η = fill(η1[1],size(u,2))
@@ -73,6 +73,10 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
                 deleteat!(η2,dinds2)
                 N1 = length(η1)
                 N2 = length(η2)
+                @show size(η)
+                @show size(N)
+                @show size(N1)
+                @show size(N2)
                 for i ∈ 1:N1 η[N + i] = η1[i] end
                 for i ∈ 1:N2 η[N + N1 + i] = η2[i] end
                 for i ∈ 1:N1 u.values[:,N+i] = u1.values[:,kinds1[i]] end
