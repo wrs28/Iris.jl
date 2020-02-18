@@ -24,14 +24,14 @@ import .Common: Symmetric, Unsymmetric
 include("Spectral/Spectral.jl") # 1D helmholtz open and closed + tests
 @reexport using .Spectral
 
-include("Floquet/Floquet.jl")
-@reexport using .Floquet
+# include("Floquet/Floquet.jl")
+# @reexport using .Floquet
 
 include("Scattering/Scattering.jl") # ✅ 1D helmholtz tests, linear and nonlinear + tests
 @reexport using .Scattering
 
-include("SMatrices/SMatrices.jl")
-@reexport using  .SMatrices
+# include("SMatrices/SMatrices.jl")
+# @reexport using  .SMatrices
 
 include("Lasing/Lasing.jl") # ✅ 1D helmholtz tests
 @reexport using .Lasing

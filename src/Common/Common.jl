@@ -34,8 +34,6 @@ struct Unsymmetric end
 # `Defaults`: contains all default parameters in one location for uniformity and easy alteration.
 include("../Defaults.jl")
 
-# Base.conj(::Tuple{}) = ()
-
 include("Points.jl") # ✅
 using .Points
 export Point
