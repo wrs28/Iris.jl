@@ -72,10 +72,10 @@ function spa(nls::HelmholtzNLS; refine::Bool=false, forcerefine::Bool=false, nev
                 deleteat!(η2,dinds2)
                 N1 = length(η1)
                 N2 = length(η2)
-                @show size(η)
-                @show N
-                @show N1
-                @show N2
+                println("size(η): ",size(η))
+                println("N: ",N)
+                println("N1: ",N1)
+                println("N2: ",N2)
                 for i ∈ 1:N1 η[N + i] = η1[i] end
                 for i ∈ 1:N2 η[N + N1 + i] = η2[i] end
                 for i ∈ 1:N1 u.values[:,N+i] = u1.values[:,kinds1[i]] end
