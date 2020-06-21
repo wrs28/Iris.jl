@@ -6,3 +6,6 @@ This is a Finite-Difference Fourier Domain solver (FDFD).
 
 In development.
 
+
+
+rsm_low_q_mode.png
